@@ -1,0 +1,734 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartDestinationThemes Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .header .subtitle {
+            color: #666;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+        
+        .header .meta-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            font-size: 0.9rem;
+            color: #888;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .card-icon {
+            font-size: 2rem;
+            margin-right: 15px;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+        }
+        
+        .card-icon.destinations { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .card-icon.themes { background: linear-gradient(135deg, #f093fb, #f5576c); color: white; }
+        .card-icon.quality { background: linear-gradient(135deg, #4facfe, #00f2fe); color: white; }
+        .card-icon.performance { background: linear-gradient(135deg, #43e97b, #38f9d7); color: white; }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .card-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .card-subtitle {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .destinations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .destination-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .destination-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .destination-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .destination-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .quality-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        
+        .quality-excellent { background: #d4edda; color: #155724; }
+        .quality-good { background: #cce5ff; color: #004085; }
+        .quality-acceptable { background: #fff3cd; color: #856404; }
+        .quality-poor { background: #f8d7da; color: #721c24; }
+        
+        .themes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .theme-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s ease;
+        }
+        
+        .theme-card:hover {
+            transform: scale(1.02);
+        }
+        
+        .theme-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .theme-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+        }
+        
+        .confidence-score {
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: auto;
+        }
+        
+        .theme-category {
+            display: inline-block;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        
+        .theme-details {
+            font-size: 0.9rem;
+            color: #666;
+            line-height: 1.4;
+        }
+        
+        .sub-themes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 8px 0;
+        }
+        
+        .sub-theme {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+        }
+        
+        .analytics-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .analytics-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .analytics-header h2 {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+        }
+        
+        .chart-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            height: 300px;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+        
+        .expandable {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .expandable-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        
+        .expandable-content.expanded {
+            max-height: 1000px;
+        }
+        
+        .expand-icon {
+            transition: transform 0.3s ease;
+        }
+        
+        .expand-icon.rotated {
+            transform: rotate(180deg);
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .destinations-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .themes-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        
+        .destination-overview-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .destination-overview-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .destination-overview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .destination-overview-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 1.4rem;
+        }
+        
+        .destination-overview-meta {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .themes-preview {
+            margin-bottom: 20px;
+        }
+        
+        .themes-preview h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 1rem;
+        }
+        
+        .destination-actions {
+            text-align: center;
+        }
+        
+        .view-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .view-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+            text-decoration: none;
+            color: white;
+        }
+        
+        .destinations-overview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        
+        <div class="header">
+            <h1><i class="fas fa-globe-americas"></i> SmartDestinationThemes Dashboard</h1>
+            <div class="subtitle">Intelligent Destination Affinity Analysis & Recommendations</div>
+            <div class="meta-info">
+                <div><i class="fas fa-file-alt"></i> Source: destination_affinities_production.json</div>
+                <div><i class="fas fa-clock"></i> Generated: 2025-06-17 07:18:51</div>
+                <div><i class="fas fa-chart-line"></i> System: Production Mode</div>
+            </div>
+        </div>
+        
+        
+        <div class="summary-cards">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon destinations">
+                        <i class="fas fa-map-marked-alt"></i>
+                    </div>
+                    <div class="card-title">Destinations</div>
+                </div>
+                <div class="card-value">2</div>
+                <div class="card-subtitle">Analyzed destinations</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon themes">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <div class="card-title">Total Themes</div>
+                </div>
+                <div class="card-value">20</div>
+                <div class="card-subtitle">Generated affinities</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon quality">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <div class="card-title">Avg Quality</div>
+                </div>
+                <div class="card-value">0.68</div>
+                <div class="card-subtitle">Quality score (0-1)</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon performance">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </div>
+                    <div class="card-title">Performance</div>
+                </div>
+                <div class="card-value">0.0s</div>
+                <div class="card-subtitle">Avg processing time</div>
+            </div>
+        </div>
+        
+        
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: white; font-size: 2rem; margin-bottom: 10px;">
+                <i class="fas fa-map-marked-alt"></i> Destination Overview
+            </h2>
+            <p style="color: rgba(255, 255, 255, 0.8); font-size: 1.1rem;">
+                Click on any destination to view detailed analysis and themes
+            </p>
+        </div>
+        
+        <div class="destinations-overview-grid">
+            
+            <div class="destination-overview-card">
+                <div class="destination-overview-header">
+                    <h3>Las Vegas, Nevada</h3>
+                    <div class="quality-badge quality-acceptable">
+                        Acceptable (0.666)
+                    </div>
+                </div>
+                <div class="destination-overview-meta">
+                    <span><i class="fas fa-lightbulb"></i> 10 themes</span>
+                    <span><i class="fas fa-clock"></i> 0.00s</span>
+                </div>
+                <div class="themes-preview">
+                    <h4>Top Themes:</h4>
+                    
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 5px 0; padding: 8px; background: #f8f9fa; border-radius: 8px;">
+                    <span style="font-weight: 500;">Thrill seeking</span>
+                    <span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
+                        0.95
+                    </span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 5px 0; padding: 8px; background: #f8f9fa; border-radius: 8px;">
+                    <span style="font-weight: 500;">Entertainment</span>
+                    <span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
+                        1.00
+                    </span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 5px 0; padding: 8px; background: #f8f9fa; border-radius: 8px;">
+                    <span style="font-weight: 500;">Luxury Shopping</span>
+                    <span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
+                        0.90
+                    </span>
+                </div>
+                
+                    <div style="text-align: center; color: #666; font-size: 0.9rem; margin-top: 10px;">+7 more themes</div>
+                </div>
+                <div class="destination-actions">
+                    <a href="las_vegas_nevada.html" class="view-button">
+                        <i class="fas fa-eye"></i> View Full Analysis
+                    </a>
+                </div>
+            </div>
+            
+            <div class="destination-overview-card">
+                <div class="destination-overview-header">
+                    <h3>New York, New York</h3>
+                    <div class="quality-badge quality-acceptable">
+                        Acceptable (0.703)
+                    </div>
+                </div>
+                <div class="destination-overview-meta">
+                    <span><i class="fas fa-lightbulb"></i> 10 themes</span>
+                    <span><i class="fas fa-clock"></i> 0.00s</span>
+                </div>
+                <div class="themes-preview">
+                    <h4>Top Themes:</h4>
+                    
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 5px 0; padding: 8px; background: #f8f9fa; border-radius: 8px;">
+                    <span style="font-weight: 500;">Broadway Shows</span>
+                    <span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
+                        0.85
+                    </span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 5px 0; padding: 8px; background: #f8f9fa; border-radius: 8px;">
+                    <span style="font-weight: 500;">Museum Hopping</span>
+                    <span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
+                        1.00
+                    </span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 5px 0; padding: 8px; background: #f8f9fa; border-radius: 8px;">
+                    <span style="font-weight: 500;">Historic Landmarks</span>
+                    <span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
+                        0.95
+                    </span>
+                </div>
+                
+                    <div style="text-align: center; color: #666; font-size: 0.9rem; margin-top: 10px;">+7 more themes</div>
+                </div>
+                <div class="destination-actions">
+                    <a href="new_york_new_york.html" class="view-button">
+                        <i class="fas fa-eye"></i> View Full Analysis
+                    </a>
+                </div>
+            </div>
+            
+        </div>
+        
+        
+        <div class="analytics-section">
+            <div class="analytics-header">
+                <h2><i class="fas fa-chart-line"></i> Analytics & Insights</h2>
+                <p>Comprehensive analysis of destination themes and quality metrics</p>
+            </div>
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <canvas id="qualityChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <canvas id="confidenceChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            // Quality Scores Chart
+            const qualityCtx = document.getElementById('qualityChart').getContext('2d');
+            new Chart(qualityCtx, {
+                type: 'bar',
+                data: {
+                    labels: ["Las Vegas, Nevada", "New York, New York"],
+                    datasets: [{
+                        label: 'Quality Score',
+                        data: [0.666, 0.703],
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Quality Scores by Destination'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 1
+                        }
+                    }
+                }
+            });
+            
+            // Category Distribution Chart
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            new Chart(categoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ["adventure", "culture", "luxury", "family", "wellness"],
+                    datasets: [{
+                        data: [5, 8, 2, 3, 2],
+                        backgroundColor: [
+                            'rgba(102, 126, 234, 0.8)',
+                            'rgba(240, 147, 251, 0.8)',
+                            'rgba(79, 172, 254, 0.8)',
+                            'rgba(67, 233, 123, 0.8)',
+                            'rgba(245, 87, 108, 0.8)',
+                            'rgba(56, 249, 215, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Theme Categories Distribution'
+                        }
+                    }
+                }
+            });
+            
+            // Confidence Distribution Chart
+            const confidenceCtx = document.getElementById('confidenceChart').getContext('2d');
+            const confidenceBins = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
+            const confidenceHistogram = new Array(confidenceBins.length - 1).fill(0);
+            
+            [0.95, 1.0, 0.9, 0.85, 0.6, 0.75, 0.5, 0.65, 0.4, 0.35, 0.85, 1.0, 0.95, 0.65, 0.9, 0.8, 0.6, 0.5, 0.4, 0.6].forEach(conf => {
+                for (let i = 0; i < confidenceBins.length - 1; i++) {
+                    if (conf >= confidenceBins[i] && conf < confidenceBins[i + 1]) {
+                        confidenceHistogram[i]++;
+                        break;
+                    }
+                }
+            });
+            
+            new Chart(confidenceCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['0.0-0.2', '0.2-0.4', '0.4-0.6', '0.6-0.8', '0.8-1.0'],
+                    datasets: [{
+                        label: 'Number of Themes',
+                        data: confidenceHistogram,
+                        backgroundColor: 'rgba(67, 233, 123, 0.8)',
+                        borderColor: 'rgba(67, 233, 123, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Confidence Score Distribution'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        </script>
+        
+        
+        <div class="footer">
+            <p><i class="fas fa-robot"></i> Generated by SmartDestinationThemes Production System</p>
+            <p>© 2025 - Intelligent Travel Affinity Analysis Platform</p>
+        </div>
+        
+    </div>
+    
+    <script>
+        
+        function toggleExpand(element) {
+            const content = element.nextElementSibling;
+            const icon = element.querySelector('.expand-icon');
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                icon.classList.remove('rotated');
+            } else {
+                content.classList.add('expanded');
+                icon.classList.add('rotated');
+            }
+        }
+        
+        // Auto-expand first destination on load
+        document.addEventListener('DOMContentLoaded', function() {
+            const firstExpandable = document.querySelector('.expandable');
+            if (firstExpandable) {
+                toggleExpand(firstExpandable);
+            }
+        });
+        
+    </script>
+</body>
+</html>
+        

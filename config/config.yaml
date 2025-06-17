@@ -1,0 +1,368 @@
+# Example configuration file for Destination Intelligence Discovery
+# Copy this file to config.yaml and update with your settings
+
+# demo_settings:
+#   log_level: "INFO"
+
+# Database configuration
+database:
+  path: "enhanced_destination_intelligence.db"
+  type: "sqlite"
+  chroma_db_path: "./chroma_db"
+
+# LLM settings (can be overridden by .env)
+llm_settings:
+  gemini_model_name: "gemini-1.5-flash-latest"  # or gemini-2.0-flash
+  openai_model_name: "gpt-4o-mini"
+
+# The detailed prompt for generating destination affinities
+affinity_prompt: |
+  Generate destination affinities for {destination} following this exact JSON schema. Do not include any text before or after the JSON object.
+
+  {{
+    "destination_id": "str",
+    "affinities": [
+      {{
+        "category": "enum[nature|culture|adventure|luxury|family|wellness]",
+        "theme": "str (max 3 words)",
+        "sub_themes": ["str"],
+        "confidence": "float(0-1)",
+        "seasonality": {{"peak": ["months"], "avoid": ["months"]}},
+        "traveler_types": ["solo|couple|family|group"],
+        "price_point": "enum[budget|mid|luxury]",
+        "rationale": "str (why this affinity matches)",
+        "unique_selling_points": ["str"]
+      }}
+    ],
+    "meta": {{
+      "generated_at": "ISO8601",
+      "model_consensus": "float(0-1)"
+    }}
+  }}
+
+  Requirements:
+  - Maximum 10 affinities, ranked by relevance
+  - Each affinity must be actionable for trip planning
+  - Include both mainstream and niche/emerging themes
+  - Consider accessibility factors
+
+# =============================================================================
+# ADAPTIVE INTELLIGENCE CONFIGURATION
+# =============================================================================
+
+# Automatic data quality detection heuristics
+data_quality_heuristics:
+  enabled: true
+  
+  # Thresholds for detecting data-rich destinations
+  rich_data_indicators:
+    min_evidence_count: 75        # Sydney had 97, rich destinations have lots of evidence
+    min_source_diversity: 4       # Unique domains/sources
+    min_high_authority_ratio: 0.3 # % from gov/edu/major travel sites  
+    min_content_volume: 15000     # Total characters across sources
+    min_theme_discovery_rate: 25  # Themes discovered before filtering
+    min_unique_sources: 5         # Minimum unique source domains
+  
+  # Thresholds for detecting data-poor destinations  
+  poor_data_indicators:
+    max_evidence_count: 30        # Small towns might only have 15-25 pieces
+    max_source_diversity: 2       # Limited source variety
+    max_high_authority_ratio: 0.1 # Mostly local/unofficial sources
+    max_content_volume: 5000      # Limited total content
+    max_theme_discovery_rate: 8   # Few themes discovered
+    max_unique_sources: 2         # Very limited sources
+
+# Adaptive export configuration
+export_settings:
+  # Core adaptive settings
+  adaptive_mode: true
+  
+  # Mode selection based on data quality heuristics
+  rich_data_mode: "minimal"           # Clean, focused export for major destinations
+  medium_data_mode: "themes_focused"  # Balanced approach for medium data
+  poor_data_mode: "comprehensive"     # Capture everything we can find for sparse data
+  
+  # Adaptive confidence thresholds
+  rich_data_confidence: 0.75      # Strict filtering for high-quality data
+  medium_data_confidence: 0.55    # Moderate filtering
+  poor_data_confidence: 0.35      # Lenient filtering for sparse data
+  
+  # Evidence limits per theme (adaptive)
+  rich_data_max_evidence_per_theme: 3   # Very selective for rich data
+  medium_data_max_evidence_per_theme: 5 # Balanced approach
+  poor_data_max_evidence_per_theme: 10  # Keep more evidence for sparse data
+  
+  # Theme limits per category (adaptive)
+  rich_data_max_themes_per_category: 8   # Curated selection
+  medium_data_max_themes_per_category: 12 # More themes for medium data
+  poor_data_max_themes_per_category: 20   # Keep more for sparse data
+  
+  # JSON formatting options
+  pretty_print: false            # Compact JSON for smaller files
+  include_duplicate_views: false # Skip redundant views
+  enable_compression: false      # Optional compression (set to true for even smaller files)
+
+# Dynamic theme management
+theme_management:
+  adaptive_theme_limits: true
+  
+  # Theme limits based on data quality
+  rich_data_max_themes: 20        # Curated selection for rich destinations
+  medium_data_max_themes: 35      # More themes for medium data availability
+  poor_data_max_themes: 50        # Keep everything for sparse data destinations
+  
+  # Confidence adaptation based on available data
+  confidence_adaptation:
+    enabled: true
+    base_confidence: 0.60
+    rich_data_boost: 0.15         # Raise bar for rich data (0.60 + 0.15 = 0.75)
+    poor_data_reduction: 0.25     # Lower bar for poor data (0.60 - 0.25 = 0.35)
+    medium_data_adjustment: 0.05  # Slight reduction for medium data (0.55)
+
+# Smart evidence filtering
+evidence_filtering:
+  adaptive_filtering: true
+  
+  # Authority thresholds that adapt to data availability
+  adaptive_quality_thresholds:
+    rich_data_min_authority: 0.7     # Very selective for rich data
+    medium_data_min_authority: 0.5   # Balanced approach
+    poor_data_min_authority: 0.3     # Inclusive for sparse data
+  
+  # Content quality minimums (adaptive)
+  adaptive_content_thresholds:
+    rich_data_min_content_length: 200    # Substantial content required
+    medium_data_min_content_length: 100  # Moderate content
+    poor_data_min_content_length: 50     # Accept shorter content
+  
+  # Deduplication strictness (adaptive)
+  adaptive_deduplication:
+    rich_data_similarity_threshold: 0.9   # Very strict deduplication
+    medium_data_similarity_threshold: 0.85 # Moderate deduplication  
+    poor_data_similarity_threshold: 0.75   # More lenient to preserve data
+
+# Semantic processing options
+semantic_processing:
+  # Default semantic processing (can be overridden by adaptive logic)
+  enable_semantic_priority_data: true
+  enable_semantic_integration: true
+  
+  # Adaptive semantic processing based on data quality
+  adaptive_semantic: true
+  rich_data_semantic_intensive: true    # Full LLM processing for rich data
+  medium_data_semantic_standard: true   # Standard processing for medium data
+  poor_data_semantic_minimal: false     # Skip heavy processing for sparse data to save tokens
+  
+  # LLM usage limits (adaptive)
+  adaptive_llm_limits:
+    rich_data_max_llm_calls: 20      # Allow more LLM calls for rich data
+    medium_data_max_llm_calls: 15    # Moderate LLM usage
+    poor_data_max_llm_calls: 10      # Limit LLM calls for sparse data
+
+# Output control options
+output_control:
+  # JSON export options
+  enable_json_export: true
+  enable_database_storage: true
+  
+  # Alternative modes
+  json_only_mode: false           # Skip database, only create JSON
+  database_only_mode: false       # Skip JSON export, only use database
+  
+  # Adaptive export behavior
+  adaptive_output: true
+  poor_data_force_json: true           # Always export JSON for sparse data (preserve everything)
+  rich_data_database_priority: true    # Prefer database for rich data (more efficient)
+  medium_data_both_outputs: true       # Both outputs for medium data
+
+# Fallback behavior when heuristics can't determine quality
+fallback_behavior:
+  unknown_data_quality: "medium_data"  # Safe middle ground
+  error_fallback: "poor_data"          # Be generous on errors to preserve data
+  classification_confidence_threshold: 0.7  # Confidence needed for classification
+
+# Manual overrides for specific destination types
+destination_overrides:
+  enabled: true
+  
+  # Override patterns (destination names that match these patterns)
+  major_cities:
+    patterns: ["New York", "London", "Paris", "Tokyo", "Sydney", "Los Angeles", "Chicago", "Miami"]
+    force_classification: "rich_data"
+    
+  small_towns:
+    patterns: ["population", "township", "village", "hamlet"] # Matches descriptions mentioning these
+    force_classification: "poor_data"
+    
+  tourist_hotspots:
+    patterns: ["Disney", "Vegas", "Cancun", "Bali", "Santorini", "Machu Picchu"]
+    force_classification: "rich_data"
+
+# =============================================================================
+# EXISTING CONFIGURATION (Enhanced with adaptive integration)
+# =============================================================================
+
+# Processing settings
+processing_settings:
+  max_destinations_to_process: 2  # Set to 0 for all destinations
+  
+  web_discovery:
+    max_urls_per_destination: 10
+    timeout_seconds: 30
+    max_content_length: 2000000  # 2MB
+    min_content_length_chars: 200  # Minimum content length to process
+    vectorize_api_endpoint: ""  # Optional: Vectorize API endpoint
+    vectorize_api_key: ""       # Optional: Vectorize API key
+
+    # Brave Search API specific parameters
+    brave_search_lang: "en"         # Language for search results
+    brave_ui_lang: "en-US"          # Language for UI elements in response
+    brave_search_count: 20          # Number of search results (max 20 for web)
+    brave_search_offset: 0          # Zero-based offset for pagination
+    brave_safesearch: "moderate"    # Safesearch level: off, moderate, strict
+    brave_text_decorations: true  # Include highlighting in snippets
+    brave_spellcheck: true        # Enable spellchecker
+    brave_result_filter: "web,discussions,locations,news" # Comma-separated: web,discussions,faq,infobox,news,videos,locations
+    brave_extra_snippets: false     # Retrieve additional snippets (boolean)
+    brave_freshness: "pw"           # Filter by discovery date: "pd" (day), "pw" (week), "pm" (month), or a specific date range "YYYY-MM-DD..YYYY-MM-DD"
+
+    # Brave Local Search API specific parameters (if locations are fetched)
+    brave_fetch_local_descriptions: false # New: if true, fetches AI-generated descriptions for locations found via local search
+    brave_local_search_lang: "en"   # Language for local search results
+    brave_local_ui_lang: "en-US"    # Language for UI elements in local search response
+    brave_local_units: "metric"     # Measurement units: metric, imperial (optional, API defaults from country)
+    
+    # Content extraction settings (enhanced with adaptive logic)
+    content_extraction:
+      max_retries: 3  # Maximum number of retries for failed requests
+      retry_delay: 1  # Delay between retries in seconds
+      supported_content_types:  # Content types to process
+        - text/html
+        - application/xhtml+xml
+      supported_encodings:  # Character encodings to try
+        - utf-8
+        - latin-1
+        - cp1252
+        - iso-8859-1
+      noisy_elements:  # HTML elements to remove
+        - script
+        - style
+        - nav
+        - footer
+        - header
+        - aside
+        - form
+        - noscript
+        - iframe
+        - svg
+        - img
+        - button
+        - meta
+        - link
+      content_selectors:  # CSS selectors for main content
+        - article[class*="content"]
+        - main[class*="content"]
+        - article
+        - main
+        - .post-content
+        - .entry-content
+        - div[class*="content"]
+        - div[class*="main"]
+        - div[class*="article"]
+        - '[role="main"]'
+      quality_thresholds:
+        min_quality_score: 0.5  # Minimum quality score to accept content
+        min_paragraph_length: 20  # Minimum words per paragraph
+        max_boilerplate_ratio: 0.3  # Maximum ratio of boilerplate content
+  
+  # =============================================================================
+  # DATA ENRICHMENT SERVICES (for destination comparison heuristics)
+  # =============================================================================
+  data_enrichment:
+    # Master switch for all enrichment services
+    enabled: true
+
+    # Enable/disable individual enrichment modules
+    enrichment_modules:
+      vibe_and_gastronomy_analysis: true
+      demographic_and_geographic_lookup: true  # Fetches area, language, population
+      historical_and_cultural_lookup: true   # Fetches UNESCO sites, history summary, religion
+      economic_and_development_lookup: true    # Fetches GDP, HDI, price indices
+      tourism_and_trend_analysis: true       # Fetches arrivals, popularity, visa info
+      event_calendar_extraction: true
+
+  content_intelligence:
+    # Base settings (will be overridden by adaptive logic)
+    min_validated_theme_confidence: 0.60
+    min_discovered_theme_confidence: 0.60
+    max_discovered_themes_per_destination: 50  # Higher default, adaptive logic will adjust
+    
+    # Priority data extraction settings (enhanced with adaptive thresholds)
+    priority_extraction:
+      min_confidence: 0.3  # Will be adjusted by adaptive logic
+      min_completeness: 0.4  # Will be adjusted by adaptive logic
+      high_authority_domains:  # High credibility sources
+        - gov
+        - edu
+        - travel.state.gov
+        - who.int
+        - cdc.gov
+        - europa.eu
+        - un.org
+      medium_authority_domains:  # Medium credibility sources
+        - tripadvisor.com
+        - booking.com
+        - lonelyplanet.com
+        - timeout.com
+        - frommers.com
+        - fodors.com
+    
+    seed_themes:
+      - culture
+      - history
+      - nature
+      - food
+      - adventure
+      - art
+      - architecture
+      - romance
+      - family
+      - luxury
+      - budget
+      - nightlife
+      - museums
+      - shopping
+      - beaches
+      - mountains
+      - festivals
+      - traditional
+      - modern
+      - authentic
+      - dining
+      - entertainment
+      - relaxation
+      - scenic
+      - urban
+      - coastal
+      - historical
+      - contemporary
+      - activities
+      - experiences
+      - atmosphere
+      - wellness
+      - spirituality
+      - photography
+      - wildlife
+      - trekking
+      - hiking
+      - sustainability
+      - eco-tourism
+      - local life
+      - crafts
+      - markets
+      - music
+
+# Destinations to process
+destinations:
+  - "Las Vegas, Nevada"
+  - "New York, New York" 

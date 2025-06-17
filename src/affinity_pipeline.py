@@ -4,6 +4,7 @@ from src.web_augmentor import WebAugmentor
 from src.validator import AffinityValidator
 from src.knowledge_graph import TopBraidIntegration
 from src.caching import AffinityCache
+from src.enhanced_data_processor import EnhancedDataProcessor
 from tools.vectorize_processing_tool import ProcessContentWithVectorizeTool
 
 class AffinityPipeline:
@@ -20,6 +21,7 @@ class AffinityPipeline:
         self.validator = AffinityValidator(config=config, vectorizer=self.vectorize_tool)
         self.kg_integration = TopBraidIntegration(config=config)
         self.cache = AffinityCache(config=config)
+        self.enhanced_processor = EnhancedDataProcessor(config=config)
 
     async def process_destination(self, destination_name: str):
         """
@@ -52,10 +54,17 @@ class AffinityPipeline:
         # For now, let's add the web content to the output for inspection
         # validated_affinities['web_augmentation_results'] = web_signals # This is now handled inside validator
 
-        # 4. Knowledge Graph Integration
-        self.kg_integration.materialize_to_kg(validated_affinities)
+        # 4. Enhanced Intelligence Processing
+        enhanced_affinities = self.enhanced_processor.enhance_and_save_affinities(
+            validated_affinities, 
+            destination_name,
+            output_file=f"outputs/{destination_name.lower().replace(' ', '_').replace(',', '')}_enhanced.json"
+        )
+
+        # 5. Knowledge Graph Integration
+        self.kg_integration.materialize_to_kg(enhanced_affinities)
 
         # Store the final result in the cache before returning
-        self.cache.set(destination_name, validated_affinities)
+        self.cache.set(destination_name, enhanced_affinities)
 
-        return validated_affinities 
+        return enhanced_affinities 

@@ -357,6 +357,36 @@ class ThemeViewerGenerator:
             font-size: 0.75rem;
         }
         
+        .intelligence-badges-container {
+            margin: 10px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        
+        .intelligence-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: white;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .enhanced-theme-card {
+            position: relative;
+        }
+        
+        .enhanced-theme-card::before {
+            content: '🧠';
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 1.2rem;
+            opacity: 0.3;
+        }
+        
         .analytics-section {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
@@ -1031,12 +1061,16 @@ class ThemeViewerGenerator:
         priority_data = dest_data.get('priority_data', [])
         processing_time = dest_data.get('processing_time_seconds', 0)
         
+        # Enhanced intelligence data
+        intelligence_insights = dest_data.get('intelligence_insights', {})
+        composition_analysis = dest_data.get('composition_analysis', {})
+        
         # Quality info
         quality_score = quality_assessment.get('overall_score', 0)
         quality_level = quality_assessment.get('quality_level', 'Unknown')
         quality_class = f"quality-{quality_level.lower()}"
         
-        # Generate themes HTML
+        # Generate enhanced themes HTML
         themes_html = ""
         for theme in affinities:
             sub_themes_html = ""
@@ -1050,8 +1084,102 @@ class ThemeViewerGenerator:
             peak_months = ", ".join(seasonality.get('peak', []))
             avoid_months = ", ".join(seasonality.get('avoid', []))
             
+            # Enhanced intelligence data
+            depth_analysis = theme.get('depth_analysis', {})
+            authenticity_analysis = theme.get('authenticity_analysis', {})
+            emotional_profile = theme.get('emotional_profile', {})
+            experience_intensity = theme.get('experience_intensity', {})
+            contextual_info = theme.get('contextual_info', {})
+            hidden_gem_score = theme.get('hidden_gem_score', {})
+            micro_climate = theme.get('micro_climate', {})
+            cultural_sensitivity = theme.get('cultural_sensitivity', {})
+            theme_interconnections = theme.get('theme_interconnections', {})
+            
+            # Intelligence badges
+            intelligence_badges = ""
+            
+            # Depth badge
+            depth_level = depth_analysis.get('depth_level', 'macro')
+            depth_score = depth_analysis.get('depth_score', 0)
+            depth_color = '#28a745' if depth_score > 0.8 else '#ffc107' if depth_score > 0.6 else '#6c757d'
+            intelligence_badges += f'<span class="intelligence-badge" style="background: {depth_color};" title="Theme Depth: {depth_score:.2f}">📊 {depth_level.title()}</span>'
+            
+            # Authenticity badge  
+            auth_level = authenticity_analysis.get('authenticity_level', 'balanced')
+            auth_score = authenticity_analysis.get('authenticity_score', 0)
+            auth_color = '#28a745' if auth_score > 0.8 else '#17a2b8' if auth_score > 0.6 else '#6c757d'
+            auth_icon = '🏆' if auth_level == 'authentic_local' else '🌟' if auth_level == 'local_influenced' else '⚖️'
+            intelligence_badges += f'<span class="intelligence-badge" style="background: {auth_color};" title="Authenticity: {auth_score:.2f}">{auth_icon} {auth_level.replace("_", " ").title()}</span>'
+            
+            # Hidden gem badge
+            gem_level = hidden_gem_score.get('hidden_gem_level', 'mainstream')
+            gem_score = hidden_gem_score.get('uniqueness_score', 0)
+            if gem_level == 'true hidden gem':
+                intelligence_badges += f'<span class="intelligence-badge" style="background: #dc3545;" title="Hidden Gem Score: {gem_score:.2f}">💎 Hidden Gem</span>'
+            elif gem_level == 'local favorite':
+                intelligence_badges += f'<span class="intelligence-badge" style="background: #fd7e14;" title="Hidden Gem Score: {gem_score:.2f}">⭐ Local Favorite</span>'
+            elif gem_level == 'off the beaten path':
+                intelligence_badges += f'<span class="intelligence-badge" style="background: #20c997;" title="Hidden Gem Score: {gem_score:.2f}">🗺️ Off Beaten Path</span>'
+            
+            # Experience intensity badge
+            intensity = experience_intensity.get('overall_intensity', 'moderate')
+            intensity_color = '#dc3545' if intensity == 'extreme' else '#fd7e14' if intensity == 'high' else '#ffc107' if intensity == 'moderate' else '#28a745'
+            intensity_icon = '🔥' if intensity in ['extreme', 'high'] else '⚡' if intensity == 'moderate' else '🌱'
+            intelligence_badges += f'<span class="intelligence-badge" style="background: {intensity_color};" title="Experience Intensity">{intensity_icon} {intensity.title()}</span>'
+            
+            # Emotional profile badge
+            emotions = emotional_profile.get('primary_emotions', [])
+            if emotions:
+                emotion_text = ', '.join(emotions[:2])
+                emotion_icon = '😊' if 'peaceful' in emotions else '🎯' if 'exhilarating' in emotions else '🧘' if 'contemplative' in emotions else '✨'
+                intelligence_badges += f'<span class="intelligence-badge" style="background: #6f42c1;" title="Primary Emotions">{emotion_icon} {emotion_text.title()}</span>'
+            
+            # Enhanced details section
+            enhanced_details = ""
+            
+            # Nano themes if available
+            nano_themes = depth_analysis.get('nano_themes', [])
+            if nano_themes:
+                nano_html = ', '.join(nano_themes)
+                enhanced_details += f'<div style="margin-bottom: 8px;"><strong>🔬 Nano Themes:</strong> {nano_html}</div>'
+            
+            # Demographics and context
+            demographics = contextual_info.get('demographic_suitability', [])
+            if demographics:
+                demo_text = ', '.join(demographics)
+                enhanced_details += f'<div style="margin-bottom: 8px;"><strong>👥 Best For:</strong> {demo_text}</div>'
+            
+            # Time commitment
+            time_commit = contextual_info.get('time_commitment', '')
+            if time_commit:
+                enhanced_details += f'<div style="margin-bottom: 8px;"><strong>⏰ Time Needed:</strong> {time_commit.title()}</div>'
+            
+            # Best timing
+            best_time = micro_climate.get('best_time_of_day', [])
+            if best_time and best_time != ['flexible']:
+                time_text = ', '.join(best_time)
+                enhanced_details += f'<div style="margin-bottom: 8px;"><strong>🕐 Best Time:</strong> {time_text}</div>'
+            
+            # Weather dependencies
+            weather_deps = micro_climate.get('weather_dependencies', [])
+            if weather_deps:
+                weather_text = ', '.join(weather_deps)
+                enhanced_details += f'<div style="margin-bottom: 8px;"><strong>🌤️ Weather Needs:</strong> {weather_text}</div>'
+            
+            # Cultural considerations
+            cultural_notes = cultural_sensitivity.get('considerations', [])
+            if cultural_notes:
+                cultural_text = ', '.join(cultural_notes[:2])
+                enhanced_details += f'<div style="margin-bottom: 8px;"><strong>🏛️ Cultural Notes:</strong> {cultural_text}</div>'
+            
+            # Theme combinations
+            combinations = theme_interconnections.get('natural_combinations', [])
+            if combinations:
+                combo_text = ', '.join(combinations[:3])
+                enhanced_details += f'<div style="margin-bottom: 8px;"><strong>🔗 Pairs Well With:</strong> {combo_text}</div>'
+            
             themes_html += f"""
-            <div class="theme-card">
+            <div class="theme-card enhanced-theme-card">
                 <div class="theme-header">
                     <div class="theme-title">{theme.get('theme', 'Unknown')}</div>
                     <div class="confidence-score" style="background: {confidence_color}">
@@ -1059,27 +1187,128 @@ class ThemeViewerGenerator:
                     </div>
                 </div>
                 <div class="theme-category">{theme.get('category', 'general')}</div>
+                <div class="intelligence-badges-container">
+                    {intelligence_badges}
+                </div>
                 <div class="sub-themes">{sub_themes_html}</div>
                 <div class="theme-details">
-                    <div style="margin-bottom: 8px;"><strong>Rationale:</strong> {theme.get('rationale', 'N/A')}</div>
-                    <div style="margin-bottom: 8px;"><strong>Price Point:</strong> {theme.get('price_point', 'N/A').title()}</div>
-                    <div style="margin-bottom: 8px;"><strong>Traveler Types:</strong> {', '.join(theme.get('traveler_types', []))}</div>
-                    <div style="margin-bottom: 8px;"><strong>Validation:</strong> {theme.get('validation', 'N/A')}</div>
-                    {f'<div style="margin-bottom: 8px;"><strong>Peak Season:</strong> {peak_months}</div>' if peak_months else ''}
-                    {f'<div style="margin-bottom: 8px;"><strong>Avoid:</strong> {avoid_months}</div>' if avoid_months else ''}
+                    <div style="margin-bottom: 12px;"><strong>💭 Rationale:</strong> {theme.get('rationale', 'N/A')}</div>
+                    <div style="margin-bottom: 8px;"><strong>💰 Price Point:</strong> {theme.get('price_point', 'N/A').title()}</div>
+                    <div style="margin-bottom: 8px;"><strong>🎯 Traveler Types:</strong> {', '.join(theme.get('traveler_types', []))}</div>
+                    <div style="margin-bottom: 8px;"><strong>✅ Validation:</strong> {theme.get('validation', 'N/A')}</div>
+                    {f'<div style="margin-bottom: 8px;"><strong>🌸 Peak Season:</strong> {peak_months}</div>' if peak_months else ''}
+                    {f'<div style="margin-bottom: 8px;"><strong>🚫 Avoid:</strong> {avoid_months}</div>' if avoid_months else ''}
+                    {enhanced_details}
                 </div>
             </div>
             """
         
-        # Quality metrics
+        # Quality metrics with enhanced intelligence metrics
         quality_metrics_html = ""
         if quality_assessment.get('metrics'):
+            core_metrics = ['factual_accuracy', 'thematic_coverage', 'actionability', 'uniqueness', 'source_credibility']
+            intelligence_metrics = ['theme_depth', 'authenticity', 'emotional_resonance']
+            
+            # Core metrics
+            quality_metrics_html += "<h5 style='margin: 15px 0 10px 0; color: #495057;'>📋 Core Quality Metrics</h5>"
             for metric, value in quality_assessment['metrics'].items():
-                metric_name = metric.replace('_', ' ').title()
-                quality_metrics_html += f"""
-                <div style="margin: 8px 0; display: flex; justify-content: space-between;">
-                    <strong>{metric_name}:</strong> 
-                    <span style="color: {self._get_confidence_color(value)}; font-weight: 600;">{value:.3f}</span>
+                if metric in core_metrics:
+                    metric_name = metric.replace('_', ' ').title()
+                    quality_metrics_html += f"""
+                    <div style="margin: 8px 0; display: flex; justify-content: space-between;">
+                        <strong>{metric_name}:</strong> 
+                        <span style="color: {self._get_confidence_color(value)}; font-weight: 600;">{value:.3f}</span>
+                    </div>
+                    """
+            
+            # Intelligence metrics
+            quality_metrics_html += "<h5 style='margin: 15px 0 10px 0; color: #495057;'>🧠 Intelligence Metrics</h5>"
+            for metric, value in quality_assessment['metrics'].items():
+                if metric in intelligence_metrics:
+                    metric_name = metric.replace('_', ' ').title()
+                    metric_icon = '📊' if metric == 'theme_depth' else '🏆' if metric == 'authenticity' else '✨'
+                    quality_metrics_html += f"""
+                    <div style="margin: 8px 0; display: flex; justify-content: space-between;">
+                        <strong>{metric_icon} {metric_name}:</strong> 
+                        <span style="color: {self._get_confidence_color(value)}; font-weight: 600;">{value:.3f}</span>
+                    </div>
+                    """
+        
+        # Intelligence insights section
+        intelligence_insights_html = ""
+        if intelligence_insights:
+            insights_sections = []
+            
+            # Hidden gems insights
+            hidden_gems_count = intelligence_insights.get('hidden_gems_count', 0)
+            hidden_gems_ratio = intelligence_insights.get('hidden_gems_ratio', 0)
+            if hidden_gems_count > 0:
+                insights_sections.append(f"""
+                <div style="background: #fff3cd; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #ffc107;">
+                    <h5 style="margin: 0 0 8px 0; color: #856404;">💎 Hidden Gems Discovery</h5>
+                    <div><strong>Count:</strong> {hidden_gems_count} hidden gems identified</div>
+                    <div><strong>Ratio:</strong> {hidden_gems_ratio*100:.1f}% of themes are unique experiences</div>
+                </div>
+                """)
+            
+            # Authenticity insights
+            avg_auth_score = intelligence_insights.get('average_authenticity_score', 0)
+            if avg_auth_score > 0:
+                auth_level_text = "Excellent" if avg_auth_score > 0.8 else "Good" if avg_auth_score > 0.6 else "Moderate"
+                insights_sections.append(f"""
+                <div style="background: #d4edda; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #28a745;">
+                    <h5 style="margin: 0 0 8px 0; color: #155724;">🏆 Authenticity Analysis</h5>
+                    <div><strong>Average Score:</strong> {avg_auth_score:.2f} ({auth_level_text})</div>
+                    <div><strong>Focus:</strong> Strong emphasis on local and authentic experiences</div>
+                </div>
+                """)
+            
+            # Theme depth insights
+            avg_depth_score = intelligence_insights.get('average_depth_score', 0)
+            if avg_depth_score > 0:
+                depth_level_text = "Nano-level" if avg_depth_score > 0.8 else "Micro-level" if avg_depth_score > 0.6 else "Macro-level"
+                insights_sections.append(f"""
+                <div style="background: #d1ecf1; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #17a2b8;">
+                    <h5 style="margin: 0 0 8px 0; color: #0c5460;">📊 Theme Depth Analysis</h5>
+                    <div><strong>Average Depth:</strong> {avg_depth_score:.2f} ({depth_level_text})</div>
+                    <div><strong>Granularity:</strong> Themes provide detailed, specific experiences</div>
+                </div>
+                """)
+            
+            # Emotional variety insights
+            emotional_variety = intelligence_insights.get('emotional_variety', {})
+            emotions_covered = emotional_variety.get('emotions_covered', [])
+            if emotions_covered:
+                emotion_text = ', '.join(emotions_covered)
+                insights_sections.append(f"""
+                <div style="background: #f8d7da; padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid #dc3545;">
+                    <h5 style="margin: 0 0 8px 0; color: #721c24;">✨ Emotional Resonance</h5>
+                    <div><strong>Coverage:</strong> {len(emotions_covered)} emotional types</div>
+                    <div><strong>Emotions:</strong> {emotion_text}</div>
+                </div>
+                """)
+            
+            intelligence_insights_html = ''.join(insights_sections)
+        
+        # Composition analysis
+        composition_analysis_html = ""
+        if composition_analysis:
+            comp_score = composition_analysis.get('overall_composition_score', 0)
+            category_dist = composition_analysis.get('category_distribution', {})
+            
+            # Category distribution chart data
+            if category_dist:
+                categories = list(category_dist.keys())
+                counts = list(category_dist.values())
+                
+                composition_analysis_html = f"""
+                <div style="background: #e7e3ff; padding: 20px; border-radius: 15px; margin: 15px 0; border-left: 4px solid #6f42c1;">
+                    <h5 style="margin: 0 0 15px 0; color: #4a148c;">🎨 Composition Intelligence</h5>
+                    <div style="margin-bottom: 10px;"><strong>Overall Score:</strong> {comp_score:.2f}</div>
+                    <div style="margin-bottom: 15px;"><strong>Category Distribution:</strong></div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                        {''.join(f'<div style="background: rgba(255,255,255,0.7); padding: 10px; border-radius: 8px; text-align: center;"><strong>{cat.title()}</strong><br>{count} themes</div>' for cat, count in category_dist.items())}
+                    </div>
                 </div>
                 """
         
@@ -1230,6 +1459,30 @@ class ThemeViewerGenerator:
                     {f'<ul>{"".join(f"<li>{rec}</li>" for rec in quality_assessment.get("recommendations", []))}</ul>' if quality_assessment.get('recommendations') else ''}
                 </div>
             </div>
+            
+            {f'''
+            <div class="expandable" onclick="toggleExpand(this)" style="margin-top: 30px;">
+                <h3 style="margin-bottom: 15px;">
+                    <i class="fas fa-brain"></i> Intelligence Insights
+                    <i class="fas fa-chevron-down expand-icon" style="float: right;"></i>
+                </h3>
+            </div>
+            <div class="expandable-content">
+                {intelligence_insights_html}
+            </div>
+            ''' if intelligence_insights_html else ''}
+            
+            {f'''
+            <div class="expandable" onclick="toggleExpand(this)" style="margin-top: 30px;">
+                <h3 style="margin-bottom: 15px;">
+                    <i class="fas fa-palette"></i> Composition Analysis
+                    <i class="fas fa-chevron-down expand-icon" style="float: right;"></i>
+                </h3>
+            </div>
+            <div class="expandable-content">
+                {composition_analysis_html}
+            </div>
+            ''' if composition_analysis_html else ''}
             
             {f'''
             <div class="expandable" onclick="toggleExpand(this)" style="margin-top: 30px;">

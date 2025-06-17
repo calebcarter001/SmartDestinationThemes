@@ -90,9 +90,25 @@ async def main():
             )
             
             print(f"📈 Quality Score: {quality_assessment['overall_score']:.3f} ({quality_assessment['quality_level']})")
-            print(f"📋 Metrics: Factual: {quality_assessment['metrics']['factual_accuracy']:.2f}, "
+            print(f"📋 Core Metrics: Factual: {quality_assessment['metrics']['factual_accuracy']:.2f}, "
                   f"Coverage: {quality_assessment['metrics']['thematic_coverage']:.2f}, "
                   f"Actionability: {quality_assessment['metrics']['actionability']:.2f}")
+            print(f"🧠 Intelligence Metrics: Depth: {quality_assessment['metrics']['theme_depth']:.2f}, "
+                  f"Authenticity: {quality_assessment['metrics']['authenticity']:.2f}, "
+                  f"Emotional: {quality_assessment['metrics']['emotional_resonance']:.2f}")
+            
+            # Display intelligence insights
+            if 'intelligence_insights' in result:
+                insights = result['intelligence_insights']
+                print(f"💡 Intelligence Insights:")
+                print(f"   • Hidden gems: {insights.get('hidden_gems_count', 0)} "
+                      f"({insights.get('hidden_gems_ratio', 0)*100:.1f}%)")
+                print(f"   • Avg depth score: {insights.get('average_depth_score', 0):.2f}")
+                print(f"   • Avg authenticity: {insights.get('average_authenticity_score', 0):.2f}")
+                
+                if 'emotional_variety' in insights:
+                    emotions = insights['emotional_variety'].get('emotions_covered', [])
+                    print(f"   • Emotional coverage: {len(emotions)} types ({', '.join(emotions[:3])}...)")
             
             # 3. Quality Assurance Workflow
             print("🔒 Processing through QA workflow...")

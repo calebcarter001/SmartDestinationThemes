@@ -1,0 +1,254 @@
+# Smart Destination Themes - Production Configuration
+# Enhanced Intelligence System Configuration
+
+# =============================================================================
+# CORE SYSTEM CONFIGURATION
+# =============================================================================
+
+# Database and storage
+database:
+  path: "enhanced_destination_intelligence.db"
+  type: "sqlite"
+  chroma_db_path: "./chroma_db"
+
+# Cache settings
+caching:
+  enabled: true
+  affinity_expiry_days: 1
+  page_content_expiry_days: 30
+  search_results_expiry_days: 7
+
+# LLM Configuration
+llm_settings:
+  gemini_model_name: "gemini-1.5-flash-latest"
+  openai_model_name: "gpt-4o-mini"
+  max_tokens: 4000
+  temperature: 0.3
+
+# =============================================================================
+# EVIDENCE VALIDATION REQUIREMENTS
+# =============================================================================
+
+evidence_validation:
+  # Minimum evidence requirements per theme
+  min_evidence_sources: 2           # Minimum unique sources required
+  min_evidence_pieces: 3            # Minimum evidence pieces per theme
+  max_evidence_pieces: 10           # Maximum evidence pieces to store per theme
+  
+  # Evidence quality thresholds
+  min_content_length: 50            # Minimum characters per evidence piece
+  min_source_authority: 0.3         # Minimum authority score (0-1)
+  
+  # Validation confidence requirements
+  min_confidence_with_evidence: 0.6  # Themes with evidence need this confidence
+  min_confidence_without_evidence: 0.8  # Themes without evidence need higher confidence
+  
+  # Evidence source diversity requirements
+  require_source_diversity: true    # Require evidence from multiple domains
+  max_evidence_per_source: 3        # Max evidence pieces from single source
+  
+  # Evidence storage configuration
+  store_evidence_text: true         # Store full evidence text
+  store_evidence_metadata: true     # Store source URL, authority, timestamp
+  store_evidence_vectors: false     # Store embeddings (disabled for file size)
+
+# Evidence quality scoring
+evidence_quality:
+  # Source authority weights
+  authority_weights:
+    government: 1.0                 # .gov domains
+    education: 0.9                  # .edu domains
+    major_travel: 0.8              # TripAdvisor, Lonely Planet, etc.
+    news_media: 0.7                # Major news outlets
+    travel_blogs: 0.5              # Personal travel blogs
+    social_media: 0.3              # Social media posts
+    unknown: 0.2                   # Unknown or unverified sources
+  
+  # Content quality indicators
+  content_quality_indicators:
+    min_word_count: 10             # Minimum words per evidence
+    max_word_count: 500            # Maximum words to store
+    require_specific_mentions: true # Evidence must mention destination specifically
+    penalize_generic_content: true # Lower score for generic travel content
+
+# =============================================================================
+# THEME VALIDATION AND INTELLIGENCE LAYERS
+# =============================================================================
+
+theme_validation:
+  # Core validation requirements
+  min_themes_per_destination: 5     # Minimum themes required
+  max_themes_per_destination: 20    # Maximum themes to keep
+  
+  # Theme confidence thresholds
+  absolute_min_confidence: 0.3      # Never accept themes below this
+  preferred_min_confidence: 0.6     # Preferred minimum for quality
+  
+  # Theme diversity requirements
+  require_category_diversity: true   # Require themes from multiple categories
+  min_categories_represented: 3      # Minimum theme categories
+  max_themes_per_category: 8        # Prevent category dominance
+  
+  # Intelligence layer requirements
+  required_intelligence_layers:
+    - "depth_analysis"              # Theme depth and granularity
+    - "authenticity_analysis"       # Local authenticity scoring
+    - "emotional_profile"           # Emotional resonance mapping
+    - "experience_intensity"        # Physical/cultural/social intensity
+    - "contextual_info"            # Demographics and accessibility
+    - "hidden_gem_score"           # Uniqueness and discovery potential
+
+# Depth analysis configuration
+depth_analysis:
+  nano_theme_generation: true       # Generate nano-level themes
+  min_nano_themes: 2               # Minimum nano themes for depth score
+  max_nano_themes: 6               # Maximum nano themes to generate
+  
+  depth_scoring:
+    nano_level_threshold: 0.8       # Score threshold for nano classification
+    micro_level_threshold: 0.6      # Score threshold for micro classification
+    # macro level is default below micro threshold
+
+# Authenticity scoring
+authenticity_scoring:
+  local_indicator_weight: 0.4       # Weight for local indicators
+  tourist_indicator_penalty: -0.3   # Penalty for tourist indicators
+  insider_indicator_bonus: 0.5      # Bonus for insider knowledge
+  commercial_indicator_penalty: -0.2 # Penalty for commercial indicators
+  
+  # Keyword lists for authenticity detection
+  local_keywords: ["local", "neighborhood", "authentic", "traditional", "family-owned"]
+  tourist_keywords: ["tourist", "visitor", "attraction", "souvenir", "tour bus"]
+  insider_keywords: ["hidden", "secret", "locals only", "off the beaten path"]
+  commercial_keywords: ["chain", "franchise", "commercialized", "package"]
+
+# =============================================================================
+# ADAPTIVE INTELLIGENCE CONFIGURATION
+# =============================================================================
+
+adaptive_intelligence:
+  enabled: true
+  
+  # Data quality detection
+  data_quality_heuristics:
+    rich_data_thresholds:
+      min_evidence_count: 75
+      min_source_diversity: 4
+      min_content_volume: 15000
+    
+    poor_data_thresholds:
+      max_evidence_count: 30
+      max_source_diversity: 2
+      max_content_volume: 5000
+  
+  # Adaptive processing based on data quality
+  processing_adaptation:
+    rich_data_mode:
+      confidence_threshold: 0.75
+      max_evidence_per_theme: 3
+      enable_semantic_processing: true
+    
+    medium_data_mode:
+      confidence_threshold: 0.55
+      max_evidence_per_theme: 5
+      enable_semantic_processing: true
+    
+    poor_data_mode:
+      confidence_threshold: 0.35
+      max_evidence_per_theme: 10
+      enable_semantic_processing: false  # Save processing for sparse data
+
+# =============================================================================
+# OUTPUT AND EXPORT CONFIGURATION
+# =============================================================================
+
+output_settings:
+  # File organization
+  timestamped_sessions: true        # Create timestamped output folders
+  compress_json: false              # Compress JSON output files
+  pretty_print_json: true           # Human-readable JSON formatting
+  
+  # Enhanced viewer generation
+  generate_dashboard: true          # Generate HTML dashboard
+  dashboard_features:
+    show_evidence: true             # Display evidence in dashboard
+    show_intelligence_badges: true  # Show depth, authenticity badges
+    show_composition_analysis: true # Show theme composition
+    interactive_features: true     # Enable interactive elements
+  
+  # Session management
+  keep_session_history: true        # Preserve historical sessions
+  max_sessions_to_keep: 50         # Limit stored sessions
+  auto_cleanup_old_sessions: false  # Manual cleanup preferred
+
+# =============================================================================
+# MONITORING AND QUALITY ASSURANCE
+# =============================================================================
+
+monitoring:
+  enabled: true
+  cache_hit_threshold: 0.4          # Alert if cache hit rate drops below 40%
+  processing_time_threshold: 300    # Alert if processing takes over 5 minutes
+  quality_score_threshold: 0.6      # Alert if average quality drops below 0.6
+  
+  # Metrics collection
+  collect_metrics: true
+  metrics_retention_days: 30
+  
+  # Quality alerts
+  enable_quality_alerts: true
+  alert_on_low_evidence: true       # Alert when themes have insufficient evidence
+  alert_on_poor_diversity: true     # Alert when theme diversity is low
+
+# =============================================================================
+# SEMANTIC PROCESSING
+# =============================================================================
+
+semantic_processing:
+  # Embedding model configuration
+  embedding_model: "all-MiniLM-L6-v2"
+  similarity_threshold: 0.8         # Threshold for semantic clustering
+  
+  # Semantic clustering
+  enable_clustering: true
+  cluster_similar_themes: true      # Merge semantically similar themes
+  preserve_unique_themes: true      # Don't over-cluster unique themes
+  
+  # LLM integration limits
+  max_llm_calls_per_destination: 15
+  llm_timeout_seconds: 30
+
+# =============================================================================
+# PRODUCTION OPTIMIZATIONS
+# =============================================================================
+
+performance:
+  # Processing optimization
+  parallel_processing: true
+  max_worker_threads: 4
+  chunk_size: 1000
+  
+  # Memory management
+  clear_cache_on_completion: false  # Keep cache for subsequent runs
+  limit_memory_usage: true
+  max_memory_mb: 2048
+  
+  # Progress tracking
+  enable_progress_bars: true
+  show_detailed_progress: true
+  progress_update_interval: 1       # Seconds between progress updates
+
+# =============================================================================
+# DEVELOPMENT AND DEBUGGING
+# =============================================================================
+
+development:
+  debug_mode: false
+  verbose_logging: false
+  save_intermediate_results: false  # Save processing steps for debugging
+  validate_schemas: true            # Validate all data against Pydantic schemas
+  
+  # Testing configuration
+  enable_test_mode: false
+  test_sample_size: 2               # Number of destinations for testing
+  skip_web_augmentation: false      # Skip web scraping in test mode 

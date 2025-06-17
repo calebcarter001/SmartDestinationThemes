@@ -23,13 +23,33 @@ class AffinityQualityScorer:
             'source_credibility': 0.6
         }
         
-        # Metric weights for overall score
+        # Enhanced metric weights for overall score
         self.metric_weights = {
-            'factual_accuracy': 0.25,
-            'thematic_coverage': 0.20,
-            'actionability': 0.25,
-            'uniqueness': 0.15,
-            'source_credibility': 0.15
+            'factual_accuracy': 0.20,
+            'thematic_coverage': 0.15,
+            'actionability': 0.20,
+            'uniqueness': 0.10,
+            'source_credibility': 0.10,
+            'theme_depth': 0.10,
+            'authenticity': 0.10,
+            'emotional_resonance': 0.05
+        }
+        
+        # Theme intelligence mappings
+        self.emotional_keywords = {
+            'peaceful': ['quiet', 'serene', 'calm', 'tranquil', 'meditation', 'zen'],
+            'exhilarating': ['thrilling', 'exciting', 'adrenaline', 'extreme', 'adventure'],
+            'contemplative': ['historical', 'museum', 'spiritual', 'reflective'],
+            'social': ['festival', 'nightlife', 'community', 'group', 'celebration'],
+            'challenging': ['difficult', 'demanding', 'skill', 'expertise', 'advanced'],
+            'inspiring': ['artistic', 'creative', 'innovative', 'motivational']
+        }
+        
+        self.authenticity_indicators = {
+            'local_markers': ['local', 'neighborhood', 'authentic', 'traditional', 'family-owned'],
+            'tourist_markers': ['tourist', 'visitor', 'attraction', 'souvenir', 'crowded'],
+            'insider_markers': ['hidden', 'secret', 'locals only', 'off the beaten path'],
+            'commercial_markers': ['chain', 'franchise', 'commercialized', 'mass tourism']
         }
         
         # Common travel categories for coverage analysis
@@ -64,13 +84,16 @@ class AffinityQualityScorer:
         
         affinity_list = affinities['affinities']
         
-        # Calculate individual metrics
+        # Calculate individual metrics (enhanced)
         metrics = {
             'factual_accuracy': self._score_factual_accuracy(affinity_list, web_signals),
             'thematic_coverage': self._score_thematic_coverage(affinity_list),
             'actionability': self._score_actionability(affinity_list),
             'uniqueness': self._score_uniqueness(affinity_list, destination),
-            'source_credibility': self._score_source_credibility(affinity_list)
+            'source_credibility': self._score_source_credibility(affinity_list),
+            'theme_depth': self._score_theme_depth(affinity_list),
+            'authenticity': self._score_authenticity(affinity_list),
+            'emotional_resonance': self._score_emotional_resonance(affinity_list)
         }
         
         # Calculate overall score
@@ -293,11 +316,109 @@ class AffinityQualityScorer:
                     recommendations.append("Focus on destination-specific unique features")
                 elif metric == 'source_credibility':
                     recommendations.append("Strengthen source validation and confidence scoring")
+                elif metric == 'theme_depth':
+                    recommendations.append("Increase theme depth with more specific, granular details and sub-themes")
+                elif metric == 'authenticity':
+                    recommendations.append("Focus on more authentic, local experiences rather than tourist-oriented attractions")
+                elif metric == 'emotional_resonance':
+                    recommendations.append("Enhance emotional variety to appeal to different traveler motivations and feelings")
         
         if not recommendations:
             recommendations.append("Quality meets all thresholds - maintain current standards")
         
         return recommendations
+    
+    def _score_theme_depth(self, affinities: List[Dict]) -> float:
+        """Score based on theme depth and granularity."""
+        if not affinities:
+            return 0.0
+        
+        depth_scores = []
+        
+        for affinity in affinities:
+            score = 0.3  # Base score
+            
+            # Check for sub-themes (micro level)
+            sub_themes = affinity.get('sub_themes', [])
+            if sub_themes and len(sub_themes) >= 2:
+                score += 0.3
+            
+            # Check for specific details in rationale (nano level indicators)
+            rationale = affinity.get('rationale', '').lower()
+            nano_indicators = ['specific', 'particular', 'unique', 'specialized', 'artisan', 'boutique']
+            if any(indicator in rationale for indicator in nano_indicators):
+                score += 0.2
+            
+            # Check for detailed descriptions
+            if len(rationale.split()) > 20:  # Detailed rationale
+                score += 0.2
+            
+            depth_scores.append(min(1.0, score))
+        
+        return statistics.mean(depth_scores)
+    
+    def _score_authenticity(self, affinities: List[Dict]) -> float:
+        """Score based on authenticity indicators."""
+        if not affinities:
+            return 0.0
+        
+        authenticity_scores = []
+        
+        for affinity in affinities:
+            theme = affinity.get('theme', '').lower()
+            rationale = affinity.get('rationale', '').lower()
+            text = f"{theme} {rationale}"
+            
+            local_score = sum(1 for marker in self.authenticity_indicators['local_markers'] if marker in text)
+            tourist_score = sum(1 for marker in self.authenticity_indicators['tourist_markers'] if marker in text)
+            insider_score = sum(1 for marker in self.authenticity_indicators['insider_markers'] if marker in text)
+            commercial_score = sum(1 for marker in self.authenticity_indicators['commercial_markers'] if marker in text)
+            
+            # Calculate authenticity score
+            positive_signals = local_score + insider_score
+            negative_signals = tourist_score + commercial_score
+            
+            if positive_signals > negative_signals:
+                auth_score = 0.7 + (positive_signals * 0.1)
+            elif negative_signals > positive_signals:
+                auth_score = 0.3 - (negative_signals * 0.05)
+            else:
+                auth_score = 0.5
+            
+            authenticity_scores.append(max(0.0, min(1.0, auth_score)))
+        
+        return statistics.mean(authenticity_scores)
+    
+    def _score_emotional_resonance(self, affinities: List[Dict]) -> float:
+        """Score based on emotional variety and resonance."""
+        if not affinities:
+            return 0.0
+        
+        all_emotions = set()
+        emotion_scores = []
+        
+        for affinity in affinities:
+            theme = affinity.get('theme', '').lower()
+            rationale = affinity.get('rationale', '').lower()
+            text = f"{theme} {rationale}"
+            
+            affinity_emotions = set()
+            for emotion, keywords in self.emotional_keywords.items():
+                if any(keyword in text for keyword in keywords):
+                    affinity_emotions.add(emotion)
+                    all_emotions.add(emotion)
+            
+            # Score individual affinity emotional clarity
+            if affinity_emotions:
+                emotion_scores.append(1.0)
+            else:
+                emotion_scores.append(0.3)  # Default emotional neutrality
+        
+        # Combine individual scores with overall emotional variety
+        individual_score = statistics.mean(emotion_scores) if emotion_scores else 0.0
+        variety_score = min(1.0, len(all_emotions) / 6)  # 6 emotional categories
+        
+        return (individual_score * 0.7) + (variety_score * 0.3)
     
     def _empty_score(self) -> dict:
         """Return empty score structure for invalid inputs."""
@@ -308,6 +429,9 @@ class AffinityQualityScorer:
                 'actionability': 0.0,
                 'uniqueness': 0.0,
                 'source_credibility': 0.0,
+                'theme_depth': 0.0,
+                'authenticity': 0.0,
+                'emotional_resonance': 0.0
             },
             "overall_score": 0.0,
             "quality_level": "No Data",

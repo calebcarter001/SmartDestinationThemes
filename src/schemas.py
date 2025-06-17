@@ -32,6 +32,120 @@ class AuthenticityLevel(str, Enum):
     TOURIST_ORIENTED = "tourist_oriented"
     TOURIST_TRAP = "tourist_trap"
 
+# Enhanced LLM Schema Models
+class DestinationPersonality(BaseModel):
+    primary_character: str = Field(description="Main personality of the destination")
+    defining_features: List[str] = Field(default_factory=list, description="2-4 key characteristics")
+    ideal_trip_length: str = Field(description="Recommended trip duration")
+    best_known_for: List[str] = Field(default_factory=list, description="3-5 signature experiences")
+
+class TravelerNuances(BaseModel):
+    solo: Dict[str, List[str]] = Field(default_factory=dict, description="Solo traveler specific details")
+    couple: Dict[str, List[str]] = Field(default_factory=dict, description="Couple specific details")
+    family: Dict[str, List[str]] = Field(default_factory=dict, description="Family specific details")  
+    group: Dict[str, List[str]] = Field(default_factory=dict, description="Group specific details")
+
+class AccommodationInsights(BaseModel):
+    recommended_areas: List[str] = Field(default_factory=list, description="Best neighborhoods/areas")
+    accommodation_types: List[str] = Field(default_factory=list, description="Hotels, resorts, rentals")
+    key_amenities: List[str] = Field(default_factory=list, description="Important features")
+    booking_considerations: List[str] = Field(default_factory=list, description="Timing, pricing factors")
+
+class LocalIntelligence(BaseModel):
+    insider_tips: List[str] = Field(default_factory=list, description="Local knowledge")
+    transportation_notes: List[str] = Field(default_factory=list, description="How to get around")
+    cultural_etiquette: List[str] = Field(default_factory=list, description="Local customs")
+    language_considerations: List[str] = Field(default_factory=list, description="Language help")
+    currency_payment: List[str] = Field(default_factory=list, description="Payment methods")
+
+class TemporalFactors(BaseModel):
+    seasonality: Dict[str, List[str]] = Field(default_factory=dict, description="Peak, avoid, shoulder seasons")
+    best_time_of_day: List[str] = Field(default_factory=list, description="Optimal timing")
+    duration_recommendations: List[str] = Field(default_factory=list, description="How long to spend")
+    advance_booking: str = Field(default="", description="How far ahead to book")
+
+class AccessibilityInclusion(BaseModel):
+    physical_accessibility: str = Field(default="", description="Mobility considerations")
+    sensory_considerations: str = Field(default="", description="Visual, hearing accommodations")
+    dietary_accommodations: List[str] = Field(default_factory=list, description="Food restrictions")
+    budget_accessibility: str = Field(default="", description="Budget-friendly options")
+
+class TypicalCosts(BaseModel):
+    budget_range: str = Field(default="", description="Budget cost range")
+    mid_range: str = Field(default="", description="Mid-range cost range") 
+    luxury_range: str = Field(default="", description="Luxury cost range")
+
+class PracticalDetails(BaseModel):
+    price_point: str = Field(default="mid", description="Budget category")
+    typical_costs: TypicalCosts = Field(default_factory=TypicalCosts, description="Cost ranges")
+    booking_platforms: List[str] = Field(default_factory=list, description="Best booking sites")
+    cancellation_policies: str = Field(default="", description="Flexibility considerations")
+
+class ExperienceDepth(BaseModel):
+    surface_level: List[str] = Field(default_factory=list, description="Easy/obvious experiences")
+    deeper_exploration: List[str] = Field(default_factory=list, description="More involved experiences")
+    local_immersion: List[str] = Field(default_factory=list, description="Authentic local experiences")
+    hidden_gems: List[str] = Field(default_factory=list, description="Off-the-beaten-path")
+
+class GettingThere(BaseModel):
+    major_airports: List[str] = Field(default_factory=list, description="Airport codes and names")
+    transportation_from_airport: List[str] = Field(default_factory=list, description="Airport to city options")
+    alternative_arrival_methods: List[str] = Field(default_factory=list, description="Train, bus, car")
+
+class GettingAround(BaseModel):
+    public_transport: str = Field(default="", description="Metro, buses, efficiency")
+    ride_sharing: str = Field(default="", description="Uber/Lyft availability")
+    walking_walkability: str = Field(default="", description="Pedestrian-friendly rating")
+    car_rental: str = Field(default="", description="Necessity and ease of driving")
+
+class EssentialPrep(BaseModel):
+    visa_requirements: str = Field(default="", description="Visa needs for US travelers")
+    health_considerations: List[str] = Field(default_factory=list, description="Vaccinations, health tips")
+    climate_preparation: List[str] = Field(default_factory=list, description="What to pack")
+    tech_connectivity: str = Field(default="", description="Wifi, cell service, adapters")
+
+class DestinationLogistics(BaseModel):
+    getting_there: GettingThere = Field(default_factory=GettingThere, description="Transportation to destination")
+    getting_around: GettingAround = Field(default_factory=GettingAround, description="Local transportation")
+    essential_prep: EssentialPrep = Field(default_factory=EssentialPrep, description="Trip preparation")
+
+class EnhancedBasicAffinity(BaseModel):
+    """Enhanced basic affinity from LLM with destination nuances"""
+    # Core theme information
+    category: str
+    theme: str
+    sub_themes: List[str] = Field(default_factory=list)
+    confidence: float = Field(ge=0, le=1)
+    
+    # Enhanced traveler information
+    traveler_nuances: TravelerNuances = Field(default_factory=TravelerNuances)
+    
+    # Accommodation and logistics
+    accommodation_insights: AccommodationInsights = Field(default_factory=AccommodationInsights)
+    local_intelligence: LocalIntelligence = Field(default_factory=LocalIntelligence)
+    
+    # Timing and accessibility
+    temporal_factors: TemporalFactors = Field(default_factory=TemporalFactors)
+    accessibility_inclusion: AccessibilityInclusion = Field(default_factory=AccessibilityInclusion)
+    
+    # Practical information
+    practical_details: PracticalDetails = Field(default_factory=PracticalDetails)
+    experience_depth: ExperienceDepth = Field(default_factory=ExperienceDepth)
+    
+    # Traditional fields
+    rationale: str = ""
+    unique_selling_points: List[str] = Field(default_factory=list)
+    potential_drawbacks: List[str] = Field(default_factory=list)
+
+class EnhancedBasicAffinitySet(BaseModel):
+    """Complete enhanced affinity set from LLM"""
+    destination_id: str
+    destination_personality: DestinationPersonality = Field(default_factory=DestinationPersonality)
+    affinities: List[EnhancedBasicAffinity] = Field(default_factory=list)
+    destination_logistics: DestinationLogistics = Field(default_factory=DestinationLogistics)
+    meta: Dict[str, Any] = Field(default_factory=dict)
+
+# Original Enhanced Intelligence Models (keep existing)
 class CulturalSensitivity(BaseModel):
     appropriate: bool = True
     considerations: List[str] = Field(default_factory=list)
@@ -90,6 +204,11 @@ class EnhancedAffinity(BaseModel):
     traveler_types: List[str] = Field(default_factory=list)
     experience_context: ExperienceContext = Field(default_factory=ExperienceContext)
     
+    # Enhanced LLM fields (optional backward compatibility)
+    traveler_nuances: Optional[TravelerNuances] = None
+    accommodation_insights: Optional[AccommodationInsights] = None
+    local_intelligence: Optional[LocalIntelligence] = None
+    
     # Interconnections and flow
     theme_interconnections: ThemeInterconnection = Field(default_factory=ThemeInterconnection)
     
@@ -142,6 +261,10 @@ class EnhancedDestinationResult(BaseModel):
     qa_workflow: Dict[str, Any] = Field(default_factory=dict)
     priority_data: List[Dict[str, Any]] = Field(default_factory=list)
     processing_time_seconds: float = 0.0
+    
+    # Enhanced LLM fields
+    destination_personality: Optional[DestinationPersonality] = None
+    destination_logistics: Optional[DestinationLogistics] = None
     
     # New intelligence layers
     destination_intelligence: Dict[str, Any] = Field(default_factory=dict)

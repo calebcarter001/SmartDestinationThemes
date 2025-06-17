@@ -15,36 +15,136 @@ llm_settings:
   gemini_model_name: "gemini-1.5-flash-latest"  # or gemini-2.0-flash
   openai_model_name: "gpt-4o-mini"
 
-# The detailed prompt for generating destination affinities
+# The enhanced prompt for generating destination affinities with nuances
 affinity_prompt: |
-  Generate destination affinities for {destination} following this exact JSON schema. Do not include any text before or after the JSON object.
+  Generate comprehensive destination affinities for {destination} following this exact JSON schema. Include destination personality, traveler-specific nuances, and actionable details. Do not include any text before or after the JSON object.
 
   {{
     "destination_id": "str",
+    "destination_personality": {{
+      "primary_character": "str (e.g., 'luxury paradise', 'cultural melting pot', 'outdoor adventure hub')",
+      "defining_features": ["str (2-4 key characteristics)"],
+      "ideal_trip_length": "str (e.g., '3-5 days', '1-2 weeks')",
+      "best_known_for": ["str (3-5 signature experiences)"]
+    }},
     "affinities": [
       {{
-        "category": "enum[nature|culture|adventure|luxury|family|wellness]",
+        "category": "enum[nature|culture|adventure|luxury|family|wellness|food|nightlife|shopping|business]",
         "theme": "str (max 3 words)",
         "sub_themes": ["str"],
         "confidence": "float(0-1)",
-        "seasonality": {{"peak": ["months"], "avoid": ["months"]}},
-        "traveler_types": ["solo|couple|family|group"],
-        "price_point": "enum[budget|mid|luxury]",
-        "rationale": "str (why this affinity matches)",
-        "unique_selling_points": ["str"]
+        
+        "traveler_nuances": {{
+          "solo": {{
+            "appeal_factors": ["str (why good for solo travelers)"],
+            "specific_recommendations": ["str (solo-specific advice)"],
+            "safety_considerations": ["str (solo travel safety tips)"]
+          }},
+          "couple": {{
+            "romantic_elements": ["str (romantic aspects)"],
+            "couple_activities": ["str (activities for two)"],
+            "intimate_venues": ["str (romantic locations)"]
+          }},
+          "family": {{
+            "kid_friendly_features": ["str (family amenities)"],
+            "age_group_suitability": ["str (best for which ages)"],
+            "family_logistics": ["str (practical family tips)"]
+          }},
+          "group": {{
+            "group_dynamics": ["str (good for groups because...)"],
+            "group_activities": ["str (activities for groups)"],
+            "accommodation_tips": ["str (group lodging advice)"]
+          }}
+        }},
+        
+        "accommodation_insights": {{
+          "recommended_areas": ["str (best neighborhoods/areas)"],
+          "accommodation_types": ["str (hotels, resorts, rentals, etc.)"],
+          "key_amenities": ["str (important features to look for)"],
+          "booking_considerations": ["str (timing, pricing, special factors)"]
+        }},
+        
+        "local_intelligence": {{
+          "insider_tips": ["str (local knowledge)"],
+          "transportation_notes": ["str (how to get around)"],
+          "cultural_etiquette": ["str (local customs to know)"],
+          "language_considerations": ["str (language barriers/help)"],
+          "currency_payment": ["str (payment methods, tipping)"]
+        }},
+        
+        "temporal_factors": {{
+          "seasonality": {{"peak": ["months"], "avoid": ["months"], "shoulder": ["months"]}},
+          "best_time_of_day": ["str (optimal timing)"],
+          "duration_recommendations": ["str (how long to spend)"],
+          "advance_booking": "str (how far ahead to book)"
+        }},
+        
+        "accessibility_inclusion": {{
+          "physical_accessibility": "str (wheelchair, mobility considerations)",
+          "sensory_considerations": "str (visual, hearing accommodations)",
+          "dietary_accommodations": ["str (food restrictions, options)"],
+          "budget_accessibility": "str (budget-friendly options)"
+        }},
+        
+        "practical_details": {{
+          "price_point": "enum[budget|mid|luxury]",
+          "typical_costs": {{
+            "budget_range": "str (e.g., '$50-100/day')",
+            "mid_range": "str (e.g., '$150-250/day')",
+            "luxury_range": "str (e.g., '$300+/day')"
+          }},
+          "booking_platforms": ["str (best sites/methods to book)"],
+          "cancellation_policies": "str (flexibility considerations)"
+        }},
+        
+        "experience_depth": {{
+          "surface_level": ["str (easy/obvious experiences)"],
+          "deeper_exploration": ["str (more involved experiences)"],
+          "local_immersion": ["str (authentic local experiences)"],
+          "hidden_gems": ["str (off-the-beaten-path discoveries)"]
+        }},
+        
+        "rationale": "str (comprehensive explanation of why this fits the destination)",
+        "unique_selling_points": ["str (what makes this special here)"],
+        "potential_drawbacks": ["str (honest limitations or challenges)"]
       }}
     ],
+    "destination_logistics": {{
+      "getting_there": {{
+        "major_airports": ["str (airport codes and names)"],
+        "transportation_from_airport": ["str (options to city center)"],
+        "alternative_arrival_methods": ["str (train, bus, car, etc.)"]
+      }},
+      "getting_around": {{
+        "public_transport": "str (metro, buses, efficiency)",
+        "ride_sharing": "str (Uber/Lyft availability)",
+        "walking_walkability": "str (pedestrian-friendly rating)",
+        "car_rental": "str (necessity and ease of driving)"
+      }},
+      "essential_prep": {{
+        "visa_requirements": "str (visa needs for US travelers)",
+        "health_considerations": ["str (vaccinations, health tips)"],
+        "climate_preparation": ["str (what to pack for weather)"],
+        "tech_connectivity": "str (wifi, cell service, adapters)"
+      }}
+    }},
     "meta": {{
       "generated_at": "ISO8601",
-      "model_consensus": "float(0-1)"
+      "model_consensus": "float(0-1)",
+      "data_richness": "enum[rich|medium|sparse]",
+      "specialization_areas": ["str (what this destination excels at)"]
     }}
   }}
 
   Requirements:
-  - Maximum 10 affinities, ranked by relevance
-  - Each affinity must be actionable for trip planning
+  - Maximum 8-12 affinities, ranked by relevance and uniqueness
+  - Each affinity must be actionable for trip planning with specific details
   - Include both mainstream and niche/emerging themes
-  - Consider accessibility factors
+  - Focus on what makes this destination unique vs. generic travel advice
+  - Consider all traveler types with specific nuances for each
+  - Include practical logistics and insider knowledge
+  - Be honest about limitations alongside selling points
+  - Prioritize experiences that are distinctive to this destination
 
 # =============================================================================
 # ADAPTIVE INTELLIGENCE CONFIGURATION

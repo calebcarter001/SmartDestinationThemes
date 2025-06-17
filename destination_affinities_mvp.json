@@ -340,7 +340,7 @@
     }
   },
   "New York, New York": {
-    "destination_id": "new_york_city",
+    "destination_id": "new_york_new_york",
     "affinities": [
       {
         "category": "culture",
@@ -703,5 +703,167 @@
       "generated_at": "2025-06-16T14:46:10.294617",
       "model_consensus": 0.8
     }
+  },
+  "Paris, France": {
+    "destination_id": "paris_france",
+    "affinities": [
+      {
+        "category": "culture",
+        "theme": "Art and Museums",
+        "sub_themes": ["Louvre", "Musée d'Orsay", "Street Art"],
+        "confidence": 0.95,
+        "seasonality": {"peak": ["April", "May", "September", "October"], "avoid": ["August"]},
+        "traveler_types": ["couple", "solo", "family"],
+        "price_point": "mid",
+        "rationale": "Paris is home to world-renowned museums and art collections",
+        "unique_selling_points": ["Louvre Museum", "Impressionist collections", "Historic architecture"]
+      },
+      {
+        "category": "food",
+        "theme": "Culinary Excellence",
+        "sub_themes": ["French cuisine", "Patisseries", "Wine tasting"],
+        "confidence": 0.9,
+        "seasonality": {"peak": ["April", "May", "September", "October"], "avoid": []},
+        "traveler_types": ["couple", "solo", "group"],
+        "price_point": "luxury",
+        "rationale": "Paris is the culinary capital with Michelin-starred restaurants and iconic pastries",
+        "unique_selling_points": ["Michelin dining", "French pastries", "Wine culture"]
+      }
+    ]
+  },
+  "Tokyo, Japan": {
+    "destination_id": "tokyo_japan",
+    "affinities": [
+      {
+        "category": "culture",
+        "theme": "Traditional meets Modern",
+        "sub_themes": ["Temples", "Technology", "Pop culture"],
+        "confidence": 0.9,
+        "seasonality": {"peak": ["March", "April", "October", "November"], "avoid": ["July", "August"]},
+        "traveler_types": ["solo", "couple", "family"],
+        "price_point": "mid",
+        "rationale": "Tokyo perfectly blends ancient traditions with cutting-edge modernity",
+        "unique_selling_points": ["Historic temples", "Tech innovation", "Anime culture"]
+      },
+      {
+        "category": "food",
+        "theme": "Culinary Adventure",
+        "sub_themes": ["Sushi", "Ramen", "Street food"],
+        "confidence": 0.95,
+        "seasonality": {"peak": ["March", "April", "October", "November"], "avoid": []},
+        "traveler_types": ["solo", "couple", "group"],
+        "price_point": "mid",
+        "rationale": "Tokyo offers the world's finest Japanese cuisine from street food to Michelin stars",
+        "unique_selling_points": ["Authentic sushi", "Ramen variety", "Food markets"]
+      }
+    ]
+  },
+  "Sydney, Australia": {
+    "destination_id": "sydney_australia",
+    "affinities": [
+      {
+        "category": "nature",
+        "theme": "Harbor and Beaches",
+        "sub_themes": ["Sydney Harbour", "Bondi Beach", "Coastal walks"],
+        "confidence": 0.9,
+        "seasonality": {"peak": ["December", "January", "February"], "avoid": ["June", "July", "August"]},
+        "traveler_types": ["couple", "family", "solo"],
+        "price_point": "mid",
+        "rationale": "Sydney's stunning harbor and world-famous beaches define the city",
+        "unique_selling_points": ["Iconic Opera House", "Beautiful beaches", "Harbor Bridge"]
+      },
+      {
+        "category": "adventure",
+        "theme": "Outdoor Activities",
+        "sub_themes": ["Surfing", "Hiking", "Sailing"],
+        "confidence": 0.85,
+        "seasonality": {"peak": ["December", "January", "February", "March"], "avoid": []},
+        "traveler_types": ["couple", "solo", "group"],
+        "price_point": "mid",
+        "rationale": "Sydney's climate and geography make it perfect for outdoor adventures",
+        "unique_selling_points": ["Year-round outdoor weather", "Diverse activities", "Natural beauty"]
+      }
+    ]
+  },
+  "Miami, Florida": {
+    "destination_id": "miami_florida",
+    "affinities": [
+      {
+        "category": "nightlife",
+        "theme": "Beach Party Scene",
+        "sub_themes": ["Beach clubs", "Rooftop bars", "Dance clubs"],
+        "confidence": 0.9,
+        "seasonality": {"peak": ["December", "January", "February", "March"], "avoid": ["August", "September"]},
+        "traveler_types": ["couple", "group", "solo"],
+        "price_point": "luxury",
+        "rationale": "Miami is renowned for its vibrant nightlife and beach party atmosphere",
+        "unique_selling_points": ["South Beach", "Art Deco district", "Latin culture"]
+      },
+      {
+        "category": "culture",
+        "theme": "Art and Design",
+        "sub_themes": ["Art Basel", "Wynwood Walls", "Design District"],
+        "confidence": 0.8,
+        "seasonality": {"peak": ["December", "January", "February", "March"], "avoid": []},
+        "traveler_types": ["couple", "solo", "family"],
+        "price_point": "mid",
+        "rationale": "Miami has emerged as a major art and design hub with world-class galleries",
+        "unique_selling_points": ["Street art", "Modern galleries", "Design scene"]
+      }
+    ]
+  },
+  "London, England": {
+    "destination_id": "london_england",
+    "affinities": [
+      {
+        "category": "culture",
+        "theme": "Royal Heritage",
+        "sub_themes": ["Buckingham Palace", "Tower of London", "Royal Parks"],
+        "confidence": 0.9,
+        "seasonality": {"peak": ["May", "June", "July", "August"], "avoid": ["December", "January"]},
+        "traveler_types": ["family", "couple", "solo"],
+        "price_point": "mid",
+        "rationale": "London's royal history and heritage sites are iconic worldwide attractions",
+        "unique_selling_points": ["Royal palaces", "Historic ceremonies", "Crown Jewels"]
+      },
+      {
+        "category": "culture",
+        "theme": "Theater and Arts",
+        "sub_themes": ["West End shows", "Museums", "Galleries"],
+        "confidence": 0.95,
+        "seasonality": {"peak": ["May", "June", "July", "August", "September"], "avoid": []},
+        "traveler_types": ["couple", "solo", "family"],
+        "price_point": "mid",
+        "rationale": "London's West End and world-class museums make it a cultural powerhouse",
+        "unique_selling_points": ["West End theater", "British Museum", "Tate Modern"]
+      }
+    ]
+  },
+  "Bali, Indonesia": {
+    "destination_id": "bali_indonesia",
+    "affinities": [
+      {
+        "category": "wellness",
+        "theme": "Spiritual Retreat",
+        "sub_themes": ["Yoga retreats", "Meditation", "Spa treatments"],
+        "confidence": 0.9,
+        "seasonality": {"peak": ["April", "May", "June", "July", "August", "September"], "avoid": ["December", "January", "February"]},
+        "traveler_types": ["couple", "solo"],
+        "price_point": "mid",
+        "rationale": "Bali is a world-renowned destination for wellness, spirituality, and relaxation",
+        "unique_selling_points": ["Ancient temples", "Wellness retreats", "Natural beauty"]
+      },
+      {
+        "category": "nature",
+        "theme": "Tropical Paradise",
+        "sub_themes": ["Rice terraces", "Beaches", "Volcanoes"],
+        "confidence": 0.85,
+        "seasonality": {"peak": ["April", "May", "June", "July", "August", "September"], "avoid": ["December", "January"]},
+        "traveler_types": ["couple", "family", "solo"],
+        "price_point": "budget",
+        "rationale": "Bali's diverse landscapes from beaches to mountains offer stunning natural experiences",
+        "unique_selling_points": ["Scenic rice terraces", "Beautiful beaches", "Active volcanoes"]
+      }
+    ]
   }
 }

@@ -216,7 +216,7 @@ class QualityAssuranceFlow:
                         status: Optional[str] = None) -> Dict[str, Any]:
         """
         Retrieves pending reviews from the queue, optionally filtered by reviewer or status.
-        
+
         Args:
             reviewer_id: Optional reviewer filter
             status: Optional status filter
@@ -267,7 +267,7 @@ class QualityAssuranceFlow:
                              days: int = 30) -> Dict[str, Any]:
         """
         Analyzes feedback patterns and quality improvement trends.
-        
+
         Args:
             destination: Optional destination filter
             days: Number of days to analyze

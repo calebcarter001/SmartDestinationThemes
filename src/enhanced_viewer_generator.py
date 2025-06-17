@@ -100,6 +100,7 @@ class EnhancedViewerGenerator:
         intelligence_insights = data.get('intelligence_insights', {})
         composition_analysis = data.get('composition_analysis', {})
         qa_workflow = data.get('qa_workflow', {})
+        comprehensive_evidence = data.get('comprehensive_evidence', {})
         
         # Quality metrics
         quality_score = quality_assessment.get('overall_score', 0)
@@ -124,6 +125,9 @@ class EnhancedViewerGenerator:
         
         # Generate quality metrics
         quality_html = self._generate_quality_metrics(quality_assessment)
+        
+        # Generate comprehensive evidence display
+        evidence_html = self._generate_comprehensive_evidence_display(comprehensive_evidence)
         
         return f"""
 <!DOCTYPE html>
@@ -193,10 +197,29 @@ class EnhancedViewerGenerator:
             {quality_html}
         </section>
         
+        <!-- Comprehensive Evidence Section -->
+        <section class="comprehensive-evidence">
+            <h2><i class="fas fa-search"></i> Evidence Collection</h2>
+            {evidence_html}
+        </section>
+        
         <!-- Footer -->
         <footer class="dashboard-footer">
             <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | SmartDestinationThemes Enhanced Intelligence System</p>
         </footer>
+    </div>
+    
+    <!-- Evidence Modal -->
+    <div id="evidenceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Evidence Details</h2>
+                <span class="close" onclick="closeEvidenceModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Evidence content will be inserted here -->
+            </div>
+        </div>
     </div>
     
     <script>
@@ -240,6 +263,9 @@ class EnhancedViewerGenerator:
             experience_intensity, hidden_gem_score
         )
         
+        # Generate evidence validation display
+        evidence_html = self._generate_evidence_validation_display(theme.get('evidence_summary', {}))
+        
         # Generate enhanced details
         details_html = self._generate_theme_details(
             theme, depth_analysis, contextual_info, theme.get('micro_climate', {}),
@@ -252,7 +278,7 @@ class EnhancedViewerGenerator:
         <div class="theme-card enhanced-theme">
             <div class="theme-header">
                 <div class="theme-title-section">
-                    <h3 class="theme-title">{theme_name}</h3>
+                    <h3 class="theme-title">{theme_name} {self._generate_evidence_paperclip(theme_name, theme)}</h3>
                     <span class="theme-category">{category}</span>
                 </div>
                 <div class="confidence-score" style="background: {confidence_color}">
@@ -262,6 +288,10 @@ class EnhancedViewerGenerator:
             
             <div class="intelligence-badges">
                 {badges_html}
+            </div>
+            
+            <div class="evidence-validation">
+                {evidence_html}
             </div>
             
             <div class="theme-rationale">
@@ -319,57 +349,283 @@ class EnhancedViewerGenerator:
         
         return ''.join(badges)
     
+    def _generate_evidence_validation_display(self, evidence_summary: dict) -> str:
+        """Generate evidence validation display for a theme with actual evidence pieces."""
+        if not evidence_summary:
+            return '<div class="evidence-status no-evidence"><span class="evidence-icon">❓</span> No evidence validation data</div>'
+        
+        validation_status = evidence_summary.get('validation_status', 'pending')
+        evidence_count = evidence_summary.get('evidence_count', 0)
+        unique_sources = evidence_summary.get('unique_sources', 0)
+        average_authority = evidence_summary.get('average_authority', 0)
+        validation_confidence = evidence_summary.get('validation_confidence', 0)
+        evidence_gaps = evidence_summary.get('evidence_gaps', [])
+        evidence_pieces = evidence_summary.get('evidence_pieces', [])
+        
+        # Status icons and colors
+        status_config = {
+            'validated': {'icon': '✅', 'color': '#28a745', 'label': 'Validated'},
+            'partially_validated': {'icon': '⚠️', 'color': '#ffc107', 'label': 'Partial'},
+            'unvalidated': {'icon': '❌', 'color': '#dc3545', 'label': 'Unvalidated'},
+            'conflicting': {'icon': '⚡', 'color': '#fd7e14', 'label': 'Conflicting'},
+            'pending': {'icon': '⏳', 'color': '#6c757d', 'label': 'Pending'}
+        }
+        
+        config = status_config.get(validation_status, status_config['pending'])
+        
+        # Evidence metrics
+        metrics_html = ""
+        if evidence_count > 0:
+            authority_bar = f'<div class="authority-bar"><div class="authority-fill" style="width: {average_authority*100}%; background: {config["color"]}"></div></div>'
+            metrics_html = f"""
+            <div class="evidence-metrics">
+                <div class="evidence-metric">
+                    <span class="metric-label">Sources:</span>
+                    <span class="metric-value">{unique_sources}</span>
+                </div>
+                <div class="evidence-metric">
+                    <span class="metric-label">Evidence:</span>
+                    <span class="metric-value">{evidence_count}</span>
+                </div>
+                <div class="evidence-metric">
+                    <span class="metric-label">Authority:</span>
+                    <span class="metric-value">{average_authority:.2f}</span>
+                    {authority_bar}
+                </div>
+                <div class="evidence-metric">
+                    <span class="metric-label">Confidence:</span>
+                    <span class="metric-value">{validation_confidence:.2f}</span>
+                </div>
+            </div>
+            """
+        
+        # Evidence pieces display
+        evidence_pieces_html = ""
+        if evidence_pieces:
+            evidence_items = []
+            for i, piece in enumerate(evidence_pieces[:3]):  # Show top 3 evidence pieces
+                source_type_icon = self._get_source_type_icon(piece.get('source_type', 'unknown'))
+                quality_color = self._get_quality_color(piece.get('quality_rating', 'poor'))
+                authority_score = piece.get('authority_score', 0)
+                
+                evidence_items.append(f"""
+                <div class="evidence-piece" style="border-left-color: {quality_color}">
+                    <div class="evidence-header">
+                        <span class="source-icon">{source_type_icon}</span>
+                        <span class="authority-score" style="background: {quality_color}">{authority_score:.2f}</span>
+                    </div>
+                    <div class="evidence-text">"{piece.get('text_content', '')}"</div>
+                    <div class="evidence-source">
+                        <a href="{piece.get('source_url', '#')}" target="_blank" title="{piece.get('source_title', 'Source')}">
+                            {self._truncate_url(piece.get('source_url', ''))}
+                        </a>
+                    </div>
+                </div>
+                """)
+            
+            evidence_pieces_html = f"""
+            <div class="evidence-pieces">
+                <div class="evidence-toggle" onclick="toggleEvidence(this)">
+                    <span class="toggle-icon">▼</span> View Evidence ({len(evidence_pieces)} pieces)
+                </div>
+                <div class="evidence-content" style="display: none;">
+                    {''.join(evidence_items)}
+                    {f'<div class="evidence-more">... and {len(evidence_pieces) - 3} more pieces</div>' if len(evidence_pieces) > 3 else ''}
+                </div>
+            </div>
+            """
+        
+        # Evidence gaps
+        gaps_html = ""
+        if evidence_gaps:
+            gap_tags = ''.join(f'<span class="gap-tag">{gap}</span>' for gap in evidence_gaps[:3])
+            gaps_html = f'<div class="evidence-gaps"><strong>Gaps:</strong> {gap_tags}</div>'
+        
+        return f"""
+        <div class="evidence-status {validation_status}" style="border-left-color: {config['color']}">
+            <div class="evidence-header">
+                <span class="evidence-icon">{config['icon']}</span>
+                <span class="evidence-label">{config['label']}</span>
+            </div>
+            {metrics_html}
+            {evidence_pieces_html}
+            {gaps_html}
+        </div>
+        """
+
+    def _get_source_type_icon(self, source_type: str) -> str:
+        """Get icon for source type."""
+        icons = {
+            'government': '🏛️',
+            'education': '🎓',
+            'major_travel': '✈️',
+            'news_media': '📰',
+            'tourism_board': '🗺️',
+            'travel_blog': '📝',
+            'local_business': '🏪',
+            'social_media': '📱',
+            'unknown': '❓'
+        }
+        return icons.get(source_type, '❓')
+    
+    def _get_quality_color(self, quality_rating: str) -> str:
+        """Get color for quality rating."""
+        colors = {
+            'excellent': '#28a745',
+            'good': '#20c997',
+            'acceptable': '#ffc107',
+            'poor': '#fd7e14',
+            'rejected': '#dc3545'
+        }
+        return colors.get(quality_rating, '#6c757d')
+    
+    def _truncate_url(self, url: str) -> str:
+        """Truncate URL for display."""
+        if len(url) > 40:
+            return url[:37] + '...'
+        return url
+
+    def _generate_evidence_paperclip(self, theme_name: str, theme_data: dict) -> str:
+        """Generate paperclip icon for evidence modal."""
+        evidence_summary = theme_data.get('evidence_summary', {})
+        evidence_pieces = evidence_summary.get('evidence_pieces', [])
+        
+        # Collect all evidence types for this theme
+        all_evidence = {
+            'theme_evidence': evidence_pieces,
+            'nano_themes': theme_data.get('nano_themes', []),
+            'price_insights': theme_data.get('price_insights', {}),
+            'authenticity_analysis': theme_data.get('authenticity_analysis', {}),
+            'hidden_gem_score': theme_data.get('hidden_gem_score', {}),
+            'depth_analysis': theme_data.get('depth_analysis', {}),
+            'llm_generated': theme_data.get('llm_generated', True)  # Track if LLM generated
+        }
+        
+        # Check if we have any evidence
+        has_evidence = (
+            len(evidence_pieces) > 0 or 
+            len(all_evidence['nano_themes']) > 0 or
+            bool(all_evidence['price_insights']) or
+            bool(all_evidence['authenticity_analysis']) or
+            bool(all_evidence['hidden_gem_score']) or
+            bool(all_evidence['depth_analysis'])
+        )
+        
+        if not has_evidence:
+            return '<i class="fas fa-paperclip evidence-paperclip no-evidence" title="No evidence available"></i>'
+        
+        # Generate evidence data for modal (escape quotes for HTML attribute)
+        import json
+        evidence_json = json.dumps(all_evidence).replace('"', '&quot;')
+        
+        return f'''<i class="fas fa-paperclip evidence-paperclip" 
+                    onclick="showEvidenceModal('{theme_name}', '{evidence_json}')" 
+                    title="View evidence for {theme_name}"></i>'''
+    
     def _generate_theme_details(self, theme, depth_analysis, contextual_info, micro_climate, cultural_sensitivity, interconnections) -> str:
-        """Generate detailed theme information."""
+        """Generate detailed theme information with evidence paperclips for each attribute."""
         details = []
+        theme_name = theme.get('theme', 'Unknown Theme')
+        
+        # Get comprehensive evidence for all attributes
+        comprehensive_evidence = theme.get('comprehensive_attribute_evidence', {})
         
         # Sub-themes
         sub_themes = theme.get('sub_themes', [])
         if sub_themes:
             sub_theme_tags = ''.join(f'<span class="sub-theme-tag">{st}</span>' for st in sub_themes)
-            details.append(f'<div class="detail-row"><strong>🎯 Sub-themes:</strong> <div class="sub-themes">{sub_theme_tags}</div></div>')
+            sub_themes_paperclip = self._generate_attribute_paperclip(theme_name, 'sub_themes', sub_themes, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>🎯 Sub-themes: {sub_themes_paperclip}</strong> <div class="sub-themes">{sub_theme_tags}</div></div>')
         
         # Nano themes
         nano_themes = depth_analysis.get('nano_themes', [])
         if nano_themes:
             nano_tags = ''.join(f'<span class="nano-theme-tag">{nt}</span>' for nt in nano_themes[:4])
-            details.append(f'<div class="detail-row"><strong>🔬 Nano Themes:</strong> <div class="nano-themes">{nano_tags}</div></div>')
+            nano_paperclip = self._generate_attribute_paperclip(theme_name, 'nano_themes', nano_themes, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>🔬 Nano Themes: {nano_paperclip}</strong> <div class="nano-themes">{nano_tags}</div></div>')
         
         # Demographics
         demographics = contextual_info.get('demographic_suitability', [])
         if demographics:
-            details.append(f'<div class="detail-row"><strong>👥 Best For:</strong> {", ".join(demographics)}</div>')
+            demo_paperclip = self._generate_attribute_paperclip(theme_name, 'demographic_suitability', demographics, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>👥 Best For: {demo_paperclip}</strong> {", ".join(demographics)}</div>')
         
         # Time commitment
         time_commit = contextual_info.get('time_commitment', '')
         if time_commit:
-            details.append(f'<div class="detail-row"><strong>⏰ Time Needed:</strong> {time_commit.title()}</div>')
+            time_paperclip = self._generate_attribute_paperclip(theme_name, 'time_commitment', time_commit, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>⏰ Time Needed: {time_paperclip}</strong> {time_commit.title()}</div>')
+        
+        # Experience Intensity
+        experience_intensity = theme.get('experience_intensity', {})
+        if experience_intensity:
+            intensity_paperclip = self._generate_attribute_paperclip(theme_name, 'experience_intensity', experience_intensity, comprehensive_evidence)
+            overall_intensity = experience_intensity.get('overall_intensity', 'moderate')
+            details.append(f'<div class="detail-row"><strong>⚡ Intensity: {intensity_paperclip}</strong> {overall_intensity.title()}</div>')
+        
+        # Emotional Profile
+        emotional_profile = theme.get('emotional_profile', {})
+        emotions = emotional_profile.get('primary_emotions', [])
+        if emotions:
+            emotion_paperclip = self._generate_attribute_paperclip(theme_name, 'emotional_profile', emotions, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>✨ Emotions: {emotion_paperclip}</strong> {", ".join(emotions[:3])}</div>')
         
         # Best timing
         best_time = micro_climate.get('best_time_of_day', [])
         if best_time and best_time != ['flexible']:
-            details.append(f'<div class="detail-row"><strong>🕐 Best Time:</strong> {", ".join(best_time)}</div>')
+            timing_paperclip = self._generate_attribute_paperclip(theme_name, 'micro_climate', best_time, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>🕐 Best Time: {timing_paperclip}</strong> {", ".join(best_time)}</div>')
         
         # Weather needs
         weather_deps = micro_climate.get('weather_dependencies', [])
         if weather_deps:
-            details.append(f'<div class="detail-row"><strong>🌤️ Weather:</strong> {", ".join(weather_deps)}</div>')
+            weather_paperclip = self._generate_attribute_paperclip(theme_name, 'weather_dependencies', weather_deps, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>🌤️ Weather: {weather_paperclip}</strong> {", ".join(weather_deps)}</div>')
         
         # Cultural notes
         cultural_notes = cultural_sensitivity.get('considerations', [])
         if cultural_notes:
-            details.append(f'<div class="detail-row"><strong>🏛️ Cultural:</strong> {", ".join(cultural_notes[:2])}</div>')
+            cultural_paperclip = self._generate_attribute_paperclip(theme_name, 'cultural_sensitivity', cultural_notes, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>🏛️ Cultural: {cultural_paperclip}</strong> {", ".join(cultural_notes[:2])}</div>')
         
         # Combinations
         combinations = interconnections.get('natural_combinations', [])
         if combinations:
-            details.append(f'<div class="detail-row"><strong>🔗 Combines With:</strong> {", ".join(combinations[:3])}</div>')
+            combo_paperclip = self._generate_attribute_paperclip(theme_name, 'theme_interconnections', combinations, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>🔗 Combines With: {combo_paperclip}</strong> {", ".join(combinations[:3])}</div>')
         
-        # Price and validation
-        details.append(f'<div class="detail-row"><strong>💰 Price:</strong> {theme.get("price_point", "N/A").title()}</div>')
-        details.append(f'<div class="detail-row"><strong>✅ Status:</strong> {theme.get("validation", "N/A")}</div>')
+        # Price insights
+        price_insights = theme.get('price_insights', {})
+        if price_insights:
+            price_category = price_insights.get('price_category', 'N/A')
+            price_paperclip = self._generate_attribute_paperclip(theme_name, 'price_insights', price_category, comprehensive_evidence)
+            details.append(f'<div class="detail-row"><strong>💰 Price: {price_paperclip}</strong> {price_category.title()}</div>')
         
         return ''.join(details)
+
+    def _generate_attribute_paperclip(self, theme_name: str, attribute_name: str, 
+                                    attribute_data: Any, comprehensive_evidence: Dict[str, Any]) -> str:
+        """Generate paperclip icon for specific attribute with evidence."""
+        # Check if we have evidence for this specific attribute
+        attribute_evidence = comprehensive_evidence.get(attribute_name, {})
+        
+        if not attribute_evidence:
+            return '<i class="fas fa-paperclip evidence-paperclip no-evidence" title="No evidence available for this attribute"></i>'
+        
+        # Create evidence data for modal
+        evidence_data = {
+            'attribute_name': attribute_name,
+            'attribute_data': attribute_data,
+            'evidence': attribute_evidence,
+            'llm_generated': True  # Most attributes are LLM generated
+        }
+        
+        import json
+        evidence_json = json.dumps(evidence_data).replace('"', '&quot;')
+        
+        return f'''<i class="fas fa-paperclip evidence-paperclip" 
+                    onclick="showAttributeEvidenceModal('{theme_name}', '{attribute_name}', '{evidence_json}')" 
+                    title="View evidence for {attribute_name.replace('_', ' ')}"></i>'''
     
     def _generate_intelligence_insights(self, intelligence_insights: dict) -> str:
         """Generate intelligence insights cards."""
@@ -529,6 +785,124 @@ class EnhancedViewerGenerator:
                 <div class="metrics-grid">
                     {"".join(intel_html)}
                 </div>
+            </div>
+        </div>
+        """
+
+    def _generate_comprehensive_evidence_display(self, comprehensive_evidence: dict) -> str:
+        """Generate comprehensive evidence display showing all evidence types."""
+        if not comprehensive_evidence:
+            return '<div class="no-data">No comprehensive evidence data available</div>'
+        
+        evidence_summary = comprehensive_evidence.get('evidence_summary', {})
+        total_pieces = evidence_summary.get('total_evidence_pieces', 0)
+        unique_sources = evidence_summary.get('unique_sources', 0)
+        evidence_types = evidence_summary.get('evidence_types_collected', [])
+        
+        # Evidence type cards
+        evidence_cards = []
+        
+        # Price evidence
+        if comprehensive_evidence.get('price_evidence'):
+            price_evidence = comprehensive_evidence['price_evidence']
+            evidence_cards.append(self._generate_evidence_type_card(
+                'Price Information', '💰', price_evidence, '#28a745'
+            ))
+        
+        # Authenticity evidence
+        if comprehensive_evidence.get('authenticity_evidence'):
+            auth_evidence = comprehensive_evidence['authenticity_evidence']
+            evidence_cards.append(self._generate_evidence_type_card(
+                'Authenticity Markers', '🏛️', auth_evidence, '#17a2b8'
+            ))
+        
+        # Hidden gem evidence
+        if comprehensive_evidence.get('hidden_gem_evidence'):
+            gem_evidence = comprehensive_evidence['hidden_gem_evidence']
+            evidence_cards.append(self._generate_evidence_type_card(
+                'Hidden Gem Indicators', '💎', gem_evidence, '#6f42c1'
+            ))
+        
+        return f"""
+        <div class="evidence-overview">
+            <div class="evidence-summary-stats">
+                <div class="evidence-stat">
+                    <div class="stat-value">{total_pieces}</div>
+                    <div class="stat-label">Total Evidence Pieces</div>
+                </div>
+                <div class="evidence-stat">
+                    <div class="stat-value">{unique_sources}</div>
+                    <div class="stat-label">Unique Sources</div>
+                </div>
+                <div class="evidence-stat">
+                    <div class="stat-value">{len(evidence_types)}</div>
+                    <div class="stat-label">Evidence Types</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="evidence-types-grid">
+            {''.join(evidence_cards)}
+        </div>
+        """
+
+    def _generate_evidence_type_card(self, title: str, icon: str, evidence_data: dict, color: str) -> str:
+        """Generate a card for a specific evidence type."""
+        evidence_count = evidence_data.get('total_evidence_count', 0)
+        validation_status = evidence_data.get('validation_status', 'pending')
+        authority_score = evidence_data.get('average_authority_score', 0)
+        evidence_pieces = evidence_data.get('evidence_pieces', [])
+        
+        # Status indicator
+        status_icons = {
+            'validated': '✅',
+            'partially_validated': '⚠️', 
+            'unvalidated': '❌',
+            'pending': '⏳'
+        }
+        status_icon = status_icons.get(validation_status, '❓')
+        
+        # Top evidence pieces
+        evidence_preview = ""
+        if evidence_pieces:
+            top_pieces = evidence_pieces[:2]  # Show top 2
+            for piece in top_pieces:
+                evidence_preview += f"""
+                <div class="evidence-preview-item">
+                    <div class="evidence-preview-text">"{piece.get('text_content', '')[:100]}..."</div>
+                    <div class="evidence-preview-source">{self._get_source_type_icon(piece.get('source_type', 'unknown'))} {piece.get('authority_score', 0):.2f}</div>
+                </div>
+                """
+        
+        return f"""
+        <div class="evidence-type-card" style="border-left-color: {color}">
+            <div class="evidence-type-header">
+                <div class="evidence-type-title">
+                    <span class="evidence-type-icon">{icon}</span>
+                    <span class="evidence-type-name">{title}</span>
+                </div>
+                <div class="evidence-type-status">
+                    <span class="status-icon">{status_icon}</span>
+                    <span class="evidence-count">{evidence_count}</span>
+                </div>
+            </div>
+            
+            <div class="evidence-type-metrics">
+                <div class="authority-metric">
+                    <span class="metric-label">Authority:</span>
+                    <span class="metric-value">{authority_score:.2f}</span>
+                    <div class="authority-bar">
+                        <div class="authority-fill" style="width: {authority_score*100}%; background: {color}"></div>
+                    </div>
+                </div>
+            </div>
+            
+            {f'<div class="evidence-preview">{evidence_preview}</div>' if evidence_preview else '<div class="no-evidence-preview">No evidence available</div>'}
+            
+            <div class="evidence-type-actions">
+                <button class="view-evidence-btn" onclick="toggleEvidenceType(this, '{title.lower().replace(' ', '_')}')" style="background: {color}">
+                    View All Evidence
+                </button>
             </div>
         </div>
         """
@@ -822,6 +1196,481 @@ class EnhancedViewerGenerator:
             font-style: italic;
         }
         
+        /* Evidence validation styles */
+        .evidence-validation {
+            margin: 12px 0;
+        }
+        
+        .evidence-status {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-left: 4px solid #6c757d;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+        }
+        
+        .evidence-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .evidence-icon {
+            font-size: 1rem;
+        }
+        
+        .evidence-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin-top: 6px;
+        }
+        
+        .evidence-metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+        
+        .metric-label {
+            color: #6c757d;
+            font-weight: 500;
+        }
+        
+        .metric-value {
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .authority-bar {
+            width: 40px;
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-left: 4px;
+        }
+        
+        .authority-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        .evidence-gaps {
+            margin-top: 6px;
+            font-size: 0.8rem;
+        }
+        
+        .gap-tag {
+            display: inline-block;
+            background: #f8d7da;
+            color: #721c24;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin: 0 2px;
+        }
+        
+        .evidence-status.validated {
+            background: #d4edda;
+            border-color: #c3e6cb;
+        }
+        
+        .evidence-status.partially_validated {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+        }
+        
+        .evidence-status.unvalidated {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        
+        .evidence-status.no-evidence {
+            background: #e2e3e5;
+            border-color: #d6d8db;
+        }
+        
+        /* Evidence pieces display */
+        .evidence-pieces {
+            margin-top: 15px;
+        }
+        
+        .evidence-toggle {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #495057;
+            transition: all 0.3s ease;
+        }
+        
+        .evidence-toggle:hover {
+            background: #e9ecef;
+        }
+        
+        .toggle-icon {
+            transition: transform 0.3s ease;
+            margin-right: 5px;
+        }
+        
+        .evidence-toggle.expanded .toggle-icon {
+            transform: rotate(180deg);
+        }
+        
+        .evidence-content {
+            margin-top: 10px;
+        }
+        
+        .evidence-piece {
+            background: #f8f9fa;
+            border-left: 3px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 8px 0;
+        }
+        
+        .evidence-piece .evidence-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .source-icon {
+            font-size: 1.1em;
+            margin-right: 8px;
+        }
+        
+        .authority-score {
+            background: #6c757d;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            font-weight: 600;
+            margin-left: auto;
+        }
+        
+        .evidence-text {
+            font-style: italic;
+            color: #495057;
+            margin: 8px 0;
+            line-height: 1.4;
+        }
+        
+        .evidence-source {
+            font-size: 0.8em;
+            margin-top: 8px;
+        }
+        
+        .evidence-source a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        
+        .evidence-source a:hover {
+            text-decoration: underline;
+        }
+        
+        .evidence-more {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            margin-top: 10px;
+            padding: 8px;
+        }
+
+        /* Evidence paperclip styling */
+        .evidence-paperclip {
+            margin-left: 8px;
+            color: #007bff;
+            cursor: pointer;
+            font-size: 14px;
+            transition: color 0.3s;
+        }
+
+        .evidence-paperclip:hover {
+            color: #0056b3;
+        }
+
+        .evidence-paperclip.no-evidence {
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        /* Modal styling */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 0;
+            border: none;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close:hover {
+            opacity: 0.7;
+        }
+
+        .modal-body {
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .evidence-section {
+            margin-bottom: 20px;
+        }
+
+        .evidence-section h3 {
+            color: #495057;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
+
+        .evidence-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 12px;
+        }
+
+        .evidence-type-tag {
+            background: #007bff;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: inline-block;
+        }
+
+        .llm-generated-tag {
+            background: #6f42c1;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        
+        /* Comprehensive evidence section */
+        .comprehensive-evidence {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .evidence-overview {
+            margin-bottom: 30px;
+        }
+        
+        .evidence-summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .evidence-stat {
+            text-align: center;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .evidence-stat .stat-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+        
+        .evidence-stat .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            font-weight: 500;
+        }
+        
+        .evidence-types-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+        }
+        
+        .evidence-type-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-left: 4px solid #dee2e6;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .evidence-type-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .evidence-type-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .evidence-type-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .evidence-type-icon {
+            font-size: 1.5em;
+        }
+        
+        .evidence-type-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .evidence-type-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .status-icon {
+            font-size: 1.2em;
+        }
+        
+        .evidence-count {
+            background: #e9ecef;
+            color: #495057;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        
+        .evidence-type-metrics {
+            margin: 15px 0;
+        }
+        
+        .authority-metric {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .evidence-preview {
+            margin: 15px 0;
+        }
+        
+        .evidence-preview-item {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 10px;
+            margin: 8px 0;
+            border-left: 3px solid #dee2e6;
+        }
+        
+        .evidence-preview-text {
+            font-style: italic;
+            color: #495057;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        
+        .evidence-preview-source {
+            font-size: 0.8em;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .no-evidence-preview {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 15px;
+        }
+        
+        .evidence-type-actions {
+            margin-top: 15px;
+        }
+        
+        .view-evidence-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .view-evidence-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        
         .theme-details {
             font-size: 0.9rem;
         }
@@ -999,6 +1848,27 @@ class EnhancedViewerGenerator:
     def _get_enhanced_javascript(self) -> str:
         """Get enhanced JavaScript for interactivity."""
         return """
+        // Evidence toggle functionality
+        function toggleEvidence(element) {
+            const content = element.nextElementSibling;
+            const icon = element.querySelector('.toggle-icon');
+            
+            if (content.style.display === 'none' || content.style.display === '') {
+                content.style.display = 'block';
+                element.classList.add('expanded');
+            } else {
+                content.style.display = 'none';
+                element.classList.remove('expanded');
+            }
+        }
+        
+        function toggleEvidenceType(button, evidenceType) {
+            // This would expand detailed evidence view for each type
+            console.log('Viewing evidence for:', evidenceType);
+            // Future enhancement: show modal or expanded view
+            button.textContent = button.textContent === 'View All Evidence' ? 'Hide Evidence' : 'View All Evidence';
+        }
+        
         // Smooth scrolling for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
@@ -1016,6 +1886,9 @@ class EnhancedViewerGenerator:
             setTimeout(() => {
                 document.body.style.opacity = '1';
             }, 100);
+            
+            // Initialize evidence toggles
+            console.log('Enhanced Intelligence Dashboard with Evidence loaded');
         });
         
         // Hover effects for theme cards
@@ -1028,6 +1901,195 @@ class EnhancedViewerGenerator:
                 this.style.transform = 'translateY(0) scale(1)';
             });
         });
+        
+        // Evidence modal functions
+        function showEvidenceModal(themeName, evidenceData) {
+            const modal = document.getElementById('evidenceModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modalTitle.textContent = 'Evidence for: ' + themeName;
+            
+            // Parse evidence data if it's a string
+            let evidence;
+            try {
+                evidence = typeof evidenceData === 'string' ? JSON.parse(evidenceData) : evidenceData;
+            } catch (e) {
+                console.error('Error parsing evidence data:', e);
+                modalBody.innerHTML = '<p>Error loading evidence data.</p>';
+                modal.style.display = 'block';
+                return;
+            }
+            
+            // Generate modal content
+            let modalContent = '';
+            
+            // Theme Evidence
+            if (evidence.theme_evidence && evidence.theme_evidence.length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🔍 Theme Evidence</h3>';
+                evidence.theme_evidence.forEach(piece => {
+                    modalContent += `
+                    <div class="evidence-item">
+                        <div class="evidence-type-tag">Web Evidence</div>
+                        <p><strong>Text:</strong> "${piece.text_content || 'No text available'}"</p>
+                        <p><strong>Source:</strong> <a href="${piece.source_url || '#'}" target="_blank">${piece.source_title || 'Unknown Source'}</a></p>
+                        <p><strong>Authority Score:</strong> ${(piece.authority_score || 0).toFixed(2)}</p>
+                        <p><strong>Quality:</strong> ${piece.quality_rating || 'Unknown'}</p>
+                    </div>`;
+                });
+                modalContent += '</div>';
+            }
+            
+            // Nano Themes
+            if (evidence.nano_themes && evidence.nano_themes.length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🔬 Nano Themes</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="evidence-type-tag">Detailed Insights</div>';
+                modalContent += '<p>' + evidence.nano_themes.join(', ') + '</p>';
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            // Price Insights
+            if (evidence.price_insights && Object.keys(evidence.price_insights).length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>💰 Price Information</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="evidence-type-tag">Price Analysis</div>';
+                Object.entries(evidence.price_insights).forEach(([key, value]) => {
+                    modalContent += `<p><strong>${key.replace('_', ' ').toUpperCase()}:</strong> ${value}</p>`;
+                });
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            // Authenticity Analysis
+            if (evidence.authenticity_analysis && Object.keys(evidence.authenticity_analysis).length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🏛️ Authenticity Analysis</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="evidence-type-tag">Authenticity Metrics</div>';
+                Object.entries(evidence.authenticity_analysis).forEach(([key, value]) => {
+                    modalContent += `<p><strong>${key.replace('_', ' ').toUpperCase()}:</strong> ${value}</p>`;
+                });
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            // Hidden Gem Score
+            if (evidence.hidden_gem_score && Object.keys(evidence.hidden_gem_score).length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>💎 Hidden Gem Analysis</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="evidence-type-tag">Uniqueness Metrics</div>';
+                Object.entries(evidence.hidden_gem_score).forEach(([key, value]) => {
+                    modalContent += `<p><strong>${key.replace('_', ' ').toUpperCase()}:</strong> ${value}</p>`;
+                });
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            // LLM Generated indicator
+            if (evidence.llm_generated) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="llm-generated-tag">LLM Generated</div>';
+                modalContent += '<p>This insight was generated by our AI system and may not have external web evidence.</p>';
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            if (!modalContent) {
+                modalContent = '<p>No evidence data available for this theme.</p>';
+            }
+            
+            modalBody.innerHTML = modalContent;
+            modal.style.display = 'block';
+        }
+        
+        function closeEvidenceModal() {
+            const modal = document.getElementById('evidenceModal');
+            modal.style.display = 'none';
+        }
+        
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('evidenceModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Attribute-specific evidence modal
+        function showAttributeEvidenceModal(themeName, attributeName, evidenceData) {
+            const modal = document.getElementById('evidenceModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modalTitle.textContent = `Evidence for: ${themeName} - ${attributeName.replace('_', ' ')}`;
+            
+            // Parse evidence data if it's a string
+            let evidence;
+            try {
+                evidence = typeof evidenceData === 'string' ? JSON.parse(evidenceData) : evidenceData;
+            } catch (e) {
+                console.error('Error parsing evidence data:', e);
+                modalBody.innerHTML = '<p>Error loading evidence data.</p>';
+                modal.style.display = 'block';
+                return;
+            }
+            
+            // Generate modal content for attribute evidence
+            let modalContent = '';
+            
+            // Show the attribute data
+            modalContent += '<div class="evidence-section">';
+            modalContent += `<h3>📊 ${attributeName.replace('_', ' ').toUpperCase()} Data</h3>`;
+            modalContent += '<div class="evidence-item">';
+            modalContent += '<div class="evidence-type-tag">LLM Generated</div>';
+            modalContent += `<p><strong>Value:</strong> ${JSON.stringify(evidence.attribute_data, null, 2)}</p>`;
+            modalContent += '</div>';
+            modalContent += '</div>';
+            
+            // Show evidence if available
+            if (evidence.evidence && Object.keys(evidence.evidence).length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🔍 Supporting Evidence</h3>';
+                
+                const evidenceObj = evidence.evidence;
+                if (evidenceObj.evidence_pieces && evidenceObj.evidence_pieces.length > 0) {
+                    evidenceObj.evidence_pieces.forEach(piece => {
+                        modalContent += `
+                        <div class="evidence-item">
+                            <div class="evidence-type-tag">Web Evidence</div>
+                            <p><strong>Text:</strong> "${piece.text_content || 'No text available'}"</p>
+                            <p><strong>Source:</strong> <a href="${piece.source_url || '#'}" target="_blank">${piece.source_title || 'Unknown Source'}</a></p>
+                            <p><strong>Authority Score:</strong> ${(piece.authority_score || 0).toFixed(2)}</p>
+                            <p><strong>Quality:</strong> ${piece.quality_rating || 'Unknown'}</p>
+                        </div>`;
+                    });
+                } else {
+                    modalContent += '<div class="evidence-item">';
+                    modalContent += '<div class="evidence-type-tag">No Evidence</div>';
+                    modalContent += '<p>No web evidence found to support this attribute. This data was generated by the AI system.</p>';
+                    modalContent += '</div>';
+                }
+                
+                modalContent += '</div>';
+            } else {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="llm-generated-tag">LLM Generated</div>';
+                modalContent += '<p>This attribute was generated by our AI system and does not have external web evidence.</p>';
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            modalBody.innerHTML = modalContent;
+            modal.style.display = 'block';
+        }
         """
     
     def _get_confidence_color(self, confidence: float) -> str:

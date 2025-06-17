@@ -4,11 +4,15 @@ Enhanced Data Processor - Adds intelligence layers to affinities and manages JSO
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from pathlib import Path
+from tqdm import tqdm
 
 from src.scorer import AffinityQualityScorer
+from src.evidence_validator import EvidenceValidator
+from src.schemas import PageContent
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +20,18 @@ class EnhancedDataProcessor:
     """
     Processes and enhances destination affinity data with intelligence layers
     and manages JSON persistence with rich metadata.
+    Now includes comprehensive evidence collection for all insights and progress tracking.
     """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
         self.scorer = AffinityQualityScorer(config)
+        self.evidence_validator = EvidenceValidator(config)
+        
+        # Session management for batch processing
+        self.session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.base_output_dir = "outputs"
+        self.session_output_dir = os.path.join(self.base_output_dir, f"session_{self.session_timestamp}")
         
         # Intelligence enhancement mappings
         self.emotional_keywords = {
@@ -44,26 +55,351 @@ class EnhancedDataProcessor:
         self.intensity_levels = ['minimal', 'low', 'moderate', 'high', 'extreme']
         self.depth_levels = ['macro', 'micro', 'nano']
 
-    def enhance_and_save_affinities(self, affinities_data: Dict[str, Any], 
-                                  destination: str, output_file: str = None) -> Dict[str, Any]:
+    def process_destinations_with_progress(self, destinations_data: Dict[str, Any], 
+                                         generate_dashboard: bool = True) -> Dict[str, str]:
         """
-        Enhance affinities with intelligence layers and save to JSON.
+        Process multiple destinations with progress tracking and organized output.
+        
+        Args:
+            destinations_data: Dictionary of destination name -> destination data
+            generate_dashboard: Whether to generate HTML dashboard
+            
+        Returns:
+            Dictionary of destination name -> output file path
+        """
+        
+        print(f"\n🚀 Processing {len(destinations_data)} destinations with Enhanced Intelligence")
+        print(f"📁 Session output directory: {self.session_output_dir}")
+        print("="*70)
+        
+        # Create session output directories
+        os.makedirs(self.session_output_dir, exist_ok=True)
+        os.makedirs(os.path.join(self.session_output_dir, "json"), exist_ok=True)
+        os.makedirs(os.path.join(self.session_output_dir, "dashboard"), exist_ok=True)
+        
+        # Track processed files for dashboard generation
+        processed_files = {}
+        dashboard_json_files = []
+        
+        # Create progress bar for destinations
+        dest_progress = tqdm(destinations_data.items(), 
+                           desc="Processing destinations",
+                           unit="dest",
+                           colour="blue")
+        
+        for destination_name, destination_data in dest_progress:
+            dest_progress.set_description(f"Processing {destination_name}")
+            
+            try:
+                # Process single destination with progress
+                enhanced_data = self._process_single_destination_with_progress(
+                    destination_data, destination_name
+                )
+                
+                # Save enhanced JSON
+                json_filename = f"{self._sanitize_filename(destination_name)}_enhanced.json"
+                json_filepath = os.path.join(self.session_output_dir, "json", json_filename)
+                
+                with open(json_filepath, 'w', encoding='utf-8') as f:
+                    json.dump(enhanced_data, f, indent=2, default=str)
+                
+                processed_files[destination_name] = json_filepath
+                dashboard_json_files.append(json_filepath)
+                
+                logger.info(f"Enhanced data saved: {json_filepath}")
+                
+            except Exception as e:
+                logger.error(f"Error processing {destination_name}: {e}")
+                dest_progress.set_description(f"Error: {destination_name}")
+                continue
+        
+        dest_progress.close()
+        
+        # Generate dashboard if requested
+        if generate_dashboard and dashboard_json_files:
+            print(f"\n🎨 Generating Enhanced Intelligence Dashboard...")
+            
+            dashboard_dir = os.path.join(self.session_output_dir, "dashboard")
+            from src.enhanced_viewer_generator import EnhancedViewerGenerator
+            generator = EnhancedViewerGenerator()
+            
+            try:
+                dashboard_files = generator.generate_multi_destination_viewer(
+                    dashboard_json_files, 
+                    dashboard_dir
+                )
+                
+                print(f"✅ Dashboard generated: {len(dashboard_files)} destination pages")
+                print(f"📍 Index page: {os.path.join(dashboard_dir, 'index.html')}")
+                
+            except Exception as e:
+                logger.error(f"Error generating dashboard: {e}")
+                print(f"❌ Dashboard generation failed: {e}")
+        
+        # Generate session summary
+        self._generate_session_summary(processed_files)
+        
+        print(f"\n🎉 Processing complete!")
+        print(f"📊 {len(processed_files)} destinations processed successfully")
+        print(f"📁 All outputs in: {self.session_output_dir}")
+        
+        return processed_files
+
+    def _process_single_destination_with_progress(self, destination_data: Dict[str, Any], 
+                                                destination_name: str) -> Dict[str, Any]:
+        """Process a single destination with detailed progress tracking."""
+        
+        affinities = destination_data.get('affinities', [])
+        if not affinities:
+            return destination_data
+        
+        # Create progress bar for affinities processing
+        affinity_progress = tqdm(affinities, 
+                               desc=f"Enhancing {destination_name} themes",
+                               unit="theme",
+                               leave=False,
+                               colour="green")
+        
+        enhanced_affinities = []
+        
+        for affinity in affinity_progress:
+            theme_name = affinity.get('theme', 'Unknown')
+            affinity_progress.set_description(f"Analyzing: {theme_name[:30]}...")
+            
+            try:
+                # Apply all intelligence layers with sub-progress
+                enhanced_affinity = self._enhance_single_affinity_with_progress(
+                    affinity, destination_name, affinity_progress
+                )
+                enhanced_affinities.append(enhanced_affinity)
+                
+            except Exception as e:
+                logger.error(f"Error enhancing affinity {theme_name}: {e}")
+                enhanced_affinities.append(affinity)  # Keep original if enhancement fails
+        
+        affinity_progress.close()
+        
+        # Update destination data with enhanced affinities
+        enhanced_destination_data = destination_data.copy()
+        enhanced_destination_data['affinities'] = enhanced_affinities
+        enhanced_destination_data['destination_name'] = destination_name
+        
+        # Generate intelligence insights with progress
+        print(f"  🧠 Generating intelligence insights for {destination_name}...")
+        enhanced_destination_data['intelligence_insights'] = self._generate_intelligence_insights(enhanced_affinities)
+        
+        # Generate composition analysis
+        print(f"  🎨 Analyzing composition for {destination_name}...")
+        enhanced_destination_data['composition_analysis'] = self._analyze_composition(enhanced_affinities)
+        
+        # Enhanced quality assessment with progress
+        print(f"  📊 Calculating quality metrics for {destination_name}...")
+        enhanced_destination_data['quality_assessment'] = self.scorer.score_affinity_set(
+            enhanced_destination_data, destination_name
+        )
+        
+        # QA workflow generation
+        print(f"  🔒 Processing QA workflow for {destination_name}...")
+        enhanced_destination_data['qa_workflow'] = self._generate_qa_workflow(enhanced_destination_data['quality_assessment'])
+        
+        # Add processing metadata
+        enhanced_destination_data['processing_metadata'] = {
+            'session_timestamp': self.session_timestamp,
+            'processing_date': datetime.now().isoformat(),
+            'enhanced_affinity_count': len(enhanced_affinities),
+            'intelligence_layers_applied': 10,
+            'processor_version': '2.0.0'
+        }
+        
+        return enhanced_destination_data
+
+    def _enhance_single_affinity_with_progress(self, affinity: Dict[str, Any], 
+                                             destination_name: str, 
+                                             parent_progress: tqdm) -> Dict[str, Any]:
+        """Enhance a single affinity with detailed progress tracking."""
+        
+        # Intelligence processing steps - using existing methods
+        intelligence_steps = [
+            ("🔍 Depth Analysis", lambda a, d: self._analyze_theme_depth(a)),
+            ("🏆 Authenticity Scoring", lambda a, d: self._analyze_authenticity(a)),
+            ("✨ Emotional Profiling", lambda a, d: self._analyze_emotional_resonance(a)),
+            ("⚡ Intensity Calibration", lambda a, d: self._analyze_experience_intensity(a)),
+            ("🎯 Context Analysis", lambda a, d: self._analyze_context(a, d)),
+            ("🌤️ Micro-Climate", lambda a, d: self._analyze_micro_climate(a, d)),
+            ("🏛️ Cultural Sensitivity", lambda a, d: self._assess_cultural_sensitivity(a, d)),
+            ("🔗 Theme Interconnections", lambda a, d: self._analyze_theme_interconnections(a)),
+            ("💎 Hidden Gem Scoring", lambda a, d: self._calculate_hidden_gem_score(a)),
+            ("💰 Price Analysis", lambda a, d: self._analyze_price_insights(a))
+        ]
+        
+        enhanced = affinity.copy()
+        
+        # Process each intelligence layer
+        for step_name, step_func in intelligence_steps:
+            try:
+                if "Depth" in step_name:
+                    enhanced['depth_analysis'] = step_func(affinity, destination_name)
+                elif "Authenticity" in step_name:
+                    enhanced['authenticity_analysis'] = step_func(affinity, destination_name)
+                elif "Emotional" in step_name:
+                    enhanced['emotional_profile'] = step_func(affinity, destination_name)
+                elif "Intensity" in step_name:
+                    enhanced['experience_intensity'] = step_func(affinity, destination_name)
+                elif "Context" in step_name:
+                    enhanced['contextual_info'] = step_func(affinity, destination_name)
+                elif "Micro-Climate" in step_name:
+                    enhanced['micro_climate'] = step_func(affinity, destination_name)
+                elif "Cultural" in step_name:
+                    enhanced['cultural_sensitivity'] = step_func(affinity, destination_name)
+                elif "Interconnections" in step_name:
+                    enhanced['theme_interconnections'] = step_func(affinity, destination_name)
+                elif "Hidden Gem" in step_name:
+                    enhanced['hidden_gem_score'] = step_func(affinity, destination_name)
+                elif "Price" in step_name:
+                    enhanced['price_insights'] = step_func(affinity, destination_name)
+                    
+            except Exception as e:
+                logger.warning(f"Error in {step_name} for {affinity.get('theme', 'unknown')}: {e}")
+        
+        # Validate ALL attributes with comprehensive evidence collection if web pages available
+        if hasattr(self, 'evidence_validator') and hasattr(self, 'web_pages') and self.web_pages:
+            enhanced['comprehensive_attribute_evidence'] = self.evidence_validator.validate_all_theme_attributes(
+                enhanced, self.web_pages, destination_name
+            )
+        
+        return enhanced
+
+    def _generate_session_summary(self, processed_files: Dict[str, str]):
+        """Generate a summary of the processing session."""
+        
+        summary = {
+            'session_info': {
+                'timestamp': self.session_timestamp,
+                'processing_date': datetime.now().isoformat(),
+                'output_directory': self.session_output_dir,
+                'destinations_processed': len(processed_files)
+            },
+            'processed_destinations': {},
+            'session_statistics': {
+                'total_themes_enhanced': 0,
+                'total_hidden_gems_found': 0,
+                'average_quality_score': 0,
+                'quality_distribution': {
+                    'excellent': 0,
+                    'good': 0, 
+                    'acceptable': 0,
+                    'needs_improvement': 0
+                }
+            }
+        }
+        
+        # Collect statistics from processed files
+        total_quality_score = 0
+        
+        for dest_name, file_path in processed_files.items():
+            try:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                
+                theme_count = len(data.get('affinities', []))
+                quality_score = data.get('quality_assessment', {}).get('overall_score', 0)
+                hidden_gems = data.get('intelligence_insights', {}).get('hidden_gems_count', 0)
+                
+                summary['processed_destinations'][dest_name] = {
+                    'file_path': file_path,
+                    'theme_count': theme_count,
+                    'quality_score': quality_score,
+                    'hidden_gems_count': hidden_gems,
+                    'quality_level': self._get_quality_level(quality_score)
+                }
+                
+                # Update session statistics
+                summary['session_statistics']['total_themes_enhanced'] += theme_count
+                summary['session_statistics']['total_hidden_gems_found'] += hidden_gems
+                total_quality_score += quality_score
+                
+                # Quality distribution
+                quality_level = self._get_quality_level(quality_score).lower().replace(' ', '_')
+                summary['session_statistics']['quality_distribution'][quality_level] += 1
+                
+            except Exception as e:
+                logger.error(f"Error processing summary for {dest_name}: {e}")
+        
+        # Calculate average quality score
+        if processed_files:
+            summary['session_statistics']['average_quality_score'] = total_quality_score / len(processed_files)
+        
+        # Save session summary
+        summary_file = os.path.join(self.session_output_dir, "session_summary.json")
+        with open(summary_file, 'w', encoding='utf-8') as f:
+            json.dump(summary, f, indent=2, default=str)
+        
+        logger.info(f"Session summary saved: {summary_file}")
+        
+        # Print summary to console
+        print(f"\n📋 Session Summary:")
+        print(f"   • Destinations processed: {len(processed_files)}")
+        print(f"   • Total themes enhanced: {summary['session_statistics']['total_themes_enhanced']}")
+        print(f"   • Hidden gems discovered: {summary['session_statistics']['total_hidden_gems_found']}")
+        print(f"   • Average quality score: {summary['session_statistics']['average_quality_score']:.3f}")
+        print(f"   • Quality distribution: {summary['session_statistics']['quality_distribution']}")
+
+    def _get_quality_level(self, score: float) -> str:
+        """Get quality level from score."""
+        if score >= 0.85:
+            return 'excellent'
+        elif score >= 0.75:
+            return 'good'
+        elif score >= 0.65:
+            return 'acceptable'
+        else:
+            return 'needs_improvement'
+
+    def _sanitize_filename(self, name: str) -> str:
+        """Sanitize destination name for filename."""
+        return "".join(c.lower() if c.isalnum() else '_' for c in name).strip('_')
+
+    def get_session_output_dir(self) -> str:
+        """Get the current session output directory."""
+        return self.session_output_dir
+
+    def get_latest_dashboard_url(self) -> str:
+        """Get the URL to the latest generated dashboard."""
+        dashboard_index = os.path.join(self.session_output_dir, "dashboard", "index.html")
+        if os.path.exists(dashboard_index):
+            return os.path.abspath(dashboard_index)
+        return None
+
+    def enhance_and_save_affinities(self, affinities_data: Dict[str, Any], 
+                                  destination: str, web_pages: List[PageContent] = None,
+                                  output_file: str = None) -> Dict[str, Any]:
+        """
+        Enhance affinities with intelligence layers and comprehensive evidence collection.
         
         Args:
             affinities_data: Raw affinity data
             destination: Destination name
+            web_pages: Web content for evidence collection
             output_file: Optional output file path
         
         Returns:
-            Enhanced affinities data with intelligence layers
+            Enhanced affinities data with intelligence layers and evidence
         """
         logger.info(f"Enhancing affinities for {destination}")
+        
+        # Store web_pages for evidence validation in individual affinity enhancement
+        self.web_pages = web_pages or []
+        
+        # Collect comprehensive evidence for all insights
+        comprehensive_evidence = {}
+        if web_pages:
+            comprehensive_evidence = self._collect_comprehensive_evidence(web_pages, destination)
         
         # Enhance each affinity with intelligence layers
         enhanced_affinities = []
         if 'affinities' in affinities_data:
             for affinity in affinities_data['affinities']:
-                enhanced_affinity = self._enhance_single_affinity(affinity, destination)
+                enhanced_affinity = self._enhance_single_affinity(affinity, destination, comprehensive_evidence)
                 enhanced_affinities.append(enhanced_affinity)
         
         # Create enhanced dataset structure
@@ -71,11 +407,13 @@ class EnhancedDataProcessor:
             'destination_id': destination.lower().replace(' ', '_').replace(',', ''),
             'destination_name': destination,
             'affinities': enhanced_affinities,
+            'comprehensive_evidence': comprehensive_evidence,  # Add all evidence
             'meta': {
                 **affinities_data.get('meta', {}),
                 'enhancement_timestamp': datetime.now().isoformat(),
                 'total_affinities': len(enhanced_affinities),
-                'enhancement_version': '2.0'
+                'enhancement_version': '2.0',
+                'evidence_collection_enabled': bool(web_pages)
             }
         }
         
@@ -100,16 +438,82 @@ class EnhancedDataProcessor:
         logger.info(f"Enhanced {len(enhanced_affinities)} affinities for {destination}")
         return enhanced_data
 
-    def _enhance_single_affinity(self, affinity: Dict[str, Any], destination: str) -> Dict[str, Any]:
-        """Enhance a single affinity with intelligence layers."""
+    def _collect_comprehensive_evidence(self, web_pages: List[PageContent], destination: str) -> Dict[str, Any]:
+        """Collect evidence for all types of insights."""
+        logger.info(f"Collecting comprehensive evidence for {destination}")
+        
+        evidence_collection = {
+            'price_evidence': None,
+            'authenticity_evidence': None,
+            'hidden_gem_evidence': None,
+            'nano_themes_evidence': {},
+            'collection_timestamp': datetime.now().isoformat(),
+            'total_pages_analyzed': len(web_pages),
+            'evidence_summary': {
+                'total_evidence_pieces': 0,
+                'unique_sources': 0,
+                'evidence_types_collected': []
+            }
+        }
+        
+        try:
+            # Collect price evidence
+            price_evidence = self.evidence_validator.validate_price_evidence(web_pages, destination)
+            evidence_collection['price_evidence'] = price_evidence.dict()
+            if price_evidence.total_evidence_count > 0:
+                evidence_collection['evidence_summary']['evidence_types_collected'].append('price')
+            
+            # Collect authenticity evidence
+            auth_evidence = self.evidence_validator.validate_authenticity_evidence(web_pages, destination)
+            evidence_collection['authenticity_evidence'] = auth_evidence.dict()
+            if auth_evidence.total_evidence_count > 0:
+                evidence_collection['evidence_summary']['evidence_types_collected'].append('authenticity')
+            
+            # Collect hidden gem evidence
+            gem_evidence = self.evidence_validator.validate_hidden_gem_evidence(web_pages, destination)
+            evidence_collection['hidden_gem_evidence'] = gem_evidence.dict()
+            if gem_evidence.total_evidence_count > 0:
+                evidence_collection['evidence_summary']['evidence_types_collected'].append('hidden_gems')
+            
+            # Calculate summary statistics
+            all_evidence_pieces = []
+            all_sources = set()
+            
+            for evidence_type in ['price_evidence', 'authenticity_evidence', 'hidden_gem_evidence']:
+                evidence_data = evidence_collection[evidence_type]
+                if evidence_data and evidence_data.get('evidence_pieces'):
+                    all_evidence_pieces.extend(evidence_data['evidence_pieces'])
+                    all_sources.update(ep['source_url'] for ep in evidence_data['evidence_pieces'])
+            
+            evidence_collection['evidence_summary']['total_evidence_pieces'] = len(all_evidence_pieces)
+            evidence_collection['evidence_summary']['unique_sources'] = len(all_sources)
+            
+            logger.info(f"Collected {len(all_evidence_pieces)} evidence pieces from {len(all_sources)} sources")
+            
+        except Exception as e:
+            logger.error(f"Error collecting comprehensive evidence: {e}")
+            evidence_collection['error'] = str(e)
+        
+        return evidence_collection
+
+    def _enhance_single_affinity(self, affinity: Dict[str, Any], destination: str, 
+                               comprehensive_evidence: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Enhance a single affinity with intelligence layers and evidence."""
         
         enhanced = affinity.copy()
         
         # Add depth analysis
         enhanced['depth_analysis'] = self._analyze_theme_depth(affinity)
         
-        # Add authenticity scoring
-        enhanced['authenticity_analysis'] = self._analyze_authenticity(affinity)
+        # Add nano theme evidence if available
+        nano_themes = enhanced['depth_analysis'].get('nano_themes', [])
+        if nano_themes and comprehensive_evidence:
+            # Note: For now, we'll add nano theme evidence collection in a future enhancement
+            # This would require the web_pages to be passed to each affinity enhancement
+            enhanced['nano_themes_evidence'] = self._get_nano_themes_evidence_summary(nano_themes, comprehensive_evidence)
+        
+        # Add authenticity scoring with evidence
+        enhanced['authenticity_analysis'] = self._analyze_authenticity(affinity, comprehensive_evidence)
         
         # Add emotional profiling
         enhanced['emotional_profile'] = self._analyze_emotional_resonance(affinity)
@@ -129,10 +533,198 @@ class EnhancedDataProcessor:
         # Add theme interconnections
         enhanced['theme_interconnections'] = self._analyze_theme_interconnections(affinity)
         
-        # Add hidden gem potential
-        enhanced['hidden_gem_score'] = self._calculate_hidden_gem_score(affinity)
+        # Add hidden gem potential with evidence
+        enhanced['hidden_gem_score'] = self._calculate_hidden_gem_score(affinity, comprehensive_evidence)
+        
+        # Add price insights with evidence
+        enhanced['price_insights'] = self._analyze_price_insights(affinity, comprehensive_evidence)
+        
+        # Validate ALL attributes with comprehensive evidence collection
+        if hasattr(self, 'evidence_validator') and hasattr(self, 'web_pages') and self.web_pages:
+            enhanced['comprehensive_attribute_evidence'] = self.evidence_validator.validate_all_theme_attributes(
+                enhanced, self.web_pages, destination
+            )
         
         return enhanced
+
+    def _get_nano_themes_evidence_summary(self, nano_themes: List[str], 
+                                        comprehensive_evidence: Dict[str, Any]) -> Dict[str, Any]:
+        """Get evidence summary for nano themes."""
+        nano_evidence_summary = {
+            'nano_themes_with_evidence': [],
+            'total_nano_evidence_pieces': 0,
+            'evidence_quality_distribution': {}
+        }
+        
+        # This would be enhanced with actual nano theme evidence collection
+        # For now, we provide a placeholder structure
+        for nano_theme in nano_themes:
+            nano_evidence_summary['nano_themes_with_evidence'].append({
+                'nano_theme': nano_theme,
+                'evidence_status': 'collection_pending',
+                'evidence_count': 0
+            })
+        
+        return nano_evidence_summary
+
+    def _analyze_authenticity(self, affinity: Dict[str, Any], 
+                            comprehensive_evidence: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Analyze authenticity level and characteristics with evidence support."""
+        theme = affinity.get('theme', '')
+        rationale = affinity.get('rationale', '')
+        
+        combined_text = f"{theme} {rationale}".lower()
+        
+        # Count authenticity indicators
+        local_score = sum(1 for marker in self.authenticity_indicators['local_markers'] 
+                         if marker in combined_text)
+        tourist_score = sum(1 for marker in self.authenticity_indicators['tourist_markers'] 
+                           if marker in combined_text)
+        insider_score = sum(1 for marker in self.authenticity_indicators['insider_markers'] 
+                           if marker in combined_text)
+        commercial_score = sum(1 for marker in self.authenticity_indicators['commercial_markers'] 
+                              if marker in combined_text)
+        
+        # Calculate authenticity score
+        authenticity_score = (local_score + insider_score - tourist_score - commercial_score) / 10.0
+        authenticity_score = max(0.0, min(1.0, authenticity_score + 0.5))  # Normalize to 0-1
+        
+        # Determine authenticity level
+        if authenticity_score >= 0.8:
+            authenticity_level = 'authentic_local'
+        elif authenticity_score >= 0.6:
+            authenticity_level = 'local_influenced'
+        elif authenticity_score >= 0.4:
+            authenticity_level = 'balanced'
+        elif authenticity_score >= 0.2:
+            authenticity_level = 'tourist_oriented'
+        else:
+            authenticity_level = 'commercialized'
+        
+        result = {
+            'authenticity_level': authenticity_level,
+            'authenticity_score': authenticity_score,
+            'local_indicators': local_score,
+            'tourist_indicators': tourist_score,
+            'insider_indicators': insider_score,
+            'commercial_indicators': commercial_score
+        }
+        
+        # Add evidence support if available
+        if comprehensive_evidence and comprehensive_evidence.get('authenticity_evidence'):
+            auth_evidence = comprehensive_evidence['authenticity_evidence']
+            result['evidence_support'] = {
+                'evidence_pieces_count': auth_evidence.get('total_evidence_count', 0),
+                'evidence_quality': auth_evidence.get('average_authority_score', 0),
+                'validation_status': auth_evidence.get('validation_status', 'pending'),
+                'strongest_evidence': self._get_strongest_evidence_text(auth_evidence)
+            }
+        
+        return result
+
+    def _calculate_hidden_gem_score(self, affinity: Dict[str, Any], 
+                                  comprehensive_evidence: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Calculate hidden gem potential with evidence support."""
+        theme = affinity.get('theme', '')
+        rationale = affinity.get('rationale', '')
+        
+        combined_text = f"{theme} {rationale}".lower()
+        
+        # Hidden gem indicators
+        hidden_indicators = ['hidden', 'secret', 'off the beaten path', 'locals only', 'undiscovered']
+        crowd_indicators = ['crowded', 'tourist', 'popular', 'busy', 'packed', 'famous']
+        unique_indicators = ['unique', 'rare', 'special', 'exclusive', 'distinctive']
+        
+        hidden_score = sum(1 for indicator in hidden_indicators if indicator in combined_text)
+        crowd_penalty = sum(1 for indicator in crowd_indicators if indicator in combined_text)
+        unique_score = sum(1 for indicator in unique_indicators if indicator in combined_text)
+        
+        # Calculate uniqueness score
+        uniqueness_score = (hidden_score + unique_score - crowd_penalty) / 10.0
+        uniqueness_score = max(0.0, min(1.0, uniqueness_score + 0.5))
+        
+        hidden_gem_level = self._classify_hidden_gem_level(uniqueness_score)
+        
+        result = {
+            'hidden_gem_level': hidden_gem_level,
+            'uniqueness_score': uniqueness_score,
+            'hidden_indicators': hidden_score,
+            'crowd_indicators': crowd_penalty,
+            'unique_indicators': unique_score,
+            'discovery_potential': 'high' if uniqueness_score > 0.7 else 'medium' if uniqueness_score > 0.4 else 'low'
+        }
+        
+        # Add evidence support if available
+        if comprehensive_evidence and comprehensive_evidence.get('hidden_gem_evidence'):
+            gem_evidence = comprehensive_evidence['hidden_gem_evidence']
+            result['evidence_support'] = {
+                'evidence_pieces_count': gem_evidence.get('total_evidence_count', 0),
+                'evidence_quality': gem_evidence.get('average_authority_score', 0),
+                'validation_status': gem_evidence.get('validation_status', 'pending'),
+                'strongest_evidence': self._get_strongest_evidence_text(gem_evidence)
+            }
+        
+        return result
+
+    def _analyze_price_insights(self, affinity: Dict[str, Any], 
+                              comprehensive_evidence: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Analyze price-related insights with evidence support."""
+        theme = affinity.get('theme', '')
+        rationale = affinity.get('rationale', '')
+        
+        combined_text = f"{theme} {rationale}".lower()
+        
+        # Price indicators
+        expensive_indicators = ['expensive', 'costly', 'premium', 'luxury', 'high-end']
+        budget_indicators = ['cheap', 'budget', 'affordable', 'inexpensive', 'free']
+        
+        expensive_score = sum(1 for indicator in expensive_indicators if indicator in combined_text)
+        budget_score = sum(1 for indicator in budget_indicators if indicator in combined_text)
+        
+        # Determine price category
+        if expensive_score > budget_score:
+            price_category = 'expensive'
+            price_confidence = expensive_score / (expensive_score + budget_score + 1)
+        elif budget_score > expensive_score:
+            price_category = 'budget'
+            price_confidence = budget_score / (expensive_score + budget_score + 1)
+        else:
+            price_category = 'moderate'
+            price_confidence = 0.5
+        
+        result = {
+            'price_category': price_category,
+            'price_confidence': price_confidence,
+            'expensive_indicators': expensive_score,
+            'budget_indicators': budget_score,
+            'price_transparency': 'high' if (expensive_score + budget_score) > 2 else 'medium' if (expensive_score + budget_score) > 0 else 'low'
+        }
+        
+        # Add evidence support if available
+        if comprehensive_evidence and comprehensive_evidence.get('price_evidence'):
+            price_evidence = comprehensive_evidence['price_evidence']
+            result['evidence_support'] = {
+                'evidence_pieces_count': price_evidence.get('total_evidence_count', 0),
+                'evidence_quality': price_evidence.get('average_authority_score', 0),
+                'validation_status': price_evidence.get('validation_status', 'pending'),
+                'strongest_evidence': self._get_strongest_evidence_text(price_evidence),
+                'price_mentions_found': price_evidence.get('total_evidence_count', 0) > 0
+            }
+        
+        return result
+
+    def _get_strongest_evidence_text(self, evidence_data: Dict[str, Any]) -> Optional[str]:
+        """Extract the strongest evidence text from evidence data."""
+        if not evidence_data or not evidence_data.get('evidence_pieces'):
+            return None
+        
+        evidence_pieces = evidence_data['evidence_pieces']
+        if not evidence_pieces:
+            return None
+        
+        # Find the piece with highest authority score
+        strongest = max(evidence_pieces, key=lambda x: x.get('authority_score', 0))
+        return strongest.get('text_content', '')[:200] + '...' if len(strongest.get('text_content', '')) > 200 else strongest.get('text_content', '')
 
     def _analyze_theme_depth(self, affinity: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze theme depth and granularity."""
@@ -194,46 +786,16 @@ class EnhancedDataProcessor:
         
         return list(set(nano_themes[:4]))  # Limit to 4 most relevant
 
-    def _analyze_authenticity(self, affinity: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze authenticity level and characteristics."""
-        theme = affinity.get('theme', '')
-        rationale = affinity.get('rationale', '')
-        text = f"{theme} {rationale}".lower()
-        
-        # Count authenticity indicators
-        local_score = sum(1 for marker in self.authenticity_indicators['local_markers'] if marker in text)
-        tourist_score = sum(1 for marker in self.authenticity_indicators['tourist_markers'] if marker in text)
-        insider_score = sum(1 for marker in self.authenticity_indicators['insider_markers'] if marker in text)
-        commercial_score = sum(1 for marker in self.authenticity_indicators['commercial_markers'] if marker in text)
-        
-        # Determine authenticity level
-        positive_signals = local_score + insider_score
-        negative_signals = tourist_score + commercial_score
-        
-        if positive_signals > negative_signals and insider_score > 0:
-            authenticity_level = 'authentic_local'
-            authenticity_score = 0.9
-        elif positive_signals > negative_signals:
-            authenticity_level = 'local_influenced'
-            authenticity_score = 0.7
-        elif negative_signals > positive_signals:
-            authenticity_level = 'tourist_oriented'
-            authenticity_score = 0.3
-        elif commercial_score > 2:
-            authenticity_level = 'tourist_trap'
-            authenticity_score = 0.1
+    def _classify_hidden_gem_level(self, uniqueness_score: float) -> str:
+        """Classify hidden gem level based on uniqueness score."""
+        if uniqueness_score >= 0.8:
+            return 'true hidden gem'
+        elif uniqueness_score >= 0.6:
+            return 'local favorite'
+        elif uniqueness_score >= 0.4:
+            return 'off the beaten path'
         else:
-            authenticity_level = 'balanced'
-            authenticity_score = 0.5
-        
-        return {
-            'authenticity_level': authenticity_level,
-            'authenticity_score': authenticity_score,
-            'local_indicators': local_score,
-            'tourist_indicators': tourist_score,
-            'insider_indicators': insider_score,
-            'commercial_indicators': commercial_score
-        }
+            return 'mainstream'
 
     def _analyze_emotional_resonance(self, affinity: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze emotional resonance and appeal."""
@@ -572,61 +1134,6 @@ class EnhancedDataProcessor:
             return 'skill levels available'
         else:
             return None
-
-    def _calculate_hidden_gem_score(self, affinity: Dict[str, Any]) -> Dict[str, Any]:
-        """Calculate hidden gem potential score."""
-        theme = affinity.get('theme', '')
-        rationale = affinity.get('rationale', '')
-        text = f"{theme} {rationale}".lower()
-        
-        # Local frequency ratio (inverse of tourist mentions)
-        tourist_mentions = sum(1 for marker in self.authenticity_indicators['tourist_markers'] if marker in text)
-        local_mentions = sum(1 for marker in self.authenticity_indicators['local_markers'] if marker in text)
-        
-        local_ratio = max(0.1, (local_mentions + 1) / (tourist_mentions + local_mentions + 2))
-        
-        # Insider knowledge required
-        insider_required = any(marker in text for marker in self.authenticity_indicators['insider_markers'])
-        
-        # Emerging scene indicator
-        emerging_keywords = ['new', 'emerging', 'up-and-coming', 'recently opened', 'trending']
-        emerging = any(keyword in text for keyword in emerging_keywords)
-        
-        # Off-peak excellence
-        off_peak = any(word in text for word in ['avoid', 'off-season', 'quiet', 'less crowded'])
-        
-        # Overall uniqueness score
-        uniqueness = 0.3  # Base score
-        if local_ratio > 0.6:
-            uniqueness += 0.3
-        if insider_required:
-            uniqueness += 0.2
-        if emerging:
-            uniqueness += 0.1
-        if off_peak:
-            uniqueness += 0.1
-        
-        uniqueness = min(1.0, uniqueness)
-        
-        return {
-            'local_frequency_ratio': round(local_ratio, 3),
-            'insider_knowledge_required': insider_required,
-            'emerging_scene_indicator': emerging,
-            'off_peak_excellence': off_peak,
-            'uniqueness_score': round(uniqueness, 3),
-            'hidden_gem_level': self._classify_hidden_gem_level(uniqueness)
-        }
-
-    def _classify_hidden_gem_level(self, uniqueness_score: float) -> str:
-        """Classify hidden gem level based on uniqueness score."""
-        if uniqueness_score >= 0.8:
-            return 'true hidden gem'
-        elif uniqueness_score >= 0.6:
-            return 'local favorite'
-        elif uniqueness_score >= 0.4:
-            return 'off the beaten path'
-        else:
-            return 'mainstream'
 
     def _generate_intelligence_insights(self, enhanced_affinities: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate high-level intelligence insights from enhanced affinities."""

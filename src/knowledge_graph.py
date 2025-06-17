@@ -53,7 +53,7 @@ class TopBraidIntegration:
     def materialize_to_kg(self, validated_affinities: dict) -> Dict[str, Any]:
         """
         Transforms validated affinity data into RDF triples and loads them into the knowledge graph.
-        
+
         Args:
             validated_affinities: The validated affinity data for a destination
             
@@ -63,7 +63,7 @@ class TopBraidIntegration:
         if not validated_affinities or "affinities" not in validated_affinities:
             self.logger.warning("KG Integration: No valid affinities to materialize.")
             return self._empty_result("No affinities provided")
-        
+
         if not self.sparql_endpoint:
             self.logger.warning("KG Integration: No SPARQL endpoint configured.")
             return self._empty_result("No SPARQL endpoint configured")

@@ -33,10 +33,9 @@ class DashboardHTTPRequestHandler(SimpleHTTPRequestHandler):
     def guess_type(self, path):
         """Guess MIME type with enhanced support for web files."""
         result = super().guess_type(path)
-        if isinstance(result, tuple):
-            mimetype, encoding = result
-        else:
-            mimetype, encoding = result, None
+        
+        # Handle the result properly - it's always a tuple (mimetype, encoding)
+        mimetype, encoding = result
         
         # Enhanced MIME type mappings
         if path.endswith('.html'):

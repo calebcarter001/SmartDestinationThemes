@@ -424,11 +424,11 @@ class AffinityQualityScorer:
         """Return empty score structure for invalid inputs."""
         return {
             "metrics": {
-                'factual_accuracy': 0.0,
-                'thematic_coverage': 0.0,
-                'actionability': 0.0,
-                'uniqueness': 0.0,
-                'source_credibility': 0.0,
+            'factual_accuracy': 0.0,
+            'thematic_coverage': 0.0,
+            'actionability': 0.0,
+            'uniqueness': 0.0,
+            'source_credibility': 0.0,
                 'theme_depth': 0.0,
                 'authenticity': 0.0,
                 'emotional_resonance': 0.0

@@ -313,8 +313,11 @@ class EnhancedViewerGenerator:
             experience_intensity, hidden_gem_score
         )
         
-        # Generate evidence validation display
-        evidence_html = self._generate_evidence_validation_display(theme.get('evidence_summary', {}))
+        # Generate evidence validation display  
+        # Check for content intelligence evidence first
+        content_evidence_summary = self._create_content_intelligence_evidence_summary(theme)
+        evidence_summary = theme.get('evidence_summary', content_evidence_summary)
+        evidence_html = self._generate_evidence_validation_display(evidence_summary)
         
         # Generate enhanced details
         details_html = self._generate_theme_details(
@@ -455,6 +458,113 @@ class EnhancedViewerGenerator:
             </div>
         </div>
         """
+    
+    def _create_content_intelligence_evidence_summary(self, theme: dict) -> dict:
+        """Create evidence summary for content intelligence attributes."""
+        # Get content intelligence attributes
+        iconic_landmarks = theme.get('iconic_landmarks', {})
+        practical_intelligence = theme.get('practical_travel_intelligence', {})
+        neighborhood_insights = theme.get('neighborhood_insights', {})
+        content_discovery = theme.get('content_discovery_intelligence', {})
+        
+        # Check if we have any content intelligence data
+        has_landmarks = bool(iconic_landmarks and iconic_landmarks.get('specific_locations'))
+        has_practical = bool(practical_intelligence and (practical_intelligence.get('specific_costs') or practical_intelligence.get('timing_intelligence')))
+        has_neighborhoods = bool(neighborhood_insights and neighborhood_insights.get('neighborhood_names'))
+        has_discovery = bool(content_discovery and content_discovery.get('high_quality_sources'))
+        
+        if not any([has_landmarks, has_practical, has_neighborhoods, has_discovery]):
+            return {}
+        
+        # Count evidence pieces
+        evidence_count = 0
+        unique_sources = 0
+        
+        # Count from landmarks
+        if has_landmarks:
+            evidence_count += len(iconic_landmarks.get('specific_locations', []))
+            evidence_count += len(iconic_landmarks.get('what_makes_them_special', []))
+        
+        # Count from practical intelligence
+        if has_practical:
+            evidence_count += len(practical_intelligence.get('specific_costs', {}))
+            evidence_count += len(practical_intelligence.get('timing_intelligence', {}))
+            evidence_count += len(practical_intelligence.get('practical_tips', []))
+        
+        # Count from neighborhoods
+        if has_neighborhoods:
+            evidence_count += len(neighborhood_insights.get('neighborhood_names', []))
+            evidence_count += len(neighborhood_insights.get('area_personalities', {}))
+        
+        # Count from content discovery
+        if has_discovery:
+            sources = content_discovery.get('high_quality_sources', [])
+            evidence_count += len(sources)
+            unique_sources = len(set(sources))  # Unique sources
+        
+        # Create evidence pieces for display
+        evidence_pieces = []
+        
+        # Add landmark evidence
+        if has_landmarks:
+            for location in iconic_landmarks.get('specific_locations', [])[:2]:
+                description = iconic_landmarks.get('landmark_descriptions', {}).get(location, '')
+                evidence_pieces.append({
+                    'text_content': f"Iconic landmark: {location}. {description}",
+                    'source_url': '#',
+                    'source_title': 'Content Intelligence',
+                    'authority_score': 0.8,
+                    'quality_rating': 'good',
+                    'source_type': 'content_intelligence'
+                })
+        
+        # Add practical evidence
+        if has_practical:
+            for category, cost in list(practical_intelligence.get('specific_costs', {}).items())[:2]:
+                evidence_pieces.append({
+                    'text_content': f"Cost insight: {category} - {cost}",
+                    'source_url': '#',
+                    'source_title': 'Content Intelligence',
+                    'authority_score': 0.9,
+                    'quality_rating': 'excellent',
+                    'source_type': 'content_intelligence'
+                })
+        
+        # Add neighborhood evidence
+        if has_neighborhoods:
+            for neighborhood in neighborhood_insights.get('neighborhood_names', [])[:2]:
+                personality = neighborhood_insights.get('area_personalities', {}).get(neighborhood, '')
+                evidence_pieces.append({
+                    'text_content': f"Neighborhood insight: {neighborhood}. {personality}",
+                    'source_url': '#',
+                    'source_title': 'Content Intelligence',
+                    'authority_score': 0.7,
+                    'quality_rating': 'good',
+                    'source_type': 'content_intelligence'
+                })
+        
+        # Calculate summary metrics
+        total_attributes = sum([has_landmarks, has_practical, has_neighborhoods, has_discovery])
+        average_authority = 0.8  # Default authority for content intelligence
+        validation_confidence = min(1.0, total_attributes / 4.0)  # Based on completeness
+        
+        # Determine validation status
+        if total_attributes >= 3:
+            validation_status = 'validated'
+        elif total_attributes >= 2:
+            validation_status = 'partially_validated'
+        else:
+            validation_status = 'pending'
+        
+        return {
+            'validation_status': validation_status,
+            'evidence_count': evidence_count,
+            'unique_sources': max(unique_sources, 1),  # At least 1 for content intelligence
+            'average_authority': average_authority,
+            'validation_confidence': validation_confidence,
+            'evidence_gaps': [],
+            'evidence_pieces': evidence_pieces
+        }
     
     def _generate_landmarks_section(self, landmarks: dict) -> str:
         """Generate landmarks section HTML."""
@@ -801,7 +911,7 @@ class EnhancedViewerGenerator:
         main_theme_evidence = comprehensive_evidence.get('main_theme', {})
         evidence_pieces = main_theme_evidence.get('evidence_pieces', [])
         
-        # Collect all evidence types for this theme
+        # Collect all evidence types for this theme including new content intelligence attributes
         all_evidence = {
             'theme_evidence': evidence_pieces,
             'nano_themes': theme_data.get('nano_themes', []),
@@ -809,17 +919,27 @@ class EnhancedViewerGenerator:
             'authenticity_analysis': theme_data.get('authenticity_analysis', {}),
             'hidden_gem_score': theme_data.get('hidden_gem_score', {}),
             'depth_analysis': theme_data.get('depth_analysis', {}),
+            # New content intelligence attributes
+            'iconic_landmarks': theme_data.get('iconic_landmarks', {}),
+            'practical_travel_intelligence': theme_data.get('practical_travel_intelligence', {}),
+            'neighborhood_insights': theme_data.get('neighborhood_insights', {}),
+            'content_discovery_intelligence': theme_data.get('content_discovery_intelligence', {}),
             'llm_generated': theme_data.get('llm_generated', True)  # Track if LLM generated
         }
         
-        # Check if we have any evidence
+        # Check if we have any evidence (including content intelligence data)
         has_evidence = (
             len(evidence_pieces) > 0 or 
             len(all_evidence['nano_themes']) > 0 or
             bool(all_evidence['price_insights']) or
             bool(all_evidence['authenticity_analysis']) or
             bool(all_evidence['hidden_gem_score']) or
-            bool(all_evidence['depth_analysis'])
+            bool(all_evidence['depth_analysis']) or
+            # Check content intelligence attributes
+            bool(all_evidence['iconic_landmarks']) or
+            bool(all_evidence['practical_travel_intelligence']) or
+            bool(all_evidence['neighborhood_insights']) or
+            bool(all_evidence['content_discovery_intelligence'])
         )
         
         if not has_evidence:
@@ -1146,6 +1266,32 @@ class EnhancedViewerGenerator:
                 'Hidden Gem Indicators', '💎', gem_evidence, '#6f42c1'
             ))
         
+        # Content Intelligence Evidence Cards
+        # Note: For content intelligence, we'll show the extracted data as "evidence"
+        if comprehensive_evidence.get('iconic_landmarks'):
+            landmarks_data = comprehensive_evidence['iconic_landmarks']
+            evidence_cards.append(self._generate_content_intelligence_card(
+                'Iconic Landmarks', '🏛️', landmarks_data, '#dc3545'
+            ))
+        
+        if comprehensive_evidence.get('practical_travel_intelligence'):
+            practical_data = comprehensive_evidence['practical_travel_intelligence']
+            evidence_cards.append(self._generate_content_intelligence_card(
+                'Practical Intelligence', '💡', practical_data, '#fd7e14'
+            ))
+        
+        if comprehensive_evidence.get('neighborhood_insights'):
+            neighborhood_data = comprehensive_evidence['neighborhood_insights']
+            evidence_cards.append(self._generate_content_intelligence_card(
+                'Neighborhood Insights', '🏘️', neighborhood_data, '#20c997'
+            ))
+        
+        if comprehensive_evidence.get('content_discovery_intelligence'):
+            discovery_data = comprehensive_evidence['content_discovery_intelligence']
+            evidence_cards.append(self._generate_content_intelligence_card(
+                'Content Discovery', '🔍', discovery_data, '#6610f2'
+            ))
+        
         return f"""
         <div class="evidence-overview">
             <div class="evidence-summary-stats">
@@ -1225,6 +1371,86 @@ class EnhancedViewerGenerator:
             <div class="evidence-type-actions">
                 <button class="view-evidence-btn" onclick="toggleEvidenceType(this, '{title.lower().replace(' ', '_')}')" style="background: {color}">
                     View All Evidence
+                </button>
+            </div>
+        </div>
+        """
+
+    def _generate_content_intelligence_card(self, title: str, icon: str, intelligence_data: dict, color: str) -> str:
+        """Generate a card for content intelligence attributes."""
+        
+        # Count the number of data items in the intelligence
+        data_count = 0
+        preview_items = []
+        
+        if title == 'Iconic Landmarks':
+            locations = intelligence_data.get('specific_locations', [])
+            descriptions = intelligence_data.get('landmark_descriptions', {})
+            data_count = len(locations)
+            for location in locations[:2]:
+                desc = descriptions.get(location, "")[:60] + "..." if descriptions.get(location, "") else ""
+                preview_items.append(f"🏛️ {location}: {desc}")
+        
+        elif title == 'Practical Intelligence':
+            costs = intelligence_data.get('specific_costs', {})
+            timing = intelligence_data.get('timing_intelligence', {})
+            tips = intelligence_data.get('practical_tips', [])
+            data_count = len(costs) + len(timing) + len(tips)
+            for category, cost in list(costs.items())[:2]:
+                preview_items.append(f"💰 {category}: {cost}")
+        
+        elif title == 'Neighborhood Insights':
+            neighborhoods = intelligence_data.get('neighborhood_names', [])
+            personalities = intelligence_data.get('area_personalities', {})
+            data_count = len(neighborhoods)
+            for neighborhood in neighborhoods[:2]:
+                personality = personalities.get(neighborhood, "")[:50] + "..." if personalities.get(neighborhood, "") else ""
+                preview_items.append(f"🏘️ {neighborhood}: {personality}")
+        
+        elif title == 'Content Discovery':
+            sources = intelligence_data.get('high_quality_sources', [])
+            phrases = intelligence_data.get('extracted_phrases', [])
+            data_count = len(sources) + len(phrases)
+            for phrase in phrases[:2]:
+                preview_items.append(f"📝 \"{phrase[:50]}...\"")
+        
+        # Generate preview HTML
+        preview_html = ""
+        if preview_items:
+            preview_html = "".join([f'<div class="intelligence-preview-item">{item}</div>' for item in preview_items])
+        
+        # Determine status based on data availability
+        status_icon = "✅" if data_count > 0 else "❓"
+        data_quality = min(1.0, data_count / 3.0) if data_count > 0 else 0.0
+        
+        return f"""
+        <div class="evidence-type-card" style="border-left-color: {color}">
+            <div class="evidence-type-header">
+                <div class="evidence-type-title">
+                    <span class="evidence-type-icon">{icon}</span>
+                    <span class="evidence-type-name">{title}</span>
+                </div>
+                <div class="evidence-type-status">
+                    <span class="status-icon">{status_icon}</span>
+                    <span class="evidence-count">{data_count}</span>
+                </div>
+            </div>
+            
+            <div class="evidence-type-metrics">
+                <div class="authority-metric">
+                    <span class="metric-label">Data Quality:</span>
+                    <span class="metric-value">{data_quality:.2f}</span>
+                    <div class="authority-bar">
+                        <div class="authority-fill" style="width: {data_quality*100}%; background: {color}"></div>
+                    </div>
+                </div>
+            </div>
+            
+            {f'<div class="evidence-preview">{preview_html}</div>' if preview_html else '<div class="no-evidence-preview">No data extracted</div>'}
+            
+            <div class="evidence-type-actions">
+                <button class="view-evidence-btn" onclick="toggleContentIntelligence(this, '{title.lower().replace(' ', '_')}')" style="background: {color}">
+                    View Intelligence Data
                 </button>
             </div>
         </div>

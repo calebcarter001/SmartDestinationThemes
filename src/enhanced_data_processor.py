@@ -630,11 +630,19 @@ class EnhancedDataProcessor:
         # Add new content intelligence attributes (additive to existing framework)
         enhanced = await self._add_content_intelligence_attributes(enhanced, destination)
         
-        # Validate ALL attributes with comprehensive evidence collection
+        # Validate ALL attributes with comprehensive evidence collection (including content intelligence)
         if hasattr(self, 'evidence_validator') and hasattr(self, 'web_pages') and self.web_pages:
-            enhanced['comprehensive_attribute_evidence'] = self.evidence_validator.validate_all_theme_attributes(
+            comprehensive_evidence = self.evidence_validator.validate_all_theme_attributes(
                 enhanced, self.web_pages, destination
             )
+            
+            # Add the content intelligence attributes to the comprehensive evidence
+            comprehensive_evidence['iconic_landmarks'] = enhanced.get('iconic_landmarks', {})
+            comprehensive_evidence['practical_travel_intelligence'] = enhanced.get('practical_travel_intelligence', {})
+            comprehensive_evidence['neighborhood_insights'] = enhanced.get('neighborhood_insights', {})
+            comprehensive_evidence['content_discovery_intelligence'] = enhanced.get('content_discovery_intelligence', {})
+            
+            enhanced['comprehensive_attribute_evidence'] = comprehensive_evidence
         
         return enhanced
 

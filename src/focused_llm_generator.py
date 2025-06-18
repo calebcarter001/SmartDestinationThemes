@@ -224,13 +224,9 @@ class FocusedLLMGenerator:
     def __del__(self):
         """Destructor to ensure cleanup"""
         try:
-            # Try to cleanup synchronously if possible
-            if hasattr(self, 'connection_pool') or hasattr(self, 'persistent_cache'):
-                try:
-                    asyncio.create_task(self.cleanup())
-                except RuntimeError:
-                    # Event loop might be closed, ignore
-                    pass
+            # Don't attempt async cleanup in destructor as it can cause warnings
+            # The cleanup should be called explicitly before object destruction
+            pass
         except Exception:
             # Ignore cleanup errors in destructor
             pass 

@@ -11,7 +11,13 @@ import argparse
 import logging
 import os
 import sys
+import warnings
 from typing import List, Dict, Any
+
+# Suppress gRPC and coroutine warnings early
+warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*coroutine.*was never awaited.*")
+warnings.filterwarnings("ignore", message=".*grpc.*")
+warnings.filterwarnings("ignore", message=".*POLLER.*")
 
 # Add src directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
@@ -204,9 +210,10 @@ async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> 
     except Exception as e:
         logger.debug(f"Failed to get enhanced performance stats: {e}")
     
-    # Cleanup LLM resources
+    # Cleanup LLM resources properly
     try:
         await llm_generator.cleanup()
+        logger.debug("LLM cleanup completed successfully")
     except Exception as e:
         logger.debug(f"LLM cleanup warning: {e}")
     

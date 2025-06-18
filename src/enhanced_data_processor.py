@@ -12,6 +12,7 @@ from tqdm import tqdm
 
 from src.scorer import AffinityQualityScorer
 from src.evidence_validator import EvidenceValidator
+from src.content_intelligence_processor import ContentIntelligenceProcessor
 from src.schemas import PageContent
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class EnhancedDataProcessor:
         self.config = config or {}
         self.scorer = AffinityQualityScorer(config)
         self.evidence_validator = EvidenceValidator(config)
+        self.content_intelligence_processor = ContentIntelligenceProcessor(config)
         
         # Session management for batch processing
         self.session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -455,9 +457,9 @@ class EnhancedDataProcessor:
             return os.path.abspath(dashboard_index)
         return None
 
-    def enhance_and_save_affinities(self, affinities_data: Dict[str, Any], 
+    async def enhance_and_save_affinities(self, affinities_data: Dict[str, Any], 
                                   destination: str, web_pages: List[PageContent] = None,
-                                  output_file: str = None) -> Dict[str, Any]:
+                                  output_file: str = None, llm_generator=None) -> Dict[str, Any]:
         """
         Enhance affinities with intelligence layers and comprehensive evidence collection.
         
@@ -472,8 +474,9 @@ class EnhancedDataProcessor:
         """
         logger.info(f"Enhancing affinities for {destination}")
         
-        # Store web_pages for evidence validation in individual affinity enhancement
+        # Store web_pages and LLM generator for evidence validation and content intelligence
         self.web_pages = web_pages or []
+        self.llm_generator = llm_generator
         
         # Collect comprehensive evidence for all insights
         comprehensive_evidence = {}
@@ -484,7 +487,7 @@ class EnhancedDataProcessor:
         enhanced_affinities = []
         if 'affinities' in affinities_data:
             for affinity in affinities_data['affinities']:
-                enhanced_affinity = self._enhance_single_affinity(affinity, destination, comprehensive_evidence)
+                enhanced_affinity = await self._enhance_single_affinity(affinity, destination, comprehensive_evidence)
                 enhanced_affinities.append(enhanced_affinity)
         
         # Create enhanced dataset structure
@@ -581,7 +584,7 @@ class EnhancedDataProcessor:
         
         return evidence_collection
 
-    def _enhance_single_affinity(self, affinity: Dict[str, Any], destination: str, 
+    async def _enhance_single_affinity(self, affinity: Dict[str, Any], destination: str, 
                                comprehensive_evidence: Dict[str, Any] = None) -> Dict[str, Any]:
         """Enhance a single affinity with intelligence layers and evidence."""
         
@@ -623,6 +626,9 @@ class EnhancedDataProcessor:
         
         # Add price insights with evidence
         enhanced['price_insights'] = self._analyze_price_insights(affinity, destination, comprehensive_evidence)
+        
+        # Add new content intelligence attributes (additive to existing framework)
+        enhanced = await self._add_content_intelligence_attributes(enhanced, destination)
         
         # Validate ALL attributes with comprehensive evidence collection
         if hasattr(self, 'evidence_validator') and hasattr(self, 'web_pages') and self.web_pages:
@@ -800,6 +806,42 @@ class EnhancedDataProcessor:
             }
         
         return result
+    
+    async def _add_content_intelligence_attributes(self, enhanced: Dict[str, Any], destination: str) -> Dict[str, Any]:
+        """Add new content intelligence attributes to the enhanced affinity data"""
+        
+        theme = enhanced.get('theme', '')
+        
+        # Get web pages if available
+        web_pages = getattr(self, 'web_pages', None)
+        
+        # Get LLM generator if available
+        llm_generator = getattr(self, 'llm_generator', None)
+        
+        try:
+            # Extract content intelligence using the new processor
+            content_intelligence = await self.content_intelligence_processor.extract_content_intelligence(
+                theme, destination, web_pages, llm_generator
+            )
+            
+            # Add the new attributes to the enhanced data
+            enhanced['iconic_landmarks'] = content_intelligence.get('iconic_landmarks', {})
+            enhanced['practical_travel_intelligence'] = content_intelligence.get('practical_travel_intelligence', {})
+            enhanced['neighborhood_insights'] = content_intelligence.get('neighborhood_insights', {})
+            enhanced['content_discovery_intelligence'] = content_intelligence.get('content_discovery_intelligence', {})
+            
+            logger.debug(f"Added content intelligence attributes for theme: {theme}")
+            
+        except Exception as e:
+            logger.warning(f"Content intelligence extraction failed for {theme}: {e}")
+            
+            # Add empty attributes as fallback
+            enhanced['iconic_landmarks'] = {}
+            enhanced['practical_travel_intelligence'] = {}
+            enhanced['neighborhood_insights'] = {}
+            enhanced['content_discovery_intelligence'] = {}
+        
+        return enhanced
 
     def _get_strongest_evidence_text(self, evidence_data: Dict[str, Any]) -> Optional[str]:
         """Extract the strongest evidence text from evidence data."""

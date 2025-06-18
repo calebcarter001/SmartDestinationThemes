@@ -215,6 +215,12 @@ class EnhancedAffinity(BaseModel):
     # Discovery and uniqueness
     hidden_gem_score: HiddenGemScore = Field(default_factory=HiddenGemScore)
     
+    # New Content Intelligence Attributes (additive to existing framework)
+    iconic_landmarks: 'IconicLandmarks' = Field(default_factory=lambda: IconicLandmarks())
+    practical_travel_intelligence: 'PracticalTravelIntelligence' = Field(default_factory=lambda: PracticalTravelIntelligence())
+    neighborhood_insights: 'NeighborhoodInsights' = Field(default_factory=lambda: NeighborhoodInsights())
+    content_discovery_intelligence: 'ContentDiscoveryIntelligence' = Field(default_factory=lambda: ContentDiscoveryIntelligence())
+    
     # Traditional fields
     price_point: str = "mid"
     rationale: str = ""
@@ -290,4 +296,37 @@ class ProcessedPageChunk(BaseModel):
 
 class FetchPageInput(BaseModel):
     """Input schema for fetching a single web page."""
-    url: str = Field(description="The URL of the web page to fetch.") 
+    url: str = Field(description="The URL of the web page to fetch.")
+
+# New Content Intelligence Attributes (Additive to existing framework)
+
+class IconicLandmarks(BaseModel):
+    """Specific landmarks and their compelling descriptions"""
+    specific_locations: List[str] = Field(default_factory=list, description="Named landmarks and attractions")
+    landmark_descriptions: Dict[str, str] = Field(default_factory=dict, description="Compelling descriptions from sources")
+    what_makes_them_special: List[str] = Field(default_factory=list, description="Unique characteristics extracted")
+    landmark_categories: Dict[str, str] = Field(default_factory=dict, description="Type categorization")
+
+class PracticalTravelIntelligence(BaseModel):
+    """Factual travel planning information"""
+    specific_costs: Dict[str, str] = Field(default_factory=dict, description="Actual price ranges found")
+    timing_intelligence: Dict[str, List[str]] = Field(default_factory=dict, description="When to visit/book data")
+    booking_specifics: List[str] = Field(default_factory=list, description="How far ahead, platforms, etc.")
+    practical_tips: List[str] = Field(default_factory=list, description="Money-saving and timing advice")
+
+class NeighborhoodInsights(BaseModel):
+    """Area-specific intelligence"""
+    neighborhood_names: List[str] = Field(default_factory=list, description="Specific area names")
+    area_personalities: Dict[str, str] = Field(default_factory=dict, description="Character descriptions")
+    neighborhood_specialties: Dict[str, List[str]] = Field(default_factory=dict, description="What each area is known for")
+    stay_recommendations: Dict[str, str] = Field(default_factory=dict, description="Where to stay advice")
+
+class ContentDiscoveryIntelligence(BaseModel):
+    """Source and extraction metadata"""
+    high_quality_sources: List[str] = Field(default_factory=list, description="Travel authority URLs found")
+    extracted_phrases: List[str] = Field(default_factory=list, description="Compelling marketing language")
+    content_themes: List[str] = Field(default_factory=list, description="Content patterns identified")
+    authority_validation: Dict[str, Any] = Field(default_factory=dict, description="Source credibility data") 
+
+# Rebuild model to resolve forward references
+EnhancedAffinity.model_rebuild() 

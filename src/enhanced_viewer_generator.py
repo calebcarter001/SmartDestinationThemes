@@ -322,6 +322,9 @@ class EnhancedViewerGenerator:
             theme.get('cultural_sensitivity', {}), theme.get('theme_interconnections', {})
         )
         
+        # Generate content intelligence display
+        content_intelligence_html = self._generate_content_intelligence_display(theme)
+        
         confidence_color = self._get_confidence_color(confidence)
         
         return f"""
@@ -350,6 +353,10 @@ class EnhancedViewerGenerator:
             
             <div class="theme-details">
                 {details_html}
+            </div>
+            
+            <div class="content-intelligence-section">
+                {content_intelligence_html}
             </div>
         </div>
         """
@@ -398,6 +405,216 @@ class EnhancedViewerGenerator:
                 badges.append(f'<span class="badge" style="background: #6f42c1">{icon} {emotion.title()}</span>')
         
         return ''.join(badges)
+    
+    def _generate_content_intelligence_display(self, theme: dict) -> str:
+        """Generate display for new content intelligence attributes."""
+        
+        # Get the new content intelligence attributes
+        iconic_landmarks = theme.get('iconic_landmarks', {})
+        practical_intelligence = theme.get('practical_travel_intelligence', {})
+        neighborhood_insights = theme.get('neighborhood_insights', {})
+        content_discovery = theme.get('content_discovery_intelligence', {})
+        
+        # Only show if we have some content intelligence data
+        if not any([iconic_landmarks, practical_intelligence, neighborhood_insights, content_discovery]):
+            return ""
+        
+        sections = []
+        
+        # Iconic Landmarks Section
+        if iconic_landmarks and iconic_landmarks.get('specific_locations'):
+            landmarks_html = self._generate_landmarks_section(iconic_landmarks)
+            sections.append(landmarks_html)
+        
+        # Practical Intelligence Section
+        if practical_intelligence and (practical_intelligence.get('specific_costs') or practical_intelligence.get('timing_intelligence')):
+            practical_html = self._generate_practical_section(practical_intelligence)
+            sections.append(practical_html)
+        
+        # Neighborhood Insights Section
+        if neighborhood_insights and neighborhood_insights.get('neighborhood_names'):
+            neighborhood_html = self._generate_neighborhood_section(neighborhood_insights)
+            sections.append(neighborhood_html)
+        
+        # Content Discovery Section
+        if content_discovery and content_discovery.get('high_quality_sources'):
+            discovery_html = self._generate_discovery_section(content_discovery)
+            sections.append(discovery_html)
+        
+        if not sections:
+            return ""
+        
+        return f"""
+        <div class="content-intelligence">
+            <div class="ci-toggle" onclick="toggleContentIntelligence(this)">
+                <span class="toggle-icon">▼</span> Content Intelligence
+                <span class="ci-badge">{len(sections)} insights</span>
+            </div>
+            <div class="ci-content" style="display: none;">
+                {''.join(sections)}
+            </div>
+        </div>
+        """
+    
+    def _generate_landmarks_section(self, landmarks: dict) -> str:
+        """Generate landmarks section HTML."""
+        locations = landmarks.get('specific_locations', [])
+        descriptions = landmarks.get('landmark_descriptions', {})
+        special_features = landmarks.get('what_makes_them_special', [])
+        
+        landmarks_html = []
+        for location in locations[:3]:  # Show top 3 landmarks
+            description = descriptions.get(location, "")
+            landmarks_html.append(f"""
+            <div class="landmark-item">
+                <div class="landmark-name">🏛️ {location}</div>
+                {f'<div class="landmark-description">{description}</div>' if description else ''}
+            </div>
+            """)
+        
+        special_html = ""
+        if special_features:
+            special_items = [f"<li>{feature}</li>" for feature in special_features[:3]]
+            special_html = f"""
+            <div class="special-features">
+                <strong>What makes them special:</strong>
+                <ul>{''.join(special_items)}</ul>
+            </div>
+            """
+        
+        return f"""
+        <div class="ci-section landmarks-section">
+            <h5><i class="fas fa-landmark"></i> Iconic Landmarks</h5>
+            {''.join(landmarks_html)}
+            {special_html}
+        </div>
+        """
+    
+    def _generate_practical_section(self, practical: dict) -> str:
+        """Generate practical intelligence section HTML."""
+        costs = practical.get('specific_costs', {})
+        timing = practical.get('timing_intelligence', {})
+        booking = practical.get('booking_specifics', [])
+        tips = practical.get('practical_tips', [])
+        
+        content_parts = []
+        
+        # Costs
+        if costs:
+            cost_items = [f"<li><strong>{category}:</strong> {cost}</li>" for category, cost in costs.items()]
+            content_parts.append(f"""
+            <div class="practical-costs">
+                <strong>💰 Costs:</strong>
+                <ul>{''.join(cost_items)}</ul>
+            </div>
+            """)
+        
+        # Timing
+        if timing:
+            timing_items = []
+            for season, advice_list in timing.items():
+                advice = ', '.join(advice_list) if isinstance(advice_list, list) else str(advice_list)
+                timing_items.append(f"<li><strong>{season.replace('_', ' ').title()}:</strong> {advice}</li>")
+            content_parts.append(f"""
+            <div class="practical-timing">
+                <strong>⏰ Timing:</strong>
+                <ul>{''.join(timing_items)}</ul>
+            </div>
+            """)
+        
+        # Tips
+        if tips:
+            tip_items = [f"<li>{tip}</li>" for tip in tips[:3]]
+            content_parts.append(f"""
+            <div class="practical-tips">
+                <strong>💡 Tips:</strong>
+                <ul>{''.join(tip_items)}</ul>
+            </div>
+            """)
+        
+        return f"""
+        <div class="ci-section practical-section">
+            <h5><i class="fas fa-info-circle"></i> Practical Intelligence</h5>
+            {''.join(content_parts)}
+        </div>
+        """
+    
+    def _generate_neighborhood_section(self, neighborhoods: dict) -> str:
+        """Generate neighborhood insights section HTML."""
+        names = neighborhoods.get('neighborhood_names', [])
+        personalities = neighborhoods.get('area_personalities', {})
+        specialties = neighborhoods.get('neighborhood_specialties', {})
+        stay_advice = neighborhoods.get('stay_recommendations', {})
+        
+        neighborhood_items = []
+        for name in names[:3]:  # Show top 3 neighborhoods
+            personality = personalities.get(name, "")
+            specialty_list = specialties.get(name, [])
+            stay = stay_advice.get(name, "")
+            
+            specialty_html = ""
+            if specialty_list:
+                specialty_html = f"<div class='specialty'>Known for: {', '.join(specialty_list[:2])}</div>"
+            
+            neighborhood_items.append(f"""
+            <div class="neighborhood-item">
+                <div class="neighborhood-name">🏘️ {name}</div>
+                {f'<div class="neighborhood-personality">{personality}</div>' if personality else ''}
+                {specialty_html}
+                {f'<div class="stay-advice"><strong>Stay:</strong> {stay}</div>' if stay else ''}
+            </div>
+            """)
+        
+        return f"""
+        <div class="ci-section neighborhoods-section">
+            <h5><i class="fas fa-map-marker-alt"></i> Neighborhood Insights</h5>
+            {''.join(neighborhood_items)}
+        </div>
+        """
+    
+    def _generate_discovery_section(self, discovery: dict) -> str:
+        """Generate content discovery section HTML."""
+        sources = discovery.get('high_quality_sources', [])
+        phrases = discovery.get('extracted_phrases', [])
+        validation = discovery.get('authority_validation', {})
+        
+        content_parts = []
+        
+        # Authority validation
+        if validation:
+            quality_score = validation.get('content_quality_score', 0)
+            total_sources = validation.get('total_sources', 0)
+            quality_color = '#28a745' if quality_score > 0.7 else '#ffc107' if quality_score > 0.4 else '#dc3545'
+            
+            content_parts.append(f"""
+            <div class="discovery-validation">
+                <div class="validation-item">
+                    <span class="validation-label">Sources:</span>
+                    <span class="validation-value">{total_sources}</span>
+                </div>
+                <div class="validation-item">
+                    <span class="validation-label">Quality:</span>
+                    <span class="validation-value" style="color: {quality_color}">{quality_score:.2f}</span>
+                </div>
+            </div>
+            """)
+        
+        # Compelling phrases
+        if phrases:
+            phrase_items = [f"<li>\"{phrase}\"</li>" for phrase in phrases[:3]]
+            content_parts.append(f"""
+            <div class="discovery-phrases">
+                <strong>📝 Compelling Language:</strong>
+                <ul>{''.join(phrase_items)}</ul>
+            </div>
+            """)
+        
+        return f"""
+        <div class="ci-section discovery-section">
+            <h5><i class="fas fa-search"></i> Content Discovery</h5>
+            {''.join(content_parts)}
+        </div>
+        """
     
     def _generate_evidence_validation_display(self, evidence_summary: dict) -> str:
         """Generate enhanced evidence validation display with clickable URLs and comprehensive source information."""
@@ -1327,6 +1544,196 @@ class EnhancedViewerGenerator:
             margin-bottom: 4px;
         }
         
+        /* Content Intelligence Styles */
+        .content-intelligence-section {
+            margin-top: 20px;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            padding-top: 20px;
+        }
+        
+        .content-intelligence {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .ci-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #00355F, #004080);
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s ease;
+        }
+        
+        .ci-toggle:hover {
+            background: linear-gradient(135deg, #004080, #0050A0);
+        }
+        
+        .toggle-icon {
+            transition: transform 0.3s ease;
+            margin-right: 8px;
+        }
+        
+        .ci-toggle.active .toggle-icon {
+            transform: rotate(180deg);
+        }
+        
+        .ci-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+        
+        .ci-content {
+            padding: 0;
+            background: rgba(255, 255, 255, 0.95);
+        }
+        
+        .ci-section {
+            padding: 20px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .ci-section:last-child {
+            border-bottom: none;
+        }
+        
+        .ci-section h5 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+            color: #00355F;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        /* Landmarks Section */
+        .landmark-item {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(0, 53, 95, 0.05);
+            border-radius: 8px;
+            border-left: 3px solid #00355F;
+        }
+        
+        .landmark-name {
+            font-weight: 600;
+            color: #00355F;
+            margin-bottom: 5px;
+        }
+        
+        .landmark-description {
+            font-size: 0.9rem;
+            color: #666;
+            line-height: 1.4;
+        }
+        
+        .special-features {
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(0, 53, 95, 0.03);
+            border-radius: 8px;
+        }
+        
+        .special-features ul {
+            margin: 8px 0 0 20px;
+        }
+        
+        /* Practical Section */
+        .practical-costs, .practical-timing, .practical-tips {
+            margin-bottom: 15px;
+        }
+        
+        .practical-costs ul, .practical-timing ul, .practical-tips ul {
+            margin: 8px 0 0 20px;
+        }
+        
+        .practical-costs li, .practical-timing li, .practical-tips li {
+            margin-bottom: 6px;
+            color: #444;
+        }
+        
+        /* Neighborhood Section */
+        .neighborhood-item {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(0, 53, 95, 0.05);
+            border-radius: 8px;
+            border-left: 3px solid #00355F;
+        }
+        
+        .neighborhood-name {
+            font-weight: 600;
+            color: #00355F;
+            margin-bottom: 5px;
+        }
+        
+        .neighborhood-personality {
+            font-size: 0.9rem;
+            color: #555;
+            margin-bottom: 5px;
+            font-style: italic;
+        }
+        
+        .specialty {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .stay-advice {
+            font-size: 0.85rem;
+            color: #444;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 6px 10px;
+            border-radius: 5px;
+            margin-top: 8px;
+        }
+        
+        /* Discovery Section */
+        .discovery-validation {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .validation-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            background: rgba(0, 53, 95, 0.05);
+            border-radius: 8px;
+            min-width: 80px;
+        }
+        
+        .validation-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 3px;
+        }
+        
+        .validation-value {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .discovery-phrases ul {
+            margin: 8px 0 0 20px;
+        }
+        
+        .discovery-phrases li {
+            margin-bottom: 6px;
+            color: #444;
+            font-style: italic;
+        }
+        
         .evidence-icon {
             font-size: 1rem;
         }
@@ -1976,6 +2383,22 @@ class EnhancedViewerGenerator:
             console.log('Viewing evidence for:', evidenceType);
             // Future enhancement: show modal or expanded view
             button.textContent = button.textContent === 'View All Evidence' ? 'Hide Evidence' : 'View All Evidence';
+        }
+        
+        // Content Intelligence toggle functionality
+        function toggleContentIntelligence(element) {
+            const content = element.nextElementSibling;
+            const icon = element.querySelector('.toggle-icon');
+            
+            if (content.style.display === 'none' || content.style.display === '') {
+                content.style.display = 'block';
+                icon.textContent = '▲';
+                element.classList.add('active');
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▼';
+                element.classList.remove('active');
+            }
         }
         
         // Smooth scrolling for anchor links

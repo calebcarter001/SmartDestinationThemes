@@ -4,12 +4,13 @@ An intelligent destination analysis system that discovers, analyzes, and validat
 
 ## ✨ Key Features
 
-- **🧠 Enhanced Intelligence Processing**: 4-phase decomposed prompt system with 14 validation attributes
+- **🧠 Enhanced Intelligence Processing**: 4-phase decomposed prompt system with 18 validation attributes
+- **🎯 Content Intelligence**: 4 new additive attributes for factual content extraction
 - **🔍 Evidence-Based Validation**: Real-time web evidence collection with authority scoring  
 - **📊 Interactive Dashboard**: Rich HTML interface with evidence modals and theme analysis
 - **🌐 Smart Server Management**: Automatic port detection and conflict resolution
 - **⚡ Performance Optimized**: Parallel processing, caching, and connection pooling
-- **🎯 Adaptive Quality**: Intelligent data quality detection and adaptive filtering
+- **🎨 Professional Design**: Expedia-inspired clean UI with brand colors
 
 ## 🚀 Quick Start
 
@@ -97,6 +98,13 @@ Comprehensive analysis pipeline including:
 - **📅 Seasonality**: Peak, shoulder, and off-season recommendations
 - **♿ Accessibility**: Physical, dietary, and budget accessibility information
 
+### Content Intelligence Features
+- **🏛️ Iconic Landmarks**: Specific locations with unique characteristics and compelling descriptions
+- **💡 Practical Intelligence**: Real costs, booking timing, platforms, and money-saving tips
+- **🏘️ Neighborhood Insights**: Area personalities, specialties, and where-to-stay recommendations
+- **🔍 Source Validation**: Travel authority scoring and content credibility assessment
+- **🎨 Professional Design**: Clean Expedia-inspired interface with brand colors (#00355F)
+
 ## 🏗️ Architecture
 
 ### Enhanced Intelligence Pipeline
@@ -120,7 +128,9 @@ Comprehensive analysis pipeline including:
   - Authenticity validation, Theme overlap detection, Quality scoring
 
 #### 3. Enhanced Intelligence Processing (5-20s)
-**14 Validation Attributes** per theme:
+**18 Validation Attributes** per theme:
+
+**Core Intelligence (14 attributes):**
 - `nano_themes` - Micro-level theme breakdown
 - `price_insights` - Comprehensive pricing analysis
 - `seasonality` - Peak/shoulder/off-season recommendations
@@ -135,6 +145,12 @@ Comprehensive analysis pipeline including:
 - `local_transportation` - Getting around information
 - `accommodation_types` - Lodging recommendations
 - `booking_considerations` - Advance planning requirements
+
+**Content Intelligence (4 new additive attributes):**
+- `iconic_landmarks` - Specific landmarks with compelling descriptions and unique characteristics
+- `practical_travel_intelligence` - Actual costs, timing data, booking specifics, and money-saving tips
+- `neighborhood_insights` - Area names, personalities, specialties, and accommodation recommendations
+- `content_discovery_intelligence` - Source validation, marketing phrases, and authority metadata
 
 #### 4. Evidence Validation (Real-time)
 - **Comprehensive Evidence Collection**: Validates all 14 attributes with web evidence

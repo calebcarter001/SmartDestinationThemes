@@ -1,14 +1,19 @@
 # Example configuration file for Destination Intelligence Discovery
 # Copy this file to config.yaml and update with your settings
 
-# demo_settings:
-#   log_level: "INFO"
-
 # Database configuration
 database:
   path: "enhanced_destination_intelligence.db"
   type: "sqlite"
   chroma_db_path: "./chroma_db"
+
+# Server configuration
+server:
+  default_port: 8000
+  host: "localhost"
+  auto_port_detection: true
+  max_port_attempts: 10
+  open_browser_by_default: true
 
 # LLM settings (can be overridden by .env)
 llm_settings:
@@ -307,13 +312,41 @@ destination_overrides:
 processing_settings:
   max_destinations_to_process: 0  # Set to 0 for all destinations
   
+  # Demographic mapping configuration
+  demographic_mapping:
+    family: ["families with children", "multi-generational groups"]
+    solo: ["solo travelers"]
+    couple: ["couples"] 
+    group: ["friend groups"]
+    business: ["business travelers"]
+    
+  # Experience level keywords
+  experience_level_keywords:
+    advanced: ["extreme", "advanced", "expert", "professional", "challenging"]
+    intermediate: ["intermediate", "moderate", "some experience", "skilled"]
+    beginner: ["beginner", "easy", "introductory", "basic", "novice"]
+    
+  # Accessibility level keywords
+  accessibility_keywords:
+    high_physical_demands: ["extreme", "strenuous", "challenging", "demanding", "intense"]
+    requires_mobility: ["hiking", "climbing", "walking", "stairs", "uneven terrain", "physical activity"]
+    accessible: ["accessible", "wheelchair", "easy access", "level ground", "barrier-free"]
+  
   web_discovery:
-    max_urls_per_destination: 10
+    max_sources_per_destination: 10
     timeout_seconds: 30
+    enable_content_validation: true
+    max_urls_per_destination: 10
     max_content_length: 2000000  # 2MB
     min_content_length_chars: 200  # Minimum content length to process
     vectorize_api_endpoint: ""  # Optional: Vectorize API endpoint
     vectorize_api_key: ""       # Optional: Vectorize API key
+    
+    # Custom search query templates (use {destination} placeholder)
+    custom_queries:
+      - "{destination} hidden gems local secrets"
+      - "{destination} authentic experiences off beaten path"
+      - "{destination} seasonal events festivals"
 
     # Brave Search API specific parameters
     brave_search_lang: "en"         # Language for search results
@@ -463,8 +496,58 @@ processing_settings:
       - markets
       - music
 
-# Destinations to process
+# Destinations to process (add your destinations here)
 destinations:
-  - "Las Vegas, Nevada"
-  - "New York, New York"
+  - "Paris, France"
+  - "Tokyo, Japan"
+  - "New York, USA"
+
+# =============================================================================
+# SERVER CONFIGURATION
+# =============================================================================
+server:
+  default_port: 8000
+  host: "localhost"
+  auto_port_detection: true
+  max_port_attempts: 10
+  open_browser_by_default: true
+
+# =============================================================================
+# LLM SETTINGS
+# =============================================================================
+ 
+# =============================================================================
+# PERFORMANCE OPTIMIZATIONS
+# =============================================================================
+
+performance:
+  # LLM Processing optimization
+  max_parallel_llm_requests: 5         # Concurrent LLM API calls
+  theme_batch_size: 8                   # Themes per batch for processing
+  enable_intelligent_batching: true     # Batch themes for efficiency
+  enable_llm_response_caching: true     # Cache LLM responses to avoid redundant calls
+  
+  # Retry configuration
+  max_llm_retries: 3                    # Maximum retry attempts for failed LLM calls
+  retry_base_delay: 1.0                 # Base delay in seconds for exponential backoff
+  retry_max_delay: 30.0                 # Maximum delay in seconds for retries
+  
+  # Processing optimization
+  parallel_processing: true
+  max_worker_threads: 4
+  chunk_size: 1000
+  
+  # Memory management
+  clear_cache_on_completion: false      # Keep cache for subsequent runs
+  limit_memory_usage: true
+  max_memory_mb: 2048
+  
+  # Progress tracking
+  enable_progress_bars: true
+  show_detailed_progress: true
+  progress_update_interval: 1           # Seconds between progress updates
+
+# =============================================================================
+# PROCESSING SETTINGS
+# =============================================================================
  

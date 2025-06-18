@@ -11,6 +11,8 @@ import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 import logging
+from typing import Dict, Any
+import socket
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +64,20 @@ class DashboardHTTPRequestHandler(SimpleHTTPRequestHandler):
 class DashboardServerManager:
     """Manager for the dashboard HTTP server."""
     
-    def __init__(self, base_output_dir: str = "outputs"):
-        self.base_output_dir = base_output_dir
+    def __init__(self, config: Dict[str, Any] = None):
+        """Initialize server manager with configuration."""
+        self.config = config or {}
+        server_config = self.config.get('server', {})
+        
+        # Configurable server settings
+        self.port = server_config.get('default_port', 8000)
+        self.host = server_config.get('host', 'localhost')
+        self.auto_port_detection = server_config.get('auto_port_detection', True)
+        self.max_port_attempts = server_config.get('max_port_attempts', 10)
+        
         self.server = None
         self.server_thread = None
-        self.port = 8000
-        self.host = 'localhost'
+        self.base_output_dir = "outputs"
         
     def find_latest_dashboard(self) -> str:
         """Find the most recent dashboard directory."""
@@ -94,19 +104,21 @@ class DashboardServerManager:
         logger.info(f"Found latest dashboard: {dashboard_path}")
         return dashboard_path
     
-    def find_available_port(self, start_port: int = 8000, max_attempts: int = 10) -> int:
+    def find_available_port(self, start_port: int = None, max_attempts: int = None) -> int:
         """Find an available port starting from start_port."""
-        import socket
+        start_port = start_port or self.port
+        max_attempts = max_attempts or self.max_port_attempts
         
-        for port in range(start_port, start_port + max_attempts):
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                try:
-                    s.bind((self.host, port))
-                    return port
-                except OSError:
-                    continue
+        for i in range(max_attempts):
+            test_port = start_port + i
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(('', test_port))
+                    return test_port
+            except OSError:
+                continue
         
-        raise RuntimeError(f"Could not find available port in range {start_port}-{start_port + max_attempts}")
+        raise RuntimeError(f"Could not find available port after {max_attempts} attempts starting from {start_port}")
     
     def start_server(self, dashboard_dir: str = None, port: int = None, open_browser: bool = True) -> dict:
         """

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import aiohttp
 import json
 from urllib.parse import quote_plus
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,16 @@ class WebDiscoveryTool:
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.max_sources = 10
-        self.timeout = 30
+        web_config = config.get('web_discovery', {})
+        
+        # Configuration from config file
+        self.max_sources = web_config.get('max_sources_per_destination', 10)
+        self.timeout = web_config.get('timeout_seconds', 30)
+        self.enable_content_validation = web_config.get('enable_content_validation', True)
+        
+        # API configuration
+        self.brave_api_key = os.getenv('BRAVE_SEARCH_API_KEY')
+        self.jina_api_key = os.getenv('JINA_API_KEY')
         
     async def discover_destination_content(self, destination: str) -> Dict[str, Any]:
         """Discover web content for a destination"""
@@ -34,18 +43,22 @@ class WebDiscoveryTool:
         logger.info(f"🔍 Starting web discovery for {destination}")
         
         try:
-            # Search for destination content
+            # Generate search queries
             search_queries = self._generate_search_queries(destination)
             
-            # Perform searches
+            # Perform searches if API key is available
             search_results = []
-            for query in search_queries:
-                try:
-                    results = await self._search_web(query)
-                    search_results.extend(results)
-                except Exception as e:
-                    logger.warning(f"Search failed for query '{query}': {e}")
-                    continue
+            if self.brave_api_key:
+                for query in search_queries:
+                    try:
+                        results = await self._search_web_brave(query)
+                        search_results.extend(results)
+                    except Exception as e:
+                        logger.warning(f"Search failed for query '{query}': {e}")
+                        continue
+            else:
+                logger.warning("No Brave Search API key found, skipping web search")
+                search_results = self._get_fallback_sources(destination)
             
             # Deduplicate and limit results
             unique_urls = list(dict.fromkeys([r['url'] for r in search_results]))[:self.max_sources]
@@ -55,7 +68,7 @@ class WebDiscoveryTool:
             for url in unique_urls:
                 try:
                     content = await self._extract_content(url)
-                    if content:
+                    if content and self._validate_content(content):
                         content_results.append({
                             'url': url,
                             'title': content.get('title', ''),
@@ -70,7 +83,8 @@ class WebDiscoveryTool:
             summary = {
                 'total_sources': len(content_results),
                 'search_queries_used': search_queries,
-                'average_relevance': sum(c['relevance_score'] for c in content_results) / len(content_results) if content_results else 0
+                'average_relevance': sum(c['relevance_score'] for c in content_results) / len(content_results) if content_results else 0,
+                'api_used': 'brave' if self.brave_api_key else 'fallback'
             }
             
             logger.info(f"✅ Web discovery complete for {destination}: {len(content_results)} sources")
@@ -92,40 +106,153 @@ class WebDiscoveryTool:
     def _generate_search_queries(self, destination: str) -> List[str]:
         """Generate search queries for destination discovery"""
         
-        queries = [
+        base_queries = [
             f"{destination} travel guide attractions",
-            f"{destination} things to do experiences",
+            f"{destination} things to do experiences", 
             f"{destination} local culture food",
             f"{destination} tourist activities recommendations",
             f"visit {destination} best places"
         ]
         
-        return queries
-    
-    async def _search_web(self, query: str) -> List[Dict[str, Any]]:
-        """Perform web search (mock implementation for now)"""
+        # Add custom queries from config if available
+        custom_queries = self.config.get('web_discovery', {}).get('custom_queries', [])
+        for template in custom_queries:
+            base_queries.append(template.format(destination=destination))
         
-        # Mock search results for demo purposes
-        # In production, this would use a real search API
-        mock_results = [
-            {
-                'url': f'https://example.com/travel/{query.replace(" ", "-")}',
-                'title': f'Travel Guide: {query}',
-                'snippet': f'Complete guide to {query} with tips and recommendations'
-            }
+        return base_queries
+    
+    def _get_fallback_sources(self, destination: str) -> List[Dict[str, Any]]:
+        """Get fallback sources when no API key is available"""
+        
+        # Common travel websites that might have destination content
+        fallback_sources = [
+            f"https://www.tripadvisor.com/Tourism-{destination.replace(' ', '_').replace(',', '')}-Vacations.html",
+            f"https://www.lonelyplanet.com/destinations/{destination.lower().replace(' ', '-').replace(',', '')}",
+            f"https://www.timeout.com/{destination.lower().replace(' ', '-').replace(',', '')}/travel",
+            f"https://travel.usnews.com/destinations/{destination.replace(' ', '_').replace(',', '')}",
+            f"https://www.fodors.com/world/{destination.lower().replace(' ', '-').replace(',', '')}"
         ]
         
-        return mock_results
+        return [{'url': url, 'title': f'{destination} Travel Guide', 'snippet': f'Travel information for {destination}'} 
+                for url in fallback_sources]
+    
+    async def _search_web_brave(self, query: str) -> List[Dict[str, Any]]:
+        """Perform web search using Brave Search API"""
+        
+        if not self.brave_api_key:
+            return []
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'X-Subscription-Token': self.brave_api_key,
+                    'Accept': 'application/json'
+                }
+                
+                params = {
+                    'q': query,
+                    'count': 10,
+                    'search_lang': 'en',
+                    'country': 'US',
+                    'safesearch': 'moderate'
+                }
+                
+                async with session.get(
+                    'https://api.search.brave.com/res/v1/web/search',
+                    headers=headers,
+                    params=params,
+                    timeout=self.timeout
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        results = []
+                        
+                        for result in data.get('web', {}).get('results', []):
+                            results.append({
+                                'url': result.get('url'),
+                                'title': result.get('title'),
+                                'snippet': result.get('description', '')
+                            })
+                        
+                        return results
+                    else:
+                        logger.warning(f"Brave Search API returned status {response.status}")
+                        return []
+                        
+        except Exception as e:
+            logger.error(f"Brave Search API error: {e}")
+            return []
     
     async def _extract_content(self, url: str) -> Optional[Dict[str, Any]]:
-        """Extract content from a URL (mock implementation)"""
+        """Extract content from a URL using Jina Reader API or fallback"""
         
-        # Mock content extraction for demo purposes
-        # In production, this would use web scraping or content extraction APIs
-        mock_content = {
-            'title': f'Travel Content from {url}',
-            'content': f'Rich travel content about the destination from {url}',
-            'relevance_score': 0.8
+        if self.jina_api_key:
+            return await self._extract_content_jina(url)
+        else:
+            return await self._extract_content_fallback(url)
+    
+    async def _extract_content_jina(self, url: str) -> Optional[Dict[str, Any]]:
+        """Extract content using Jina Reader API"""
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'Authorization': f'Bearer {self.jina_api_key}',
+                    'Accept': 'application/json'
+                }
+                
+                jina_url = f'https://r.jina.ai/{url}'
+                
+                async with session.get(
+                    jina_url,
+                    headers=headers,
+                    timeout=self.timeout
+                ) as response:
+                    if response.status == 200:
+                        content = await response.text()
+                        return {
+                            'title': f'Content from {url}',
+                            'content': content[:2000],  # Limit content length
+                            'relevance_score': 0.7
+                        }
+                    else:
+                        logger.warning(f"Jina Reader API returned status {response.status} for {url}")
+                        return None
+                        
+        except Exception as e:
+            logger.error(f"Jina Reader API error for {url}: {e}")
+            return None
+    
+    async def _extract_content_fallback(self, url: str) -> Optional[Dict[str, Any]]:
+        """Fallback content extraction when no API is available"""
+        
+        # Return minimal content structure for processing
+        return {
+            'title': f'Travel content from {url}',
+            'content': f'Travel information and recommendations for the destination from {url}',
+            'relevance_score': 0.5
         }
+    
+    def _validate_content(self, content: Dict[str, Any]) -> bool:
+        """Validate extracted content quality"""
         
-        return mock_content 
+        if not self.enable_content_validation:
+            return True
+        
+        # Basic validation criteria
+        title = content.get('title', '')
+        text_content = content.get('content', '')
+        
+        # Check minimum content length
+        if len(text_content) < 50:
+            return False
+        
+        # Check for spam indicators
+        spam_indicators = ['click here', 'buy now', 'limited time', 'act fast']
+        text_lower = text_content.lower()
+        spam_count = sum(1 for indicator in spam_indicators if indicator in text_lower)
+        
+        if spam_count > 2:
+            return False
+        
+        return True 

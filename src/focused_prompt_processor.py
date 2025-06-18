@@ -6,6 +6,7 @@ Implements decomposed prompt strategy for better LLM responses and reduced trunc
 import asyncio
 import json
 import logging
+import hashlib
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
@@ -34,6 +35,7 @@ class ThemeAnalysis:
 class ThemeEnhancement:
     """Container for theme enhancement from Phase 3"""
     sub_themes: Dict[str, List[str]]
+    nano_themes: Dict[str, List[str]]
     rationales: Dict[str, str]
     unique_selling_points: Dict[str, List[str]]
 
@@ -50,7 +52,21 @@ class FocusedPromptProcessor:
     def __init__(self, llm_generator, config: Dict[str, Any]):
         self.llm_generator = llm_generator
         self.config = config
-        self.max_parallel_requests = 5
+        self.max_parallel_requests = config.get('performance', {}).get('max_parallel_llm_requests', 5)
+        self.batch_size = config.get('performance', {}).get('theme_batch_size', 8)  # Process themes in batches
+        self.enable_intelligent_batching = config.get('performance', {}).get('enable_intelligent_batching', True)
+        self.enable_response_caching = config.get('performance', {}).get('enable_llm_response_caching', True)
+        self._response_cache = {} if self.enable_response_caching else None
+        
+        # Performance monitoring
+        self.performance_metrics = {
+            'total_llm_calls': 0,
+            'cache_hits': 0,
+            'cache_misses': 0,
+            'batch_count': 0,
+            'processing_times': [],
+            'theme_counts': []
+        }
         
     async def process_destination(self, destination: str, web_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Process a destination using the focused prompt strategy"""
@@ -83,6 +99,13 @@ class FocusedPromptProcessor:
             
             processing_time = time.time() - start_time
             logger.info(f"✅ Completed focused processing for {destination} in {processing_time:.2f}s")
+            
+            # Track performance metrics
+            self.performance_metrics['processing_times'].append(processing_time)
+            self.performance_metrics['theme_counts'].append(len(final_profile.get('affinities', [])))
+            
+            # Log performance summary
+            self._log_performance_metrics(destination, processing_time)
             
             return final_profile
             
@@ -170,14 +193,16 @@ class FocusedPromptProcessor:
         # Parallel enhancement tasks
         tasks = [
             self._generate_sub_themes(destination, all_themes),
+            self._generate_nano_themes(destination, all_themes),
             self._generate_rationales(destination, all_themes, analysis),
             self._generate_unique_selling_points(destination, all_themes, analysis)
         ]
         
-        sub_themes, rationales, usps = await asyncio.gather(*tasks)
+        sub_themes, nano_themes, rationales, usps = await asyncio.gather(*tasks)
         
         return ThemeEnhancement(
             sub_themes=sub_themes,
+            nano_themes=nano_themes,
             rationales=rationales,
             unique_selling_points=usps
         )
@@ -309,18 +334,8 @@ Be specific to {destination} - what luxury experiences are uniquely available?{w
         try:
             response = await self.llm_generator.generate_response(prompt, max_tokens=600)
             
-            # Try to parse JSON response
-            if response.strip().startswith('['):
-                themes = json.loads(response)
-            else:
-                # If not JSON, try to extract JSON from response
-                import re
-                json_match = re.search(r'\[.*\]', response, re.DOTALL)
-                if json_match:
-                    themes = json.loads(json_match.group())
-                else:
-                    logger.warning(f"Could not parse JSON from {category} discovery response")
-                    return []
+            # Parse using the list helper method
+            themes = self._parse_json_list_response(response)
             
             # Validate structure
             if isinstance(themes, list) and all(isinstance(t, dict) and 'theme' in t for t in themes):
@@ -366,88 +381,160 @@ Consider {destination}'s climate, tourist seasons, and activity-specific factors
 Use full month names (January, February, etc.)."""
 
         try:
-            response = await self.llm_generator.generate_response(prompt, max_tokens=800)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            response = await self.llm_generator.generate_response(prompt, max_tokens=600)
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"Seasonality analysis failed: {e}")
             return {}
     
     async def _analyze_traveler_types(self, destination: str, themes: List[str]) -> Dict[str, List[str]]:
-        """Analyze target traveler types for themes"""
-        prompt = f"""Determine the best traveler types for these themes in {destination}:
+        """Analyze suitable traveler types for each theme"""
+        prompt = f"""Identify suitable traveler types for each theme in {destination}:
 
 Themes: {', '.join(themes)}
 
 For each theme, select the most suitable traveler types from:
-- solo (solo travelers)
-- couple (romantic couples)
-- family (families with children)
-- group (friend groups, tour groups)
+- solo, couple, family, group, business, luxury, budget, adventure, cultural, relaxation
 
 Return as JSON object:
 {{
-  "theme_name": ["traveler_type1", "traveler_type2", ...]
+  "theme_name": ["traveler_type1", "traveler_type2"]
 }}
 
-Consider the nature of each activity and who would most enjoy it."""
+Choose 1-3 most suitable types per theme."""
 
         try:
             response = await self.llm_generator.generate_response(prompt, max_tokens=600)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"Traveler type analysis failed: {e}")
             return {}
     
     async def _analyze_pricing(self, destination: str, themes: List[str]) -> Dict[str, str]:
-        """Analyze pricing levels for themes"""
-        prompt = f"""Determine the typical price level for these themes in {destination}:
+        """Analyze pricing levels for each theme"""
+        prompt = f"""Categorize the pricing level for each theme in {destination}:
 
 Themes: {', '.join(themes)}
 
-For each theme, assign ONE price category:
-- budget (affordable, under $50 per person)
-- mid (moderate pricing, $50-200 per person)
-- luxury (premium pricing, $200+ per person)
+For each theme, assign one pricing category:
+- budget (under $50/day per person)
+- mid ($50-150/day per person)  
+- luxury (over $150/day per person)
 
 Return as JSON object:
 {{
-  "theme_name": "price_category"
+  "theme_name": "pricing_category"
 }}
 
-Consider typical costs for these experiences in {destination}."""
+Consider typical costs for activities in each theme."""
 
         try:
-            response = await self.llm_generator.generate_response(prompt, max_tokens=400)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            response = await self.llm_generator.generate_response(prompt, max_tokens=500)
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"Pricing analysis failed: {e}")
             return {}
     
     async def _analyze_confidence(self, destination: str, themes: List[str]) -> Dict[str, float]:
-        """Analyze confidence scores for themes"""
-        prompt = f"""Rate the confidence level (0.0 to 1.0) for how well each theme represents {destination}:
+        """Analyze confidence scores for theme-destination fit"""
+        prompt = f"""Rate confidence (0.0 to 1.0) for how well each theme fits {destination}:
 
 Themes: {', '.join(themes)}
 
 Consider:
-- How iconic/representative is this theme for {destination}?
-- How accessible/available is this experience?
-- How unique is this to {destination} vs generic?
+- How well does this theme represent {destination}?
+- How likely are travelers to find good options?
+- How distinctive is this theme for {destination}?
 
 Return as JSON object:
 {{
   "theme_name": 0.85
 }}
 
-Use decimal values between 0.0 (not confident) and 1.0 (very confident)."""
+Use decimal values between 0.0 (poor fit) and 1.0 (perfect fit)."""
 
         try:
             response = await self.llm_generator.generate_response(prompt, max_tokens=500)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"Confidence analysis failed: {e}")
             return {}
     
+    def _parse_json_response(self, response: str) -> Dict[str, Any]:
+        """Parse JSON response, handling markdown code blocks if present"""
+        if not response:
+            return {}
+            
+        response = response.strip()
+        
+        # Check if response is wrapped in markdown code blocks
+        if response.startswith('```json'):
+            # Extract content between ```json and ```
+            lines = response.split('\n')
+            json_lines = []
+            in_json = False
+            
+            for line in lines:
+                if line.strip() == '```json':
+                    in_json = True
+                    continue
+                elif line.strip() == '```' and in_json:
+                    break
+                elif in_json:
+                    json_lines.append(line)
+            
+            response = '\n'.join(json_lines).strip()
+        
+        # Try to parse JSON
+        try:
+            return json.loads(response)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing failed: {e}. Response: {response[:200]}...")
+            return {}
+
+    def _parse_json_list_response(self, response: str) -> List[Dict[str, Any]]:
+        """Parse JSON list response, handling markdown code blocks if present"""
+        if not response:
+            return []
+            
+        response = response.strip()
+        
+        # Check if response is wrapped in markdown code blocks  
+        if response.startswith('```json'):
+            # Extract content between ```json and ```
+            lines = response.split('\n')
+            json_lines = []
+            in_json = False
+            
+            for line in lines:
+                if line.strip() == '```json':
+                    in_json = True
+                    continue
+                elif line.strip() == '```' and in_json:
+                    break
+                elif in_json:
+                    json_lines.append(line)
+            
+            response = '\n'.join(json_lines).strip()
+        
+        # Try to parse JSON
+        try:
+            parsed = json.loads(response)
+            return parsed if isinstance(parsed, list) else []
+        except json.JSONDecodeError as e:
+            # Try to find list in the response text as fallback
+            import re
+            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            if json_match:
+                try:
+                    return json.loads(json_match.group())
+                except json.JSONDecodeError:
+                    logger.error(f"JSON list parsing failed: {e}. Response: {response[:200]}...")
+                    return []
+            else:
+                logger.error(f"No JSON list found in response: {response[:200]}...")
+                return []
+
     async def _generate_sub_themes(self, destination: str, themes: List[str]) -> Dict[str, List[str]]:
         """Generate sub-themes for each main theme"""
         prompt = f"""Generate 3-4 specific sub-themes for each main theme in {destination}:
@@ -465,9 +552,41 @@ Make sub-themes specific and actionable."""
 
         try:
             response = await self.llm_generator.generate_response(prompt, max_tokens=700)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"Sub-theme generation failed: {e}")
+            return {}
+    
+    async def _generate_nano_themes(self, destination: str, themes: List[str]) -> Dict[str, List[str]]:
+        """Generate ultra-specific nano themes for each main theme"""
+        prompt = f"""Generate 3-4 ultra-specific, actionable nano-experiences for each theme in {destination}.
+
+Main themes: {', '.join(themes)}
+
+For each theme, create the most granular, destination-specific micro-experiences that are:
+- Ultra-specific to {destination} (not generic)
+- Actionable things travelers can actually do/find
+- Local insider knowledge level
+- More specific than general sub-themes
+
+Examples for "Street Food" in Bangkok:
+- "Chatuchak Weekend Market som tam stalls"
+- "Chinatown Yaowarat late-night noodle carts" 
+- "Thonglor soi hidden mango sticky rice vendors"
+- "Khlong Toei morning market curry paste makers"
+
+Return as JSON object:
+{{
+  "main_theme": ["nano_theme1", "nano_theme2", "nano_theme3", "nano_theme4"]
+}}
+
+Focus on discoverable, local, ultra-specific experiences unique to {destination}."""
+
+        try:
+            response = await self.llm_generator.generate_response(prompt, max_tokens=800)
+            return self._parse_json_response(response)
+        except Exception as e:
+            logger.error(f"Nano theme generation failed: {e}")
             return {}
     
     async def _generate_rationales(self, destination: str, themes: List[str], 
@@ -491,7 +610,7 @@ Keep each rationale concise but persuasive."""
 
         try:
             response = await self.llm_generator.generate_response(prompt, max_tokens=800)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"Rationale generation failed: {e}")
             return {}
@@ -517,7 +636,7 @@ Focus on distinctive, memorable value propositions."""
 
         try:
             response = await self.llm_generator.generate_response(prompt, max_tokens=600)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"USP generation failed: {e}")
             return {}
@@ -542,7 +661,7 @@ Use decimal values between 0.0 (inauthentic) and 1.0 (very authentic)."""
 
         try:
             response = await self.llm_generator.generate_response(prompt, max_tokens=600)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"Authenticity check failed: {e}")
             return {}
@@ -572,7 +691,7 @@ Return as JSON object:
 
         try:
             response = await self.llm_generator.generate_response(prompt, max_tokens=500)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"Overlap detection failed: {e}")
             return {}
@@ -603,7 +722,7 @@ Return as JSON object:
 
         try:
             response = await self.llm_generator.generate_response(prompt, max_tokens=400)
-            return json.loads(response) if response.strip().startswith('{') else {}
+            return self._parse_json_response(response)
         except Exception as e:
             logger.error(f"Quality assessment failed: {e}")
             return {}
@@ -633,6 +752,7 @@ Return as JSON object:
                     "category": category,
                     "theme": theme_name,
                     "sub_themes": enhancement.sub_themes.get(theme_name, []),
+                    "nano_themes": enhancement.nano_themes.get(theme_name, []),
                     "confidence": analysis.confidence.get(theme_name, 0.7),
                     "seasonality": analysis.seasonality.get(theme_name, {"peak": [], "avoid": []}),
                     "traveler_types": analysis.traveler_types.get(theme_name, ["couple"]),
@@ -659,4 +779,98 @@ Return as JSON object:
         
         logger.info(f"✅ Assembled profile for {destination}: {len(affinities)} themes across {profile['processing_metadata']['categories_covered']} categories")
         
-        return profile 
+        return profile
+
+    def _batch_themes_intelligently(self, themes: List[str]) -> List[List[str]]:
+        """Batch themes intelligently based on token limits and similarity"""
+        if not self.enable_intelligent_batching or len(themes) <= self.batch_size:
+            return [themes]
+        
+        # Create batches of optimal size
+        batches = []
+        for i in range(0, len(themes), self.batch_size):
+            batch = themes[i:i + self.batch_size]
+            batches.append(batch)
+            
+        logger.info(f"Created {len(batches)} intelligent batches from {len(themes)} themes")
+        return batches
+
+    async def _process_themes_in_batches(self, destination: str, themes: List[str], 
+                                       processing_func, func_name: str) -> Dict[str, Any]:
+        """Process themes in batches to optimize LLM usage"""
+        if not self.enable_intelligent_batching:
+            return await processing_func(destination, themes)
+        
+        batches = self._batch_themes_intelligently(themes)
+        all_results = {}
+        
+        logger.info(f"Processing {len(themes)} themes in {len(batches)} batches for {func_name}")
+        
+        # Process batches with controlled concurrency
+        semaphore = asyncio.Semaphore(self.max_parallel_requests)
+        
+        async def process_batch(batch):
+            async with semaphore:
+                return await processing_func(destination, batch)
+        
+        batch_tasks = [process_batch(batch) for batch in batches]
+        batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+        
+        # Merge results from all batches
+        for i, result in enumerate(batch_results):
+            if isinstance(result, Exception):
+                logger.warning(f"Batch {i+1} failed in {func_name}: {result}")
+                continue
+            if isinstance(result, dict):
+                all_results.update(result)
+        
+        return all_results 
+
+    def _get_cache_key(self, prompt: str, max_tokens: int = None) -> str:
+        """Generate cache key for prompt"""
+        cache_content = f"{prompt}_{max_tokens or 'default'}"
+        return hashlib.md5(cache_content.encode()).hexdigest()
+    
+    async def _cached_llm_call(self, prompt: str, max_tokens: Optional[int] = None) -> str:
+        """Make LLM call with caching"""
+        if not self.enable_response_caching:
+            self.performance_metrics['total_llm_calls'] += 1
+            return await self.llm_generator.generate_response(prompt, max_tokens)
+        
+        cache_key = self._get_cache_key(prompt, max_tokens)
+        
+        # Check cache first
+        if cache_key in self._response_cache:
+            self.performance_metrics['cache_hits'] += 1
+            logger.debug("Cache hit for LLM response")
+            return self._response_cache[cache_key]
+        
+        # Make LLM call and cache result
+        self.performance_metrics['total_llm_calls'] += 1
+        self.performance_metrics['cache_misses'] += 1
+        
+        response = await self.llm_generator.generate_response(prompt, max_tokens)
+        self._response_cache[cache_key] = response
+        
+        logger.debug(f"Cached LLM response (cache size: {len(self._response_cache)})")
+        return response 
+
+    def _log_performance_metrics(self, destination: str, processing_time: float):
+        """Log comprehensive performance metrics"""
+        metrics = self.performance_metrics
+        
+        cache_hit_rate = (metrics['cache_hits'] / (metrics['cache_hits'] + metrics['cache_misses'])) * 100 if (metrics['cache_hits'] + metrics['cache_misses']) > 0 else 0
+        
+        logger.info(f"📊 Performance Metrics for {destination}:")
+        logger.info(f"  ⏱️  Processing Time: {processing_time:.2f}s")
+        logger.info(f"  🤖 Total LLM Calls: {metrics['total_llm_calls']}")
+        logger.info(f"  💾 Cache Hit Rate: {cache_hit_rate:.1f}% ({metrics['cache_hits']}/{metrics['cache_hits'] + metrics['cache_misses']})")
+        logger.info(f"  📦 Batches Created: {metrics['batch_count']}")
+        
+        if metrics['processing_times']:
+            avg_time = sum(metrics['processing_times']) / len(metrics['processing_times'])
+            logger.info(f"  📈 Average Processing Time: {avg_time:.2f}s")
+        
+        if metrics['theme_counts']:
+            avg_themes = sum(metrics['theme_counts']) / len(metrics['theme_counts'])
+            logger.info(f"  🎯 Average Themes per Destination: {avg_themes:.1f}")

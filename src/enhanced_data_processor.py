@@ -220,16 +220,16 @@ class EnhancedDataProcessor:
         
         # Intelligence processing steps - using existing methods
         intelligence_steps = [
-            ("🔍 Depth Analysis", lambda a, d: self._analyze_theme_depth(a)),
-            ("🏆 Authenticity Scoring", lambda a, d: self._analyze_authenticity(a)),
-            ("✨ Emotional Profiling", lambda a, d: self._analyze_emotional_resonance(a)),
-            ("⚡ Intensity Calibration", lambda a, d: self._analyze_experience_intensity(a)),
+            ("🔍 Depth Analysis", lambda a, d: self._analyze_theme_depth(a, d)),
+            ("🏆 Authenticity Scoring", lambda a, d: self._analyze_authenticity(a, d)),
+            ("✨ Emotional Profiling", lambda a, d: self._analyze_emotional_resonance(a, d)),
+            ("⚡ Intensity Calibration", lambda a, d: self._analyze_experience_intensity(a, d)),
             ("🎯 Context Analysis", lambda a, d: self._analyze_context(a, d)),
             ("🌤️ Micro-Climate", lambda a, d: self._analyze_micro_climate(a, d)),
             ("🏛️ Cultural Sensitivity", lambda a, d: self._assess_cultural_sensitivity(a, d)),
-            ("🔗 Theme Interconnections", lambda a, d: self._analyze_theme_interconnections(a)),
-            ("💎 Hidden Gem Scoring", lambda a, d: self._calculate_hidden_gem_score(a)),
-            ("💰 Price Analysis", lambda a, d: self._analyze_price_insights(a))
+            ("🔗 Theme Interconnections", lambda a, d: self._analyze_theme_interconnections(a, d)),
+            ("💎 Hidden Gem Scoring", lambda a, d: self._calculate_hidden_gem_score(a, d)),
+            ("💰 Price Analysis", lambda a, d: self._analyze_price_insights(a, d))
         ]
         
         enhanced = affinity.copy()
@@ -503,7 +503,7 @@ class EnhancedDataProcessor:
         enhanced = affinity.copy()
         
         # Add depth analysis
-        enhanced['depth_analysis'] = self._analyze_theme_depth(affinity)
+        enhanced['depth_analysis'] = self._analyze_theme_depth(affinity, destination)
         
         # Add nano theme evidence if available
         nano_themes = enhanced['depth_analysis'].get('nano_themes', [])
@@ -513,13 +513,13 @@ class EnhancedDataProcessor:
             enhanced['nano_themes_evidence'] = self._get_nano_themes_evidence_summary(nano_themes, comprehensive_evidence)
         
         # Add authenticity scoring with evidence
-        enhanced['authenticity_analysis'] = self._analyze_authenticity(affinity, comprehensive_evidence)
+        enhanced['authenticity_analysis'] = self._analyze_authenticity(affinity, destination, comprehensive_evidence)
         
         # Add emotional profiling
-        enhanced['emotional_profile'] = self._analyze_emotional_resonance(affinity)
+        enhanced['emotional_profile'] = self._analyze_emotional_resonance(affinity, destination)
         
         # Add experience intensity
-        enhanced['experience_intensity'] = self._analyze_experience_intensity(affinity)
+        enhanced['experience_intensity'] = self._analyze_experience_intensity(affinity, destination)
         
         # Add contextual information
         enhanced['contextual_info'] = self._analyze_context(affinity, destination)
@@ -531,13 +531,13 @@ class EnhancedDataProcessor:
         enhanced['cultural_sensitivity'] = self._assess_cultural_sensitivity(affinity, destination)
         
         # Add theme interconnections
-        enhanced['theme_interconnections'] = self._analyze_theme_interconnections(affinity)
+        enhanced['theme_interconnections'] = self._analyze_theme_interconnections(affinity, destination)
         
         # Add hidden gem potential with evidence
-        enhanced['hidden_gem_score'] = self._calculate_hidden_gem_score(affinity, comprehensive_evidence)
+        enhanced['hidden_gem_score'] = self._calculate_hidden_gem_score(affinity, destination, comprehensive_evidence)
         
         # Add price insights with evidence
-        enhanced['price_insights'] = self._analyze_price_insights(affinity, comprehensive_evidence)
+        enhanced['price_insights'] = self._analyze_price_insights(affinity, destination, comprehensive_evidence)
         
         # Validate ALL attributes with comprehensive evidence collection
         if hasattr(self, 'evidence_validator') and hasattr(self, 'web_pages') and self.web_pages:
@@ -568,6 +568,7 @@ class EnhancedDataProcessor:
         return nano_evidence_summary
 
     def _analyze_authenticity(self, affinity: Dict[str, Any], 
+                            destination: str,
                             comprehensive_evidence: Dict[str, Any] = None) -> Dict[str, Any]:
         """Analyze authenticity level and characteristics with evidence support."""
         theme = affinity.get('theme', '')
@@ -623,6 +624,7 @@ class EnhancedDataProcessor:
         return result
 
     def _calculate_hidden_gem_score(self, affinity: Dict[str, Any], 
+                                  destination: str,
                                   comprehensive_evidence: Dict[str, Any] = None) -> Dict[str, Any]:
         """Calculate hidden gem potential with evidence support."""
         theme = affinity.get('theme', '')
@@ -667,6 +669,7 @@ class EnhancedDataProcessor:
         return result
 
     def _analyze_price_insights(self, affinity: Dict[str, Any], 
+                              destination: str,
                               comprehensive_evidence: Dict[str, Any] = None) -> Dict[str, Any]:
         """Analyze price-related insights with evidence support."""
         theme = affinity.get('theme', '')
@@ -726,14 +729,20 @@ class EnhancedDataProcessor:
         strongest = max(evidence_pieces, key=lambda x: x.get('authority_score', 0))
         return strongest.get('text_content', '')[:200] + '...' if len(strongest.get('text_content', '')) > 200 else strongest.get('text_content', '')
 
-    def _analyze_theme_depth(self, affinity: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_theme_depth(self, affinity: Dict[str, Any], destination: str) -> Dict[str, Any]:
         """Analyze theme depth and granularity."""
         theme = affinity.get('theme', '')
         sub_themes = affinity.get('sub_themes', [])
         rationale = affinity.get('rationale', '')
         
-        # Generate nano themes
-        nano_themes = self._generate_nano_themes(theme, sub_themes, rationale)
+        # Use nano themes from focused prompt processor (LLM-generated)
+        nano_themes = affinity.get('nano_themes', [])
+        if not nano_themes:
+            # Fallback only for LLM failures or missing nano themes
+            logger.warning(f"No LLM-generated nano themes found for '{theme}' - using fallback generation")
+            nano_themes = self._generate_nano_themes(theme, sub_themes, rationale)
+        else:
+            logger.debug(f"Using LLM-generated nano themes for '{theme}': {len(nano_themes)} themes")
         
         # Determine depth level
         if len(nano_themes) >= 3 and len(sub_themes) >= 2:
@@ -755,7 +764,21 @@ class EnhancedDataProcessor:
         }
 
     def _generate_nano_themes(self, theme: str, sub_themes: List[str], rationale: str) -> List[str]:
-        """Generate specific nano-level themes."""
+        """
+        FALLBACK: Generate basic nano-level themes using keyword matching.
+        
+        This is a fallback method used only when LLM-generated nano themes are unavailable
+        due to processing failures. The primary nano theme generation should be done by
+        the FocusedPromptProcessor using LLM for destination-specific themes.
+        
+        Args:
+            theme: Main theme name
+            sub_themes: List of sub-themes 
+            rationale: Theme rationale text
+            
+        Returns:
+            List of basic nano themes (max 4)
+        """
         nano_themes = []
         theme_lower = theme.lower()
         rationale_lower = rationale.lower()
@@ -797,7 +820,7 @@ class EnhancedDataProcessor:
         else:
             return 'mainstream'
 
-    def _analyze_emotional_resonance(self, affinity: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_emotional_resonance(self, affinity: Dict[str, Any], destination: str) -> Dict[str, Any]:
         """Analyze emotional resonance and appeal."""
         theme = affinity.get('theme', '')
         rationale = affinity.get('rationale', '')
@@ -839,7 +862,7 @@ class EnhancedDataProcessor:
             'emotional_intensity': max(emotion_scores.values()) if emotion_scores else 0.5
         }
 
-    def _analyze_experience_intensity(self, affinity: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_experience_intensity(self, affinity: Dict[str, Any], destination: str) -> Dict[str, Any]:
         """Analyze experience intensity across dimensions."""
         theme = affinity.get('theme', '')
         rationale = affinity.get('rationale', '')
@@ -895,35 +918,31 @@ class EnhancedDataProcessor:
             return 'minimal'
 
     def _analyze_context(self, affinity: Dict[str, Any], destination: str) -> Dict[str, Any]:
-        """Analyze contextual information and suitability."""
+        """Analyze contextual information for the affinity."""
         theme = affinity.get('theme', '')
         traveler_types = affinity.get('traveler_types', [])
         
-        # Demographic suitability
+        # Get demographic mapping from config or use defaults
+        demographic_config = self.config.get('demographic_mapping', {})
+        default_mapping = {
+            'family': ['families with children', 'multi-generational groups'],
+            'solo': ['solo travelers'],
+            'couple': ['couples'],
+            'group': ['friend groups']
+        }
+        demographic_mapping = {**default_mapping, **demographic_config}
+        
+        # Demographic suitability based on traveler types
         demographics = []
-        if 'family' in traveler_types:
-            demographics.extend(['families with children', 'multi-generational groups'])
-        if 'solo' in traveler_types:
-            demographics.append('solo travelers')
-        if 'couple' in traveler_types:
-            demographics.append('couples')
-        if 'group' in traveler_types:
-            demographics.append('friend groups')
+        for traveler_type in traveler_types:
+            if traveler_type in demographic_mapping:
+                demographics.extend(demographic_mapping[traveler_type])
         
         # Experience level required
-        experience_level = 'beginner'
-        theme_lower = theme.lower()
-        if 'extreme' in theme_lower or 'advanced' in theme_lower:
-            experience_level = 'advanced'
-        elif 'intermediate' in theme_lower:
-            experience_level = 'intermediate'
+        experience_level = self._determine_experience_level(theme)
         
         # Accessibility level
-        accessibility = 'accessible'
-        if 'hiking' in theme_lower or 'climbing' in theme_lower:
-            accessibility = 'requires mobility'
-        elif 'extreme' in theme_lower:
-            accessibility = 'high physical demands'
+        accessibility = self._determine_accessibility_level(theme)
         
         return {
             'demographic_suitability': demographics,
@@ -932,6 +951,40 @@ class EnhancedDataProcessor:
             'group_dynamics': self._determine_group_dynamics(theme),
             'time_commitment': self._estimate_time_commitment(theme)
         }
+
+    def _determine_experience_level(self, theme: str) -> str:
+        """Determine experience level required based on theme."""
+        theme_lower = theme.lower()
+        
+        # Get experience level mapping from config or use defaults
+        experience_config = self.config.get('experience_level_keywords', {
+            'advanced': ['extreme', 'advanced', 'expert', 'professional'],
+            'intermediate': ['intermediate', 'moderate', 'some experience'],
+            'beginner': ['beginner', 'easy', 'introductory', 'basic']
+        })
+        
+        for level, keywords in experience_config.items():
+            if any(keyword in theme_lower for keyword in keywords):
+                return level
+        
+        return 'beginner'  # Default
+    
+    def _determine_accessibility_level(self, theme: str) -> str:
+        """Determine accessibility level based on theme."""
+        theme_lower = theme.lower()
+        
+        # Get accessibility mapping from config or use defaults
+        accessibility_config = self.config.get('accessibility_keywords', {
+            'high physical demands': ['extreme', 'strenuous', 'challenging', 'demanding'],
+            'requires mobility': ['hiking', 'climbing', 'walking', 'stairs', 'uneven terrain'],
+            'accessible': ['accessible', 'wheelchair', 'easy access', 'level ground']
+        })
+        
+        for level, keywords in accessibility_config.items():
+            if any(keyword in theme_lower for keyword in keywords):
+                return level
+        
+        return 'accessible'  # Default
 
     def _determine_group_dynamics(self, theme: str) -> List[str]:
         """Determine suitable group dynamics."""
@@ -1071,7 +1124,7 @@ class EnhancedDataProcessor:
         else:
             return 'moderate'
 
-    def _analyze_theme_interconnections(self, affinity: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_theme_interconnections(self, affinity: Dict[str, Any], destination: str) -> Dict[str, Any]:
         """Analyze how this theme connects with others."""
         theme = affinity.get('theme', '')
         category = affinity.get('category', '')

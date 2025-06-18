@@ -27,17 +27,24 @@ class DevStagingManager:
         self.dev_dashboard_dir.mkdir(exist_ok=True)
         self.dev_json_dir.mkdir(exist_ok=True)
         
-    def stage_latest_session(self, session_dir: str) -> bool:
+    def stage_latest_session(self, session_dir: str = None) -> bool:
         """
         Stage the latest session data to development folder.
         
         Args:
-            session_dir: Path to the session directory to stage
+            session_dir: Path to the session directory to stage. If None, finds the latest automatically.
             
         Returns:
             bool: True if staging successful, False otherwise
         """
         try:
+            # If no session_dir provided, find the latest one
+            if session_dir is None:
+                session_dir = self._find_latest_session_dir()
+                if not session_dir:
+                    self.logger.error("No session directories found to stage")
+                    return False
+            
             session_path = Path(session_dir)
             if not session_path.exists():
                 self.logger.error(f"Session directory does not exist: {session_dir}")
@@ -186,4 +193,26 @@ class DevStagingManager:
         """Automatically stage the latest session and start development server."""
         if self.stage_latest_session(session_dir):
             return self.start_dev_server(port)
-        return False 
+        return False
+
+    def _find_latest_session_dir(self) -> Optional[str]:
+        """Find the latest session directory in outputs folder."""
+        try:
+            outputs_dir = Path("outputs")
+            if not outputs_dir.exists():
+                return None
+            
+            # Find all session directories
+            session_dirs = [d for d in outputs_dir.iterdir() 
+                          if d.is_dir() and d.name.startswith("session_")]
+            
+            if not session_dirs:
+                return None
+            
+            # Return the most recent one (by creation time)
+            latest_session = max(session_dirs, key=lambda d: d.stat().st_ctime)
+            return str(latest_session)
+            
+        except Exception as e:
+            self.logger.error(f"Failed to find latest session directory: {e}")
+            return None 

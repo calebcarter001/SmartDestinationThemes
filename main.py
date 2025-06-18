@@ -1,49 +1,36 @@
 #!/usr/bin/env python3
 """
-SmartDestinationThemes - Main Entry Point
-Unified processing system with multiple modes:
-- Full Pipeline: LLM Generation + Web Discovery + Evidence Collection + Intelligence Enhancement
-- Demo Mode: Quick processing with sample data
-- Development Server: Serve existing data with evidence validation
+SmartDestinationThemes Main Processing Script
+
+Processing Modes:
+- Full Mode: Complete pipeline with web discovery and focused prompt processing
+- Server Mode: Start development server for viewing existing results
 """
 
 import asyncio
-import json
+import argparse
 import logging
 import os
 import sys
-import argparse
-from pathlib import Path
-from typing import Dict, Any, List
+from typing import List, Dict, Any
 
-# Add project root to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add src directory to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-# Import gRPC cleanup utility first to suppress warnings
-from src.utils.grpc_cleanup import suppress_grpc_warnings
-suppress_grpc_warnings()
-
-# from src.affinity_pipeline import AffinityPipeline  # Not needed for focused prompt approach
-from src.dev_staging_manager import DevStagingManager
 from tools.config_loader import load_app_config
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/main_processing.log'),
-        logging.StreamHandler()
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-
 logger = logging.getLogger(__name__)
 
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='SmartDestinationThemes Processing System')
-    parser.add_argument('--mode', choices=['full', 'demo', 'server'], default='full',
-                       help='Processing mode: full pipeline, demo with sample data, or development server')
+    parser.add_argument('--mode', choices=['full', 'server'], default='full',
+                       help='Processing mode: full pipeline or development server')
     parser.add_argument('--destinations', nargs='+', 
                        help='Specific destinations to process (overrides default list)')
     parser.add_argument('--port', type=int, default=8000,
@@ -173,140 +160,81 @@ async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> 
             
         return {}
 
-async def run_demo_mode(destinations: List[str], config: Dict[str, Any]) -> Dict[str, str]:
-    """Run demo mode with sample data (no web discovery)."""
-    
-    print(f"\n🎭 DEMO MODE")
-    print(f"Processing {len(destinations)} destinations with sample data (no web discovery)")
-    print("="*70)
-    
-    # Use the enhanced data processor directly for demo
-    from src.enhanced_data_processor import EnhancedDataProcessor
-    
-    processor = EnhancedDataProcessor(config)
-    
-    # Generate rich sample data for all destinations
-    demo_data = {}
-    
-    # Sample theme templates for generating diverse data
-    theme_templates = [
-        {"category": "culture", "themes": ["Cultural Heritage", "Art and Museums", "Traditional Experiences", "Local Festivals", "Historic Sites"]},
-        {"category": "food", "themes": ["Culinary Excellence", "Street Food Scene", "Fine Dining", "Local Specialties", "Food Markets"]},
-        {"category": "adventure", "themes": ["Outdoor Adventures", "Thrill Seeking", "Extreme Sports", "Nature Exploration", "Active Tourism"]},
-        {"category": "luxury", "themes": ["High-end Indulgence", "Premium Experiences", "Luxury Shopping", "Upscale Accommodations", "VIP Services"]},
-        {"category": "entertainment", "themes": ["Nightlife Scene", "Live Entertainment", "Music and Arts", "Theater and Shows", "Entertainment Districts"]},
-        {"category": "nature", "themes": ["Natural Beauty", "Scenic Landscapes", "Wildlife Encounters", "Outdoor Recreation", "Eco-Tourism"]},
-        {"category": "family", "themes": ["Family Fun", "Kid-Friendly Activities", "Educational Experiences", "Theme Parks", "Family Attractions"]},
-        {"category": "romance", "themes": ["Romantic Getaways", "Couple Activities", "Intimate Dining", "Sunset Views", "Romantic Walks"]},
-        {"category": "wellness", "themes": ["Relaxation and Wellness", "Spa Retreats", "Health Tourism", "Mindfulness Experiences", "Fitness Activities"]},
-        {"category": "urban", "themes": ["City Life", "Urban Exploration", "Modern Architecture", "Shopping Districts", "Metropolitan Vibes"]}
-    ]
-    
-    for dest in destinations:
-        # Generate 6-8 diverse themes per destination
-        import random
-        random.seed(hash(dest))  # Consistent randomization based on destination name
-        
-        num_themes = random.randint(6, 8)
-        selected_categories = random.sample(theme_templates, min(num_themes, len(theme_templates)))
-        
-        affinities = []
-        for i, cat_info in enumerate(selected_categories):
-            theme_name = random.choice(cat_info["themes"])
-            
-            affinity = {
-                "category": cat_info["category"],
-                "theme": theme_name,
-                "sub_themes": [f"{theme_name} aspect {j+1}" for j in range(3)],
-                "confidence": round(random.uniform(0.65, 0.9), 3),
-                "seasonality": {
-                    "peak": random.sample(["March", "April", "May", "June", "September", "October", "November"], 3),
-                    "avoid": random.sample(["July", "August", "December", "January", "February"], random.randint(0, 2))
-                },
-                "traveler_types": random.sample(["solo", "couple", "family", "group"], random.randint(2, 4)),
-                "price_point": random.choice(["budget", "mid", "luxury"]),
-                "rationale": f"{dest} offers excellent {theme_name.lower()} experiences with unique local character and attractions.",
-                "unique_selling_points": [f"Authentic {theme_name.lower()}", f"High-quality {cat_info['category']} scene", "Memorable experiences"]
-            }
-            affinities.append(affinity)
-        
-        demo_data[dest] = {"affinities": affinities}
-    
-    if not demo_data:
-        print("❌ No sample data available for demo mode")
-        return {}
-    
-    # Process with enhanced intelligence (but no web discovery)
-    processed_files = processor.process_destinations_with_progress(demo_data, generate_dashboard=True)
-    
-    return processed_files
-
 def start_development_server(port: int = 8000, open_browser: bool = True):
-    """Start the development server for existing data."""
+    """Start development server for viewing results."""
+    import http.server
+    import socketserver
+    import threading
+    import webbrowser
+    import socket
+    import time
+    import requests
+    from pathlib import Path
     
-    print(f"\n🌐 DEVELOPMENT SERVER MODE")
-    print("="*50)
+    # Check if dev_staging/dashboard exists
+    dashboard_dir = Path("dev_staging/dashboard")
+    if not dashboard_dir.exists():
+        print(f"💡 Run with --mode full first to generate data")
+        return
+    
+    def is_server_running_with_content(port: int) -> bool:
+        """Check if server is running on port and serving the right content."""
+        try:
+            response = requests.get(f"http://localhost:{port}/index.html", timeout=2)
+            return response.status_code == 200
+        except:
+            return False
+    
+    def is_port_in_use(port: int) -> bool:
+        """Check if a port is in use."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(('localhost', port)) == 0
+    
+    # Check if server is already running with the right content
+    if is_server_running_with_content(port):
+        print(f"✅ Server already running on port {port}")
+        if open_browser:
+            dashboard_url = f"http://localhost:{port}/index.html"
+            print(f"🌐 Opening dashboard in browser...")
+            webbrowser.open(dashboard_url)
+        else:
+            print(f"🔗 Dashboard available at: http://localhost:{port}/index.html")
+        return
+    
+    # If port is in use but not serving our content, find alternative
+    if is_port_in_use(port):
+        print(f"⚠️  Port {port} is in use by another service")
+        # Try to find an available port
+        for i in range(1, 11):  # Try ports 8001-8010
+            test_port = port + i
+            if not is_port_in_use(test_port):
+                port = test_port
+                print(f"🔄 Using port {port} instead")
+                break
+        else:
+            print(f"❌ Could not find available port")
+            return
+    
+    # Change to dashboard directory
+    original_dir = os.getcwd()
+    os.chdir(dashboard_dir)
     
     try:
-        import webbrowser
-        import http.server
-        import socketserver
-        import threading
-        import time
-        import socket
-        
-        # Function to find an available port
-        def find_available_port(start_port: int = 8000, max_attempts: int = 10) -> int:
-            for test_port in range(start_port, start_port + max_attempts):
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    try:
-                        s.bind(('', test_port))
-                        return test_port
-                    except OSError:
-                        continue
-            raise RuntimeError(f"Could not find available port in range {start_port}-{start_port + max_attempts}")
-        
-        # Find an available port
-        available_port = find_available_port(port)
-        if available_port != port:
-            print(f"⚠️  Port {port} is in use, using port {available_port} instead")
-        
-        # Ensure staging is up to date
-        staging_manager = DevStagingManager()
-        
-        # Find the latest session directory
-        import glob
-        session_dirs = glob.glob("outputs/session_*")
-        if session_dirs:
-            latest_session = max(session_dirs, key=os.path.getctime)
-            success = staging_manager.stage_latest_session(latest_session)
-            if not success:
-                print(f"⚠️  Failed to stage session: {latest_session}")
-        else:
-            print("⚠️  No session directories found to stage")
-        
-        # Server configuration
-        DIRECTORY = "dev_staging/dashboard"
-        
-        if not os.path.exists(DIRECTORY):
-            print(f"❌ Dashboard directory not found: {DIRECTORY}")
-            print(f"💡 Run with --mode full or --mode demo first to generate data")
-        return
-
+        # Custom handler to suppress request logging
         class Handler(http.server.SimpleHTTPRequestHandler):
             def __init__(self, *args, **kwargs):
-                super().__init__(*args, directory=DIRECTORY, **kwargs)
+                super().__init__(*args, directory=str(dashboard_dir), **kwargs)
             
             def log_message(self, format, *args):
                 # Suppress request logging for cleaner output
                 pass
         
         def run_server():
-            with socketserver.TCPServer(("", available_port), Handler) as httpd:
-                print(f"🌐 Server running at: http://localhost:{available_port}")
-                print(f"📁 Serving directory: {DIRECTORY}")
-                print(f"🔗 Dashboard URL: http://localhost:{available_port}/index.html")
-                print(f"📋 Press Ctrl+C to stop server")
+            with socketserver.TCPServer(("", port), Handler) as httpd:
+                print(f"🌐 Server running at: http://localhost:{port}")
+                print(f"📁 Serving from: {dashboard_dir.absolute()}")
+                print(f"🔗 Dashboard URL: http://localhost:{port}/index.html")
+                print(f"Press Ctrl+C to stop the server")
                 
                 try:
                     httpd.serve_forever()
@@ -314,95 +242,85 @@ def start_development_server(port: int = 8000, open_browser: bool = True):
                     print(f"\n🛑 Server stopped")
                     httpd.shutdown()
         
-        # Start server in background thread
+        # Start server in a separate thread
         server_thread = threading.Thread(target=run_server, daemon=True)
         server_thread.start()
         
-        # Give server time to start
+        # Wait a moment for server to start
         time.sleep(1)
         
-        # Open browser
+        # Open browser if requested
         if open_browser:
-            dashboard_url = f"http://localhost:{available_port}/index.html"
-            print(f"🌐 Opening dashboard in browser: {dashboard_url}")
+            dashboard_url = f"http://localhost:{port}/index.html"
+            print(f"🌐 Opening dashboard in browser...")
             webbrowser.open(dashboard_url)
         
         # Keep main thread alive
         try:
-            while True:
+            while server_thread.is_alive():
                 time.sleep(1)
         except KeyboardInterrupt:
-            print(f"\n🛑 Shutting down...")
+            print(f"\n🛑 Shutting down server...")
             
-    except Exception as e:
-        logger.error(f"Failed to start development server: {e}")
-        print(f"❌ Failed to start development server: {e}")
+    finally:
+        # Return to original directory
+        os.chdir(original_dir)
 
 async def main():
-    """Main entry point with multiple processing modes."""
-    
+    """Main entry point."""
     args = parse_arguments()
     
     print("🚀 SmartDestinationThemes Processing System")
-    print("=" * 60)
+    print("="*60)
     
     # Load configuration
     print("🔧 Loading configuration...")
     config = load_config()
-    
-    if args.mode == 'server':
-        # Development server mode
-        start_development_server(port=args.port, open_browser=not args.no_browser)
+    if not config:
+        print("❌ Failed to load configuration")
         return
     
     # Get destinations to process
     print("📊 Loading destinations...")
-    destinations = get_destinations_to_process(args.destinations)
-    print(f"✅ Loaded {len(destinations)} destinations: {', '.join(destinations)}")
+    try:
+        destinations = get_destinations_to_process(args.destinations)
+        print(f"✅ Loaded {len(destinations)} destinations: {', '.join(destinations)}")
+    except Exception as e:
+        print(f"❌ Error loading destinations: {e}")
+        return
     
     try:
         if args.mode == 'full':
-            # Full pipeline with web discovery
+            # Full pipeline mode
             processed_files = await run_full_pipeline(destinations, config)
-        elif args.mode == 'demo':
-            # Demo mode with sample data
-            processed_files = await run_demo_mode(destinations, config)
-        else:
-            print(f"❌ Unknown mode: {args.mode}")
-            return
-        
-        if processed_files:
-            print(f"\n🎉 Processing Complete!")
-            print(f"📊 Successfully processed: {len(processed_files)} destinations")
             
-            # Stage latest data for development server
-            print(f"\n📁 Staging latest data for development server...")
-            staging_manager = DevStagingManager()
-            
-            # Find the latest session directory
-            import glob
-            session_dirs = glob.glob("outputs/session_*")
-            if session_dirs:
-                latest_session = max(session_dirs, key=os.path.getctime)
-                success = staging_manager.stage_latest_session(latest_session)
-                if not success:
-                    print(f"⚠️  Failed to stage session: {latest_session}")
-            else:
-                print("⚠️  No session directories found to stage")
-            
-            # Offer to start development server
-            if not args.no_browser:
+            if processed_files:
+                print(f"\n🎉 Processing Complete!")
+                print(f"📊 Successfully processed: {len(processed_files)} destinations")
+                
+                # Stage latest data for development server
+                print(f"\n📁 Staging latest data for development server...")
+                from src.dev_staging_manager import DevStagingManager
+                staging_manager = DevStagingManager()
+                staging_manager.stage_latest_session()
+                
+                # Start development server
                 print(f"\n🌐 Starting development server...")
-                start_development_server(port=args.port, open_browser=True)
+                start_development_server(args.port, not args.no_browser)
             else:
-                print(f"\n💡 To view results, run: python main.py --mode server")
-        else:
-            print("❌ No destinations were processed successfully")
-        
+                print(f"\n❌ No data was processed successfully")
+                
+        elif args.mode == 'server':
+            # Development server mode
+            print(f"\n🌐 DEVELOPMENT SERVER MODE")
+            print("="*50)
+            start_development_server(args.port, not args.no_browser)
+            
+    except KeyboardInterrupt:
+        print(f"\n🛑 Operation cancelled by user")
     except Exception as e:
-        logger.error(f"Processing failed: {e}")
-        print(f"❌ Processing failed: {e}")
-        return
+        logger.error(f"Unexpected error: {e}")
+        print(f"❌ An error occurred: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main()) 

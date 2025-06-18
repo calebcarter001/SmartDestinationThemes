@@ -18,7 +18,32 @@ logger = logging.getLogger(__name__)
 class ThemeIntelligenceEngine:
     """Advanced theme analysis and enhancement engine"""
     
-    def __init__(self):
+    def __init__(self, config: Dict[str, Any] = None):
+        """Initialize the Theme Intelligence Engine with configuration."""
+        self.config = config or {}
+        
+        # Load demographic mapping from config
+        self.demographic_mapping = self.config.get('demographic_mapping', {
+            'family': ['families with children', 'multi-generational groups'],
+            'solo': ['solo travelers'],
+            'couple': ['couples'],
+            'group': ['friend groups']
+        })
+        
+        # Load experience level keywords from config
+        self.experience_keywords = self.config.get('experience_level_keywords', {
+            'advanced': ['extreme', 'advanced', 'expert', 'professional'],
+            'intermediate': ['intermediate', 'moderate', 'some experience'],
+            'beginner': ['beginner', 'easy', 'introductory', 'basic']
+        })
+        
+        # Load accessibility keywords from config
+        self.accessibility_keywords = self.config.get('accessibility_keywords', {
+            'high physical demands': ['extreme', 'strenuous', 'challenging', 'demanding'],
+            'requires mobility': ['hiking', 'climbing', 'walking', 'stairs', 'uneven terrain'],
+            'accessible': ['accessible', 'wheelchair', 'easy access', 'level ground']
+        })
+        
         self.emotional_keywords = {
             EmotionalResonance.PEACEFUL: ['quiet', 'serene', 'calm', 'tranquil', 'meditation', 'zen', 'peaceful'],
             EmotionalResonance.EXHILARATING: ['thrilling', 'exciting', 'adrenaline', 'extreme', 'adventure', 'rush'],
@@ -346,14 +371,8 @@ class ThemeIntelligenceEngine:
         
         # Demographic suitability
         demographics = []
-        if 'family' in traveler_types:
-            demographics.extend(['families with children', 'multi-generational groups'])
-        if 'solo' in traveler_types:
-            demographics.append('solo travelers')
-        if 'couple' in traveler_types:
-            demographics.append('couples')
-        if 'group' in traveler_types:
-            demographics.append('friend groups')
+        for traveler_type in traveler_types:
+            demographics.extend(self.demographic_mapping.get(traveler_type, []))
         
         # Group dynamics
         group_dynamics = []
@@ -366,17 +385,17 @@ class ThemeIntelligenceEngine:
         
         # Experience level
         experience_level = "beginner"
-        if 'extreme' in theme_lower or 'advanced' in theme_lower:
-            experience_level = "advanced"
-        elif 'intermediate' in theme_lower:
-            experience_level = "intermediate"
+        for level, keywords in self.experience_keywords.items():
+            if any(keyword in theme_lower for keyword in keywords):
+                experience_level = level
+                break
         
         # Accessibility
         accessibility = "accessible"
-        if 'hiking' in theme_lower or 'climbing' in theme_lower:
-            accessibility = "requires mobility"
-        elif 'extreme' in theme_lower:
-            accessibility = "high physical demands"
+        for level, keywords in self.accessibility_keywords.items():
+            if any(keyword in theme_lower for keyword in keywords):
+                accessibility = level
+                break
         
         return ExperienceContext(
             demographic_suitability=demographics,

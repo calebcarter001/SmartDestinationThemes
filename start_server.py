@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Development Server for SmartDestinationThemes Dashboard
-Provides a simple HTTP server for viewing generated dashboards with graceful shutdown.
+Standalone Development Server for SmartDestinationThemes Dashboard
+Provides a dedicated HTTP server for viewing generated dashboards with graceful shutdown.
 """
 
 import os
@@ -14,12 +14,18 @@ import time
 import webbrowser
 import http.server
 import socketserver
+import requests
 from pathlib import Path
 
 # Add src directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from tools.config_loader import load_app_config
+try:
+    from tools.config_loader import load_app_config
+except ImportError:
+    # Fallback if config loader is not available
+    def load_app_config():
+        return {}
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -53,6 +59,14 @@ class DashboardServer:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex((self.host, port)) == 0
     
+    def _is_server_running_with_content(self, port):
+        """Check if server is running on port and serving the right content."""
+        try:
+            response = requests.get(f"http://{self.host}:{port}/index.html", timeout=2)
+            return response.status_code == 200
+        except:
+            return False
+    
     def _find_available_port(self, start_port, max_attempts=10):
         """Find an available port starting from start_port."""
         for i in range(max_attempts):
@@ -65,35 +79,73 @@ class DashboardServer:
                 continue
         raise RuntimeError(f"Could not find available port after {max_attempts} attempts")
     
+    def _check_dashboard_files(self):
+        """Check if dashboard files exist and provide helpful feedback."""
+        dashboard_path = Path(self.directory)
+        
+        if not dashboard_path.exists():
+            print(f"❌ Dashboard directory not found: {dashboard_path.absolute()}")
+            print(f"💡 To generate dashboard files:")
+            print(f"   python main.py")
+            return False
+        
+        index_file = dashboard_path / "index.html"
+        if not index_file.exists():
+            print(f"❌ Dashboard index file not found: {index_file}")
+            print(f"💡 To generate dashboard files:")
+            print(f"   python main.py")
+            return False
+        
+        # Count available destination files
+        html_files = list(dashboard_path.glob("*.html"))
+        destination_files = [f for f in html_files if f.name != "index.html"]
+        
+        print(f"✅ Found dashboard with {len(destination_files)} destination(s)")
+        if destination_files:
+            print(f"📊 Available destinations:")
+            for dest_file in sorted(destination_files):
+                dest_name = dest_file.stem.replace('__', ', ').replace('_', ' ').title()
+                print(f"   • {dest_name}: /{dest_file.name}")
+        
+        return True
+    
     def start(self, port=None, open_browser=True):
         """Start the dashboard server."""
         port = port or self.port
         
-        # Check if dashboard directory exists
-        if not Path(self.directory).exists():
-            logger.error(f"Dashboard directory not found: {self.directory}")
-            logger.info("Run 'python main.py' first to generate dashboard data")
+        print("🚀 SmartDestinationThemes Dashboard Server")
+        print("="*50)
+        
+        # Check if dashboard files exist
+        if not self._check_dashboard_files():
             return False
         
+        # Check if server is already running with the right content
+        if self._is_server_running_with_content(port):
+            print(f"✅ Server already running and serving dashboard content on port {port}")
+            dashboard_url = f"http://{self.host}:{port}/index.html"
+            print(f"🔗 Dashboard URL: {dashboard_url}")
+            if open_browser:
+                print(f"🌐 Opening dashboard in browser...")
+                webbrowser.open(dashboard_url)
+            return True
+        
         # Handle port conflicts
+        original_port = port
         if self._is_port_in_use(port):
-            logger.warning(f"Port {port} is already in use")
-            logger.info("Attempting to stop existing server...")
-            time.sleep(1)  # Give time for cleanup
-            
-            # Try to find alternative port
+            print(f"⚠️  Port {port} is in use by another service")
             try:
                 port = self._find_available_port(port)
-                logger.info(f"Using alternative port: {port}")
+                print(f"🔄 Using port {port} instead")
             except RuntimeError as e:
-                logger.error(str(e))
+                print(f"❌ {e}")
                 return False
         
         try:
-            logger.info(f"🚀 Starting dashboard server on port {port}")
-            logger.info(f"📁 Serving from: {Path(self.directory).absolute()}")
+            print(f"🌐 Starting dashboard server on port {port}")
+            print(f"📁 Serving from: {Path(self.directory).absolute()}")
             
-            # Custom handler to serve from specific directory
+            # Custom handler to serve from specific directory and suppress logs
             class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 def __init__(self, *args, **kwargs):
                     super().__init__(*args, directory=self.directory, **kwargs)
@@ -110,29 +162,39 @@ class DashboardServer:
             self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
             self.server_thread.start()
             
-            logger.info("✅ Server started successfully!")
-            logger.info(f"🌐 Dashboard available at: http://{self.host}:{port}")
-            logger.info(f"📊 View results at: http://{self.host}:{port}/index.html")
-            logger.info("Press Ctrl+C to stop the server")
+            # Wait a moment for server to start
+            time.sleep(0.5)
+            
+            print("✅ Server started successfully!")
+            print(f"🌐 Dashboard available at: http://{self.host}:{port}")
+            print(f"📊 Main dashboard: http://{self.host}:{port}/index.html")
+            print(f"")
+            print(f"🎯 Usage tips:")
+            print(f"   • Click 📎 paperclip icons to view evidence")
+            print(f"   • Navigate between destinations using the main dashboard")
+            print(f"   • Evidence links to real travel websites")
+            print(f"")
+            print(f"Press Ctrl+C to stop the server")
             
             # Open browser if requested
             if open_browser:
                 dashboard_url = f"http://{self.host}:{port}/index.html"
                 try:
                     webbrowser.open(dashboard_url)
-                    logger.info("🌐 Opened dashboard in browser")
+                    print(f"🌐 Opened dashboard in browser")
                 except Exception as e:
-                    logger.warning(f"Could not open browser: {e}")
+                    print(f"⚠️  Could not open browser: {e}")
+                    print(f"   Please manually open: {dashboard_url}")
             
             return True
             
         except Exception as e:
-            logger.error(f"Failed to start server: {e}")
+            print(f"❌ Failed to start server: {e}")
             return False
     
     def stop(self):
         """Stop the dashboard server."""
-        logger.info("🛑 Stopping dashboard server...")
+        print(f"\n🛑 Stopping dashboard server...")
         
         if self.server:
             self.server.shutdown()
@@ -142,7 +204,7 @@ class DashboardServer:
             self.server_thread.join(timeout=5)
         
         self.shutdown_event.set()
-        logger.info("✅ Server stopped gracefully")
+        print("✅ Server stopped gracefully")
     
     def wait_for_shutdown(self):
         """Wait for shutdown signal."""
@@ -152,16 +214,53 @@ class DashboardServer:
         except KeyboardInterrupt:
             self.stop()
 
+def list_available_sessions():
+    """List available dashboard sessions."""
+    outputs_dir = Path("outputs")
+    if not outputs_dir.exists():
+        return []
+    
+    sessions = []
+    for session_dir in outputs_dir.iterdir():
+        if session_dir.is_dir() and session_dir.name.startswith("session_"):
+            dashboard_dir = session_dir / "dashboard"
+            if dashboard_dir.exists() and (dashboard_dir / "index.html").exists():
+                sessions.append({
+                    'session_id': session_dir.name,
+                    'dashboard_path': str(dashboard_dir),
+                    'created': session_dir.stat().st_ctime
+                })
+    
+    # Sort by creation time (newest first)
+    sessions.sort(key=lambda x: x['created'], reverse=True)
+    return sessions
+
 def main():
     """Main entry point."""
     import argparse
     
     parser = argparse.ArgumentParser(description='SmartDestinationThemes Dashboard Server')
-    parser.add_argument('--port', type=int, help='Port to run server on')
+    parser.add_argument('--port', type=int, help='Port to run server on (default: 8000)')
     parser.add_argument('--no-browser', action='store_true', help='Do not open browser automatically')
-    parser.add_argument('--config', type=str, help='Path to config file')
+    parser.add_argument('--list-sessions', action='store_true', help='List available dashboard sessions')
+    parser.add_argument('--session', type=str, help='Serve a specific session (use session ID)')
     
     args = parser.parse_args()
+    
+    if args.list_sessions:
+        sessions = list_available_sessions()
+        if not sessions:
+            print("No dashboard sessions found.")
+            print("Run 'python main.py' to generate dashboard data.")
+        else:
+            print("Available Dashboard Sessions:")
+            print("="*50)
+            for i, session in enumerate(sessions, 1):
+                print(f"{i}. {session['session_id']}")
+                print(f"   Path: {session['dashboard_path']}")
+                print(f"   Created: {time.ctime(session['created'])}")
+                print()
+        return
     
     # Load configuration
     try:
@@ -170,13 +269,23 @@ def main():
         logger.warning(f"Could not load config: {e}, using defaults")
         config = {}
     
-    # Create and start server
+    # Create server instance
     server = DashboardServer(config)
     
+    # Handle specific session serving
+    if args.session:
+        session_path = Path("outputs") / args.session / "dashboard"
+        if not session_path.exists():
+            print(f"❌ Session not found: {args.session}")
+            print("Use --list-sessions to see available sessions")
+            sys.exit(1)
+        server.directory = str(session_path)
+    
+    # Start server
     if server.start(port=args.port, open_browser=not args.no_browser):
         server.wait_for_shutdown()
     else:
         sys.exit(1)
 
 if __name__ == "__main__":
-    main() 
+    main()

@@ -205,31 +205,81 @@ outputs/session_YYYYMMDD_HHMMSS/
 
 ## 🚀 Advanced Usage
 
-### Command Line Options
-```bash
-# Custom port and no browser
-python main.py --port 8080 --no-browser
+### Separated Architecture
+The application now uses a **separated architecture** for better workflow:
 
-# Specific destinations with custom settings
+1. **Processing**: `main.py` handles data processing only
+2. **Server**: `start_server.py` provides standalone web server
+
+This separation allows you to:
+- Run processing without starting a server
+- Start/stop the server independently
+- Run multiple processing sessions while keeping the server running
+- Have better control over server lifecycle
+
+### Command Line Options
+
+#### Data Processing (`main.py`)
+```bash
+# Process default destinations
+python main.py
+
+# Process specific destinations
 python main.py --destinations "Bali, Indonesia" "Santorini, Greece"
 
-# Server mode with custom port
-python main.py --mode server --port 9000
+# Process without showing server instructions
+python main.py --no-browser
+```
+
+#### Standalone Server (`start_server.py`)
+```bash
+# Start server (serves latest processed data)
+python start_server.py
+
+# Server with custom port
+python start_server.py --port 8080
+
+# Server without opening browser
+python start_server.py --no-browser
+
+# List available sessions
+python start_server.py --list-sessions
+
+# Serve specific session
+python start_server.py --session session_20250617_231222
+```
+
+### Workflow Examples
+
+#### Standard Workflow
+```bash
+# 1. Process destinations
+python main.py --destinations "Rome, Italy"
+
+# 2. Start server to view results
+python start_server.py
+```
+
+#### Development Workflow
+```bash
+# 1. Start server once
+python start_server.py --no-browser &
+
+# 2. Process different destinations
+python main.py --destinations "Tokyo, Japan" --no-browser
+python main.py --destinations "Paris, France" --no-browser
+
+# 3. Server automatically serves latest data
+# Visit http://localhost:8000 to see updated results
 ```
 
 ### Server Management
-The application includes intelligent server management:
+The standalone server includes intelligent features:
 - **Automatic Detection**: Detects if a server is already running and serving content
 - **Port Conflict Resolution**: Automatically finds available ports when conflicts occur
+- **Session Management**: Can serve any previously processed session
 - **Clear Status Messages**: Shows exactly which port and URL to use
-- **No Duplicate Servers**: Reuses existing servers instead of creating duplicates
-
-### Evidence System Deep Dive
-The evidence system provides comprehensive validation:
-- **Real-Time Collection**: Gathers evidence from actual travel websites during processing
-- **Authority Ranking**: Sources ranked by domain authority (government, education, major travel sites)
-- **Attribute-Specific**: Each of the 14 theme attributes has dedicated evidence
-- **Interactive Modals**: Click paperclip icons to view evidence with direct links to sources
+- **Dashboard Validation**: Checks for dashboard files and provides helpful guidance
 
 ## 📊 Performance Metrics
 

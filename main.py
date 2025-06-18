@@ -285,16 +285,16 @@ def start_development_server(port: int = 8000, open_browser: bool = True):
     
     # Check if server is already running with the right content
     if is_server_running_with_content(port):
-        print(f"✅ Server already running on port {port}")
+        print(f"✅ Server already running and serving dashboard content on port {port}")
+        dashboard_url = f"http://localhost:{port}/index.html"
+        print(f"🔗 Dashboard URL: {dashboard_url}")
         if open_browser:
-            dashboard_url = f"http://localhost:{port}/index.html"
             print(f"🌐 Opening dashboard in browser...")
             webbrowser.open(dashboard_url)
-        else:
-            print(f"🔗 Dashboard available at: http://localhost:{port}/index.html")
-        return
+        return port
 
     # If port is in use but not serving our content, find alternative
+    original_port = port
     if is_port_in_use(port):
         print(f"⚠️  Port {port} is in use by another service")
         # Try to find an available port
@@ -306,7 +306,7 @@ def start_development_server(port: int = 8000, open_browser: bool = True):
                 break
         else:
             print(f"❌ Could not find available port")
-            return
+            return None
     
     # Change to dashboard directory
     original_dir = os.getcwd()
@@ -355,6 +355,8 @@ def start_development_server(port: int = 8000, open_browser: bool = True):
         except KeyboardInterrupt:
             print(f"\n🛑 Shutting down server...")
             
+        return port
+            
     finally:
         # Return to original directory
         os.chdir(original_dir)
@@ -399,7 +401,13 @@ async def main():
                 
                 # Start development server
                 print(f"\n🌐 Starting development server...")
-                start_development_server(args.port, not args.no_browser)
+                server_port = start_development_server(args.port, not args.no_browser)
+                if server_port:
+                    print(f"\n✅ Dashboard ready at: http://localhost:{server_port}/index.html")
+                    print(f"📊 Available destinations:")
+                    for dest in destinations:
+                        dest_filename = dest.lower().replace(', ', '__').replace(' ', '_')
+                        print(f"   • {dest}: http://localhost:{server_port}/{dest_filename}.html")
             else:
                 print(f"\n❌ No data was processed successfully")
                 
@@ -407,7 +415,9 @@ async def main():
             # Development server mode
             print(f"\n🌐 DEVELOPMENT SERVER MODE")
             print("="*50)
-            start_development_server(args.port, not args.no_browser)
+            server_port = start_development_server(args.port, not args.no_browser)
+            if server_port:
+                print(f"\n✅ Dashboard ready at: http://localhost:{server_port}/index.html")
             
     except KeyboardInterrupt:
         print(f"\n🛑 Operation cancelled by user")

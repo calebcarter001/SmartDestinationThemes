@@ -671,86 +671,113 @@ class EvidenceValidator:
                                      web_pages: List[PageContent], 
                                      destination: str) -> Dict[str, Any]:
         """
-        Comprehensive validation of ALL theme attributes with evidence collection.
-        This validates every piece of LLM-generated metadata.
+        COMPREHENSIVE validation of ALL theme attributes with granular evidence collection.
+        This validates every piece of LLM-generated metadata with detailed evidence tracking.
         """
         theme_name = theme_data.get('theme', 'Unknown Theme')
         
-        # Initialize comprehensive evidence collection
-        all_evidence = {}
+        # Initialize comprehensive evidence collection with URL tracking
+        all_evidence = {
+            'collection_timestamp': datetime.now().isoformat(),
+            'destination': destination,
+            'theme_name': theme_name,
+            'total_sources_analyzed': len(web_pages),
+            'source_urls': [page.url for page in web_pages],
+            'evidence_summary': {
+                'total_evidence_pieces': 0,
+                'attributes_with_evidence': 0,
+                'attributes_without_evidence': 0,
+                'average_confidence': 0.0,
+                'source_diversity_score': 0.0
+            }
+        }
         
-        # 1. Main Theme Evidence
-        main_theme_evidence = self.validate_theme_evidence(
+        # 1. Main Theme Evidence (Enhanced)
+        main_theme_evidence = self.validate_theme_evidence_enhanced(
             theme_name, theme_data.get('category', 'general'), web_pages, destination
         )
         all_evidence['main_theme'] = main_theme_evidence
         
-        # 2. Nano Themes Evidence
+        # 2. Sub-themes Evidence (New)
+        sub_themes = theme_data.get('sub_themes', [])
+        if sub_themes:
+            sub_themes_evidence = self.validate_sub_themes_evidence(sub_themes, theme_name, web_pages, destination)
+            all_evidence['sub_themes'] = sub_themes_evidence
+        
+        # 3. Nano Themes Evidence (Enhanced)
         nano_themes = theme_data.get('depth_analysis', {}).get('nano_themes', [])
         if nano_themes:
-            nano_evidence = self.validate_nano_themes_evidence(nano_themes, theme_name, web_pages, destination)
+            nano_evidence = self.validate_nano_themes_evidence_enhanced(nano_themes, theme_name, web_pages, destination)
             all_evidence['nano_themes'] = nano_evidence
         
-        # 3. Price Insights Evidence
-        price_insights = theme_data.get('price_insights', {})
-        if price_insights:
-            price_evidence = self.validate_price_evidence(web_pages, destination)
-            all_evidence['price_insights'] = price_evidence
-        
-        # 4. Authenticity Analysis Evidence
-        authenticity = theme_data.get('authenticity_analysis', {})
-        if authenticity:
-            auth_evidence = self.validate_authenticity_evidence(web_pages, destination)
-            all_evidence['authenticity_analysis'] = auth_evidence
-        
-        # 5. Hidden Gem Evidence
-        hidden_gem = theme_data.get('hidden_gem_score', {})
-        if hidden_gem:
-            gem_evidence = self.validate_hidden_gem_evidence(web_pages, destination)
-            all_evidence['hidden_gem_score'] = gem_evidence
-        
-        # 6. Experience Intensity Evidence
-        intensity = theme_data.get('experience_intensity', {})
-        if intensity:
-            intensity_evidence = self.validate_experience_intensity_evidence(intensity, web_pages, destination)
-            all_evidence['experience_intensity'] = intensity_evidence
-        
-        # 7. Emotional Resonance Evidence
-        emotions = theme_data.get('emotional_profile', {})
-        if emotions:
-            emotion_evidence = self.validate_emotional_resonance_evidence(emotions, web_pages, destination)
-            all_evidence['emotional_profile'] = emotion_evidence
-        
-        # 8. Group Dynamics Evidence
-        contextual_info = theme_data.get('contextual_info', {})
-        demographics = contextual_info.get('demographic_suitability', [])
+        # 4. Demographic Suitability Evidence (New)
+        demographics = theme_data.get('contextual_info', {}).get('demographic_suitability', [])
         if demographics:
-            demo_evidence = self.validate_demographic_evidence(demographics, web_pages, destination)
+            demo_evidence = self.validate_demographic_evidence_enhanced(demographics, web_pages, destination)
             all_evidence['demographic_suitability'] = demo_evidence
         
-        # 9. Time Commitment Evidence
-        time_commitment = contextual_info.get('time_commitment', '')
+        # 5. Time Commitment Evidence (New)
+        time_commitment = theme_data.get('contextual_info', {}).get('time_commitment', '')
         if time_commitment:
-            time_evidence = self.validate_time_commitment_evidence(time_commitment, web_pages, destination)
+            time_evidence = self.validate_time_commitment_evidence_enhanced(time_commitment, web_pages, destination)
             all_evidence['time_commitment'] = time_evidence
         
-        # 10. Weather/Climate Evidence
+        # 6. Experience Intensity Evidence (Enhanced)
+        experience_intensity = theme_data.get('experience_intensity', {})
+        if experience_intensity:
+            intensity_evidence = self.validate_experience_intensity_evidence_enhanced(experience_intensity, web_pages, destination)
+            all_evidence['experience_intensity'] = intensity_evidence
+        
+        # 7. Emotional Profile Evidence (New)
+        emotional_profile = theme_data.get('emotional_profile', {})
+        if emotional_profile:
+            emotion_evidence = self.validate_emotional_resonance_evidence_enhanced(emotional_profile, web_pages, destination)
+            all_evidence['emotional_profile'] = emotion_evidence
+        
+        # 8. Price Insights Evidence (Enhanced)
+        price_insights = theme_data.get('price_insights', {})
+        if price_insights:
+            price_evidence = self.validate_price_evidence_enhanced(web_pages, destination)
+            all_evidence['price_insights'] = price_evidence
+        
+        # 9. Authenticity Analysis Evidence (Enhanced)
+        authenticity = theme_data.get('authenticity_analysis', {})
+        if authenticity:
+            auth_evidence = self.validate_authenticity_evidence_enhanced(web_pages, destination)
+            all_evidence['authenticity_analysis'] = auth_evidence
+        
+        # 10. Hidden Gem Evidence (Enhanced)
+        hidden_gem = theme_data.get('hidden_gem_score', {})
+        if hidden_gem:
+            gem_evidence = self.validate_hidden_gem_evidence_enhanced(web_pages, destination)
+            all_evidence['hidden_gem_score'] = gem_evidence
+        
+        # 11. Micro Climate Evidence (New)
         micro_climate = theme_data.get('micro_climate', {})
         if micro_climate:
-            weather_evidence = self.validate_weather_evidence(micro_climate, web_pages, destination)
-            all_evidence['micro_climate'] = weather_evidence
+            climate_evidence = self.validate_micro_climate_evidence(micro_climate, web_pages, destination)
+            all_evidence['micro_climate'] = climate_evidence
         
-        # 11. Cultural Sensitivity Evidence
+        # 12. Cultural Sensitivity Evidence (Enhanced)
         cultural_sensitivity = theme_data.get('cultural_sensitivity', {})
         if cultural_sensitivity:
-            cultural_evidence = self.validate_cultural_evidence(cultural_sensitivity, web_pages, destination)
+            cultural_evidence = self.validate_cultural_evidence_enhanced(cultural_sensitivity, web_pages, destination)
             all_evidence['cultural_sensitivity'] = cultural_evidence
         
-        # 12. Theme Interconnections Evidence
+        # 13. Theme Interconnections Evidence (Enhanced)
         interconnections = theme_data.get('theme_interconnections', {})
         if interconnections:
-            connection_evidence = self.validate_interconnection_evidence(interconnections, web_pages, destination)
+            connection_evidence = self.validate_interconnection_evidence_enhanced(interconnections, web_pages, destination)
             all_evidence['theme_interconnections'] = connection_evidence
+        
+        # 14. Weather Dependencies Evidence (New)
+        weather_deps = micro_climate.get('weather_dependencies', [])
+        if weather_deps:
+            weather_evidence = self.validate_weather_dependencies_evidence(weather_deps, web_pages, destination)
+            all_evidence['weather_dependencies'] = weather_evidence
+        
+        # Calculate comprehensive evidence summary
+        all_evidence['evidence_summary'] = self._calculate_comprehensive_evidence_summary(all_evidence)
         
         return all_evidence
 
@@ -995,4 +1022,1080 @@ class EvidenceValidator:
             'Theme Interconnections',
             'interconnection_analysis',
             evidence_pieces
+        )
+
+    def validate_theme_evidence_enhanced(self, theme: str, category: str, 
+                                       web_pages: List[PageContent], 
+                                       destination: str) -> ThemeEvidence:
+        """Enhanced theme validation with detailed URL tracking and source analysis."""
+        all_evidence = []
+        source_counts = {}
+        source_urls = []
+        
+        # Extract evidence from each web page with enhanced tracking
+        for page in web_pages:
+            if not page.content:
+                continue
+                
+            page_evidence = self.extract_evidence_from_content_enhanced(
+                page.content, theme, destination, page.url, page.title
+            )
+            
+            # Track source URLs
+            source_urls.append(page.url)
+            
+            # Limit evidence per source but track all sources
+            source_domain = urlparse(page.url).netloc
+            if source_domain not in source_counts:
+                source_counts[source_domain] = 0
+            
+            for evidence in page_evidence:
+                if source_counts[source_domain] < self.validation_config.max_evidence_per_source:
+                    all_evidence.append(evidence)
+                    source_counts[source_domain] += 1
+
+        # Create enhanced theme evidence with URL tracking
+        theme_evidence = self._create_theme_evidence_enhanced(theme, category, all_evidence, source_urls)
+        return theme_evidence
+
+    def validate_sub_themes_evidence(self, sub_themes: List[str], main_theme: str,
+                                   web_pages: List[PageContent], destination: str) -> Dict[str, ThemeEvidence]:
+        """Validate each sub-theme with specific evidence collection."""
+        sub_theme_evidence = {}
+        
+        for sub_theme in sub_themes:
+            # Extract evidence for this specific sub-theme
+            all_evidence = []
+            source_urls = []
+            
+            for page in web_pages:
+                if not page.content:
+                    continue
+                
+                source_urls.append(page.url)
+                
+                # Use enhanced extraction for sub-themes with context
+                sub_evidence_pieces = self.extract_specialized_evidence_enhanced(
+                    content=page.content,
+                    evidence_type='sub_themes',
+                    target_keywords=[sub_theme, main_theme],
+                    destination=destination,
+                    source_url=page.url,
+                    source_title=page.title,
+                    context=f"Sub-theme of {main_theme}"
+                )
+                
+                all_evidence.extend(sub_evidence_pieces)
+            
+            # Create theme evidence for this sub-theme
+            theme_evidence = self._create_theme_evidence_enhanced(
+                theme_name=f"{sub_theme} (sub-theme)",
+                theme_category='sub_theme',
+                evidence_pieces=all_evidence,
+                source_urls=source_urls
+            )
+            
+            sub_theme_evidence[sub_theme] = theme_evidence
+        
+        return sub_theme_evidence
+
+    def validate_nano_themes_evidence_enhanced(self, nano_themes: List[str], main_theme: str,
+                                             web_pages: List[PageContent], destination: str) -> Dict[str, ThemeEvidence]:
+        """Enhanced nano themes validation with granular evidence tracking."""
+        nano_evidence = {}
+        
+        for nano_theme in nano_themes:
+            # Extract evidence for this nano theme with enhanced tracking
+            all_evidence = []
+            source_urls = []
+            
+            for page in web_pages:
+                if not page.content:
+                    continue
+                
+                source_urls.append(page.url)
+                
+                # Use specialized extraction for nano themes with more context
+                nano_evidence_pieces = self.extract_specialized_evidence_enhanced(
+                    content=page.content,
+                    evidence_type='nano_themes',
+                    target_keywords=[nano_theme, main_theme],
+                    destination=destination,
+                    source_url=page.url,
+                    source_title=page.title,
+                    context=f"Nano-level detail of {main_theme}"
+                )
+                
+                all_evidence.extend(nano_evidence_pieces)
+            
+            # Create enhanced theme evidence for this nano theme
+            theme_evidence = self._create_theme_evidence_enhanced(
+                theme_name=f"{nano_theme} (nano-theme)",
+                theme_category='nano_theme',
+                evidence_pieces=all_evidence,
+                source_urls=source_urls
+            )
+            
+            nano_evidence[nano_theme] = theme_evidence
+        
+        return nano_evidence
+
+    def validate_demographic_evidence_enhanced(self, demographics: List[str], 
+                                             web_pages: List[PageContent], 
+                                             destination: str) -> ThemeEvidence:
+        """Enhanced demographic suitability validation with detailed evidence."""
+        demo_keywords = []
+        source_urls = []
+        
+        # Enhanced demographic keyword mapping
+        demo_keyword_map = {
+            'families with children': [
+                'family friendly', 'kids', 'children', 'family', 'all ages', 'child-safe',
+                'playground', 'stroller', 'baby', 'toddler', 'educational', 'interactive'
+            ],
+            'couples': [
+                'romantic', 'couples', 'date night', 'intimate', 'honeymoon', 'anniversary',
+                'private', 'secluded', 'sunset', 'candlelit', 'wine', 'spa'
+            ],
+            'solo travelers': [
+                'solo', 'individual', 'personal', 'self-guided', 'independent', 'meditation',
+                'reflection', 'journaling', 'photography', 'peaceful', 'quiet'
+            ],
+            'friend groups': [
+                'groups', 'friends', 'party', 'together', 'social', 'fun', 'laughter',
+                'group activities', 'team', 'celebration', 'sharing'
+            ],
+            'multi-generational': [
+                'all ages', 'grandparents', 'generations', 'elderly', 'accessible',
+                'seniors', 'wheelchair', 'easy walking', 'comfortable', 'family reunion'
+            ]
+        }
+        
+        for demo in demographics:
+            demo_keywords.extend(demo_keyword_map.get(demo, demo.split()))
+        
+        # Collect evidence with enhanced tracking
+        all_evidence = []
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            evidence_pieces = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='demographic_suitability',
+                target_keywords=demo_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context=f"Suitability for {', '.join(demographics)}"
+            )
+            
+            all_evidence.extend(evidence_pieces)
+        
+        return self._create_theme_evidence_enhanced(
+            'Demographic Suitability',
+            'demographic_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def validate_time_commitment_evidence_enhanced(self, time_commitment: str, 
+                                                 web_pages: List[PageContent], 
+                                                 destination: str) -> ThemeEvidence:
+        """Enhanced time commitment validation with specific duration evidence."""
+        time_keywords = []
+        source_urls = []
+        
+        # Enhanced time keyword extraction
+        time_lower = time_commitment.lower()
+        if 'hour' in time_lower:
+            time_keywords.extend(['hour', 'hours', 'duration', 'time needed', '1 hour', '2 hours', '3 hours'])
+        if 'day' in time_lower:
+            time_keywords.extend(['full day', 'all day', 'day trip', 'entire day', 'morning to evening'])
+        if 'quick' in time_lower or 'short' in time_lower:
+            time_keywords.extend(['quick', 'brief', 'short visit', 'minutes', '30 min', '45 min'])
+        if 'extended' in time_lower or 'long' in time_lower:
+            time_keywords.extend(['extended', 'long visit', 'several hours', 'half day', '4+ hours'])
+        if 'weekend' in time_lower:
+            time_keywords.extend(['weekend', 'two days', 'overnight', 'multi-day'])
+        
+        # Add general time indicators
+        time_keywords.extend(['duration', 'takes', 'spend', 'visit time', 'allow', 'plan for'])
+        
+        all_evidence = []
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            evidence_pieces = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='time_commitment',
+                target_keywords=time_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context=f"Time needed: {time_commitment}"
+            )
+            
+            all_evidence.extend(evidence_pieces)
+        
+        return self._create_theme_evidence_enhanced(
+            'Time Commitment',
+            'time_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def extract_specialized_evidence_enhanced(self, content: str, evidence_type: str, 
+                                            target_keywords: List[str], destination: str,
+                                            source_url: str, source_title: str, 
+                                            context: str = "") -> List[EvidencePiece]:
+        """Enhanced evidence extraction with better context and URL tracking."""
+        evidence_pieces = []
+        
+        # Get enhanced patterns for this evidence type
+        patterns = self.evidence_patterns.get(evidence_type, [])
+        
+        try:
+            sentences = sent_tokenize(content)
+        except:
+            sentences = content.split('.')
+        
+        destination_lower = destination.lower()
+        destination_keywords = [destination_lower] + destination_lower.split(',')
+        target_keywords_lower = [kw.lower() for kw in target_keywords]
+        
+        for sentence in sentences:
+            sentence_lower = sentence.lower().strip()
+            
+            if len(sentence_lower) < 20:  # Skip very short sentences
+                continue
+            
+            # Enhanced relevance scoring
+            relevance_score = self._calculate_enhanced_relevance_score(
+                sentence_lower, target_keywords_lower, destination_keywords, context
+            )
+            
+            if relevance_score < 0.3:  # Higher threshold for quality
+                continue
+            
+            # Check for pattern matches with enhanced scoring
+            pattern_match_score = 0.0
+            for pattern in patterns:
+                if re.search(pattern, sentence_lower):
+                    pattern_match_score = 0.3
+                    break
+            
+            # Enhanced quality rating
+            quality_rating = self._determine_enhanced_quality_rating(
+                sentence, relevance_score, pattern_match_score, source_url, source_title
+            )
+            
+            if quality_rating == 'rejected':
+                continue
+            
+            # Calculate enhanced authority score
+            source_type = self.classify_source_type(source_url, source_title)
+            authority_score = self.calculate_enhanced_authority_score(source_type, source_url, source_title)
+            
+            evidence_piece = EvidencePiece(
+                text_content=sentence.strip(),
+                source_url=source_url,
+                source_title=source_title,
+                source_type=source_type,
+                relevance_score=relevance_score,
+                authority_score=authority_score,
+                quality_rating=quality_rating,
+                evidence_type=evidence_type,
+                extraction_timestamp=datetime.now(),
+                context_keywords=target_keywords,
+                validation_context=context
+            )
+            
+            evidence_pieces.append(evidence_piece)
+        
+        # Sort by combined score (relevance + authority + pattern match)
+        evidence_pieces.sort(
+            key=lambda x: (x.relevance_score + x.authority_score + pattern_match_score) / 3, 
+            reverse=True
+        )
+        
+        return evidence_pieces[:self.validation_config.max_evidence_per_source]
+
+    def _calculate_enhanced_relevance_score(self, text: str, theme_keywords: List[str], 
+                                          destination_keywords: List[str], context: str) -> float:
+        """Enhanced relevance scoring with context awareness."""
+        if not text:
+            return 0.0
+        
+        words = text.split()
+        total_words = len(words)
+        
+        if total_words == 0:
+            return 0.0
+        
+        # Count exact keyword matches
+        exact_theme_matches = sum(1 for word in words if any(kw == word for kw in theme_keywords))
+        exact_destination_matches = sum(1 for word in words if any(kw == word for kw in destination_keywords))
+        
+        # Count partial keyword matches
+        partial_theme_matches = sum(1 for word in words if any(kw in word for kw in theme_keywords))
+        partial_destination_matches = sum(1 for word in words if any(kw in word for kw in destination_keywords))
+        
+        # Calculate density scores with enhanced weighting
+        exact_theme_density = exact_theme_matches / total_words
+        exact_destination_density = exact_destination_matches / total_words
+        partial_theme_density = partial_theme_matches / total_words
+        partial_destination_density = partial_destination_matches / total_words
+        
+        # Enhanced scoring with exact matches weighted higher
+        theme_score = (exact_theme_density * 1.0) + (partial_theme_density * 0.5)
+        destination_score = (exact_destination_density * 1.0) + (partial_destination_density * 0.5)
+        
+        # Context bonus for specific evidence types
+        context_bonus = 0.0
+        if 'nano' in context.lower():
+            context_bonus = 0.1  # Boost for nano-level evidence
+        elif 'sub-theme' in context.lower():
+            context_bonus = 0.05  # Boost for sub-theme evidence
+        
+        # Combined relevance score with context
+        relevance_score = (theme_score * 0.7) + (destination_score * 0.3) + context_bonus
+        
+        return min(1.0, relevance_score * 8)  # Scale up and cap at 1.0
+
+    def _determine_enhanced_quality_rating(self, sentence: str, relevance_score: float, 
+                                         pattern_match_score: float, source_url: str, 
+                                         source_title: str) -> str:
+        """Enhanced quality rating with multiple factors."""
+        # Base quality from relevance and pattern matching
+        base_quality = (relevance_score + pattern_match_score) / 2
+        
+        # Source quality adjustments
+        source_type = self.classify_source_type(source_url, source_title)
+        source_quality_bonus = {
+            'government': 0.2,
+            'education': 0.15,
+            'major_travel': 0.1,
+            'tourism_board': 0.1,
+            'news_media': 0.05,
+            'travel_blog': 0.0,
+            'local_business': -0.05,
+            'social_media': -0.1,
+            'unknown': -0.1
+        }.get(source_type, 0.0)
+        
+        # Content quality indicators
+        content_quality_bonus = 0.0
+        sentence_lower = sentence.lower()
+        
+        # Positive indicators
+        if any(indicator in sentence_lower for indicator in ['according to', 'research shows', 'studies indicate', 'data reveals']):
+            content_quality_bonus += 0.1
+        if any(indicator in sentence_lower for indicator in ['expert', 'professional', 'guide', 'specialist']):
+            content_quality_bonus += 0.05
+        if len(sentence.split()) >= 15:  # Prefer longer, more detailed sentences
+            content_quality_bonus += 0.05
+        
+        # Negative indicators
+        if any(indicator in sentence_lower for indicator in ['maybe', 'might', 'possibly', 'probably']):
+            content_quality_bonus -= 0.1
+        if any(indicator in sentence_lower for indicator in ['advertisement', 'sponsored', 'affiliate']):
+            content_quality_bonus -= 0.2
+        
+        # Final quality score
+        final_quality = base_quality + source_quality_bonus + content_quality_bonus
+        
+        # Quality rating thresholds
+        if final_quality >= 0.8:
+            return 'excellent'
+        elif final_quality >= 0.6:
+            return 'good'
+        elif final_quality >= 0.4:
+            return 'acceptable'
+        elif final_quality >= 0.2:
+            return 'poor'
+        else:
+            return 'rejected'
+
+    def calculate_enhanced_authority_score(self, source_type: EvidenceSourceType, 
+                                         url: str, title: str) -> float:
+        """Enhanced authority scoring with additional factors."""
+        base_score = self.validation_config.authority_weights.get(source_type, 0.2)
+        
+        url_lower = url.lower()
+        title_lower = title.lower()
+        
+        # Enhanced URL analysis
+        if url.startswith('https://'):
+            base_score += 0.05
+        
+        # Domain authority indicators
+        high_authority_domains = [
+            'wikipedia', 'smithsonian', 'national-geographic', 'bbc', 'cnn',
+            'timeout', 'lonelyplanet', 'tripadvisor', 'fodors', 'frommers',
+            'gov.', '.edu', 'unesco', 'nytimes', 'guardian'
+        ]
+        if any(domain in url_lower for domain in high_authority_domains):
+            base_score += 0.15
+        
+        # Title authority indicators
+        authority_title_words = [
+            'official', 'guide', 'complete', 'comprehensive', 'expert',
+            'professional', 'definitive', 'ultimate', 'insider'
+        ]
+        title_authority_bonus = sum(0.02 for word in authority_title_words if word in title_lower)
+        base_score += min(0.1, title_authority_bonus)  # Cap title bonus
+        
+        # Penalties for low-quality indicators
+        if any(flag in url_lower for flag in ['free', 'cheap', 'discount', 'deal', 'coupon']):
+            base_score -= 0.15
+        if any(flag in title_lower for flag in ['best deals', 'cheapest', 'discount']):
+            base_score -= 0.1
+        
+        return max(0.0, min(1.0, base_score))
+
+    def _create_theme_evidence_enhanced(self, theme_name: str, theme_category: str, 
+                                      evidence_pieces: List[EvidencePiece], 
+                                      source_urls: List[str]) -> ThemeEvidence:
+        """Create enhanced theme evidence with comprehensive tracking."""
+        total_count = len(evidence_pieces)
+        unique_sources = len(set(piece.source_url for piece in evidence_pieces))
+        
+        # Enhanced validation logic
+        avg_authority = sum(piece.authority_score for piece in evidence_pieces) / max(1, total_count)
+        avg_relevance = sum(piece.relevance_score for piece in evidence_pieces) / max(1, total_count)
+        
+        # Enhanced source diversity calculation
+        total_available_sources = len(set(source_urls))
+        source_diversity = unique_sources / max(1, total_available_sources)
+        
+        # Enhanced validation status determination
+        if total_count >= 3 and avg_authority >= 0.7 and avg_relevance >= 0.7:
+            validation_status = ValidationStatus.VALIDATED
+            validation_confidence = min(0.95, (avg_authority + avg_relevance + source_diversity) / 3)
+        elif total_count >= 2 and avg_authority >= 0.5 and avg_relevance >= 0.5:
+            validation_status = ValidationStatus.PARTIALLY_VALIDATED
+            validation_confidence = (avg_authority + avg_relevance + source_diversity) / 3
+        elif total_count >= 1:
+            validation_status = ValidationStatus.UNVALIDATED
+            validation_confidence = (avg_authority + avg_relevance) / 2
+        else:
+            validation_status = ValidationStatus.UNVALIDATED
+            validation_confidence = 0.0
+        
+        # Enhanced requirements checking
+        min_evidence_req = total_count >= self.validation_config.min_evidence_pieces
+        source_diversity_req = source_diversity >= 0.3  # At least 30% source diversity
+        quality_threshold_req = avg_authority >= 0.4  # Minimum authority threshold
+        
+        # Find strongest evidence
+        strongest_evidence_id = None
+        if evidence_pieces:
+            strongest = max(evidence_pieces, key=lambda x: (x.authority_score + x.relevance_score) / 2)
+            strongest_evidence_id = f"{strongest.source_url}#{hash(strongest.text_content)}"
+        
+        # Enhanced evidence gaps identification
+        evidence_gaps = []
+        if total_count < 2:
+            evidence_gaps.append("insufficient_evidence_count")
+        if source_diversity < 0.3:
+            evidence_gaps.append("low_source_diversity")
+        if avg_authority < 0.5:
+            evidence_gaps.append("low_authority_sources")
+        if avg_relevance < 0.6:
+            evidence_gaps.append("low_relevance_scores")
+        
+        return ThemeEvidence(
+            theme_name=theme_name,
+            theme_category=theme_category,
+            evidence_pieces=evidence_pieces,
+            total_evidence_count=total_count,
+            unique_source_count=unique_sources,
+            validation_status=validation_status,
+            validation_confidence=validation_confidence,
+            validation_timestamp=datetime.now(),
+            average_authority_score=avg_authority,
+            average_relevance_score=avg_relevance,
+            source_diversity_score=source_diversity,
+            meets_min_evidence_requirement=min_evidence_req,
+            meets_source_diversity_requirement=source_diversity_req,
+            meets_quality_threshold=quality_threshold_req,
+            strongest_evidence=strongest_evidence_id,
+            evidence_gaps=evidence_gaps
+        )
+
+    def extract_evidence_from_content_enhanced(self, content: str, theme: str, 
+                                             destination: str, source_url: str, 
+                                             source_title: str) -> List[EvidencePiece]:
+        """Enhanced evidence extraction with improved scoring and URL tracking."""
+        evidence_pieces = []
+        
+        # Tokenize content into sentences
+        try:
+            sentences = sent_tokenize(content)
+        except:
+            sentences = content.split('.')
+        
+        theme_lower = theme.lower()
+        destination_lower = destination.lower()
+        
+        # Enhanced keywords
+        theme_keywords = [theme_lower] + theme_lower.split()
+        destination_keywords = [destination_lower] + destination_lower.split(',')
+        
+        for sentence in sentences:
+            sentence_lower = sentence.lower().strip()
+            
+            if len(sentence_lower) < 25:  # Skip very short sentences
+                continue
+            
+            # Enhanced relevance calculation
+            relevance_score = self._calculate_enhanced_relevance_score(
+                sentence_lower, theme_keywords, destination_keywords, f"Theme: {theme}"
+            )
+            
+            if relevance_score < 0.4:  # Higher threshold for main themes
+                continue
+            
+            # Enhanced quality rating
+            quality_rating = self._determine_enhanced_quality_rating(
+                sentence, relevance_score, 0.0, source_url, source_title
+            )
+            
+            if quality_rating == 'rejected':
+                continue
+            
+            # Enhanced authority score
+            source_type = self.classify_source_type(source_url, source_title)
+            authority_score = self.calculate_enhanced_authority_score(source_type, source_url, source_title)
+            
+            evidence_piece = EvidencePiece(
+                text_content=sentence.strip(),
+                source_url=source_url,
+                source_title=source_title,
+                source_type=source_type,
+                relevance_score=relevance_score,
+                authority_score=authority_score,
+                quality_rating=quality_rating,
+                evidence_type='theme_validation',
+                extraction_timestamp=datetime.now(),
+                context_keywords=theme_keywords,
+                validation_context=f"Main theme validation for {theme}"
+            )
+            
+            evidence_pieces.append(evidence_piece)
+        
+        # Sort by combined relevance and authority
+        evidence_pieces.sort(
+            key=lambda x: (x.relevance_score + x.authority_score) / 2, 
+            reverse=True
+        )
+        
+        return evidence_pieces[:self.validation_config.max_evidence_per_source]
+
+    def _calculate_comprehensive_evidence_summary(self, all_evidence: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate comprehensive summary statistics for all evidence."""
+        total_pieces = 0
+        total_sources = set()
+        quality_distribution = {}
+        source_type_distribution = {}
+        authority_scores = []
+        relevance_scores = []
+        
+        for attr_name, evidence in all_evidence.items():
+            if isinstance(evidence, ThemeEvidence):
+                total_pieces += evidence.total_evidence_count
+                
+                for piece in evidence.evidence_pieces:
+                    total_sources.add(piece.source_url)
+                    authority_scores.append(piece.authority_score)
+                    relevance_scores.append(piece.relevance_score)
+                    
+                    # Count quality distribution
+                    quality = piece.quality_rating
+                    if isinstance(quality, EvidenceQuality):
+                        quality = quality.value
+                    quality_distribution[quality] = quality_distribution.get(quality, 0) + 1
+                    
+                    # Count source type distribution
+                    source_type = piece.source_type
+                    if isinstance(source_type, EvidenceSourceType):
+                        source_type = source_type.value
+                    source_type_distribution[source_type] = source_type_distribution.get(source_type, 0) + 1
+        
+        return {
+            'total_evidence_pieces': total_pieces,
+            'unique_sources_count': len(total_sources),
+            'average_authority_score': sum(authority_scores) / len(authority_scores) if authority_scores else 0.0,
+            'average_relevance_score': sum(relevance_scores) / len(relevance_scores) if relevance_scores else 0.0,
+            'quality_distribution': quality_distribution,
+            'source_type_distribution': source_type_distribution,
+            'attributes_with_evidence': len([k for k, v in all_evidence.items() if isinstance(v, ThemeEvidence) and v.total_evidence_count > 0]),
+            'total_attributes_analyzed': len(all_evidence)
+        }
+
+    def to_json_serializable(self, evidence_data: Any) -> Any:
+        """Convert evidence data to JSON-serializable format."""
+        if isinstance(evidence_data, dict):
+            return {k: self.to_json_serializable(v) for k, v in evidence_data.items()}
+        elif isinstance(evidence_data, list):
+            return [self.to_json_serializable(item) for item in evidence_data]
+        elif isinstance(evidence_data, ThemeEvidence):
+            return {
+                'theme_name': evidence_data.theme_name,
+                'theme_category': evidence_data.theme_category,
+                'evidence_pieces': [self.to_json_serializable(piece) for piece in evidence_data.evidence_pieces],
+                'total_evidence_count': evidence_data.total_evidence_count,
+                'unique_source_count': evidence_data.unique_source_count,
+                'validation_status': evidence_data.validation_status.value if isinstance(evidence_data.validation_status, ValidationStatus) else str(evidence_data.validation_status),
+                'validation_confidence': evidence_data.validation_confidence,
+                'validation_timestamp': evidence_data.validation_timestamp.isoformat() if isinstance(evidence_data.validation_timestamp, datetime) else str(evidence_data.validation_timestamp),
+                'average_authority_score': evidence_data.average_authority_score,
+                'average_relevance_score': evidence_data.average_relevance_score,
+                'source_diversity_score': evidence_data.source_diversity_score,
+                'meets_min_evidence_requirement': evidence_data.meets_min_evidence_requirement,
+                'meets_source_diversity_requirement': evidence_data.meets_source_diversity_requirement,
+                'meets_quality_threshold': evidence_data.meets_quality_threshold,
+                'strongest_evidence': evidence_data.strongest_evidence,
+                'evidence_gaps': evidence_data.evidence_gaps
+            }
+        elif isinstance(evidence_data, EvidencePiece):
+            return {
+                'text_content': evidence_data.text_content,
+                'source_url': evidence_data.source_url,
+                'source_title': evidence_data.source_title,
+                'source_type': evidence_data.source_type.value if isinstance(evidence_data.source_type, EvidenceSourceType) else str(evidence_data.source_type),
+                'relevance_score': evidence_data.relevance_score,
+                'authority_score': evidence_data.authority_score,
+                'quality_rating': evidence_data.quality_rating.value if isinstance(evidence_data.quality_rating, EvidenceQuality) else str(evidence_data.quality_rating),
+                'evidence_type': evidence_data.evidence_type,
+                'extraction_timestamp': evidence_data.extraction_timestamp.isoformat() if isinstance(evidence_data.extraction_timestamp, datetime) else str(evidence_data.extraction_timestamp),
+                'context_keywords': evidence_data.context_keywords,
+                'validation_context': evidence_data.validation_context,
+                'pattern_matched': evidence_data.pattern_matched,
+                'sentence_position': evidence_data.sentence_position,
+                'surrounding_context': evidence_data.surrounding_context
+            }
+        elif isinstance(evidence_data, (EvidenceSourceType, EvidenceQuality, ValidationStatus)):
+            return evidence_data.value
+        elif isinstance(evidence_data, datetime):
+            return evidence_data.isoformat()
+        else:
+            return evidence_data
+    
+    def validate_price_evidence_enhanced(self, web_pages: List[PageContent], destination: str) -> ThemeEvidence:
+        """Enhanced price evidence collection with detailed cost analysis."""
+        price_keywords = [
+            'cost', 'price', 'budget', 'expensive', 'cheap', 'free', 'affordable',
+            'entrance fee', 'admission', 'ticket price', 'cost of', 'pricing',
+            'budget-friendly', 'luxury', 'premium', 'discount', 'deal'
+        ]
+        
+        all_evidence = []
+        source_urls = []
+        
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            price_evidence = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='price',
+                target_keywords=price_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context="Price and cost information"
+            )
+            
+            all_evidence.extend(price_evidence)
+        
+        return self._create_theme_evidence_enhanced(
+            'Price Information',
+            'price_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def validate_authenticity_evidence_enhanced(self, web_pages: List[PageContent], destination: str) -> ThemeEvidence:
+        """Enhanced authenticity evidence with local vs tourist analysis."""
+        auth_keywords = [
+            'local', 'authentic', 'traditional', 'tourist', 'commercial', 'genuine',
+            'locals', 'touristy', 'off the beaten path', 'hidden', 'secret',
+            'local favorite', 'insider', 'authentic experience', 'traditional way'
+        ]
+        
+        all_evidence = []
+        source_urls = []
+        
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            auth_evidence = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='authenticity',
+                target_keywords=auth_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context="Authenticity and local vs tourist indicators"
+            )
+            
+            all_evidence.extend(auth_evidence)
+        
+        return self._create_theme_evidence_enhanced(
+            'Authenticity Markers',
+            'authenticity_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def validate_hidden_gem_evidence_enhanced(self, web_pages: List[PageContent], destination: str) -> ThemeEvidence:
+        """Enhanced hidden gem evidence with crowd and popularity analysis."""
+        gem_keywords = [
+            'hidden', 'secret', 'crowd', 'popular', 'quiet', 'busy', 'crowded',
+            'off the beaten path', 'undiscovered', 'lesser known', 'peaceful',
+            'secluded', 'remote', 'untouched', 'exclusive', 'private'
+        ]
+        
+        all_evidence = []
+        source_urls = []
+        
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            gem_evidence = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='hidden_gem',
+                target_keywords=gem_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context="Hidden gem and crowd level indicators"
+            )
+            
+            all_evidence.extend(gem_evidence)
+        
+        return self._create_theme_evidence_enhanced(
+            'Hidden Gem Indicators',
+            'hidden_gem_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def validate_experience_intensity_evidence_enhanced(self, intensity_data: Dict[str, Any], 
+                                                      web_pages: List[PageContent], 
+                                                      destination: str) -> ThemeEvidence:
+        """Enhanced experience intensity validation with detailed analysis."""
+        intensity_keywords = []
+        source_urls = []
+        
+        # Physical intensity keywords
+        physical = intensity_data.get('physical', 'moderate')
+        if physical == 'high':
+            intensity_keywords.extend(['strenuous', 'demanding', 'challenging', 'difficult', 'extreme', 'intense'])
+        elif physical == 'low':
+            intensity_keywords.extend(['easy', 'gentle', 'relaxed', 'leisurely', 'comfortable', 'effortless'])
+        
+        # Cultural intensity keywords
+        cultural = intensity_data.get('cultural', 'moderate')
+        if cultural == 'high':
+            intensity_keywords.extend(['immersive', 'deep cultural', 'traditional', 'authentic', 'ceremonial'])
+        elif cultural == 'low':
+            intensity_keywords.extend(['surface level', 'casual', 'brief visit', 'tourist-friendly'])
+        
+        # Social intensity keywords
+        social = intensity_data.get('social', 'moderate')
+        if social == 'high':
+            intensity_keywords.extend(['crowded', 'social', 'party', 'festival', 'group activity'])
+        elif social == 'low':
+            intensity_keywords.extend(['quiet', 'peaceful', 'solo', 'private', 'secluded'])
+        
+        all_evidence = []
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            evidence_pieces = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='experience_intensity',
+                target_keywords=intensity_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context=f"Experience intensity: {intensity_data.get('overall_intensity', 'moderate')}"
+            )
+            
+            all_evidence.extend(evidence_pieces)
+        
+        return self._create_theme_evidence_enhanced(
+            'Experience Intensity',
+            'experience_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def validate_emotional_resonance_evidence_enhanced(self, emotion_data: Dict[str, Any], 
+                                                     web_pages: List[PageContent], 
+                                                     destination: str) -> ThemeEvidence:
+        """Enhanced emotional resonance validation with detailed emotion analysis."""
+        primary_emotions = emotion_data.get('primary_emotions', [])
+        emotion_keywords = []
+        source_urls = []
+        
+        # Enhanced emotion keyword mapping
+        emotion_keyword_map = {
+            'peaceful': ['peaceful', 'serene', 'tranquil', 'calm', 'relaxing', 'zen', 'meditative'],
+            'exhilarating': ['exciting', 'thrilling', 'adrenaline', 'exhilarating', 'rush', 'energizing'],
+            'contemplative': ['contemplative', 'reflective', 'meditative', 'thoughtful', 'spiritual', 'introspective'],
+            'inspiring': ['inspiring', 'motivating', 'uplifting', 'breathtaking', 'awe-inspiring', 'magnificent'],
+            'social': ['social', 'community', 'gathering', 'interactive', 'group', 'friendly', 'welcoming'],
+            'challenging': ['challenging', 'demanding', 'test yourself', 'push limits', 'overcome', 'achievement']
+        }
+        
+        for emotion in primary_emotions:
+            emotion_keywords.extend(emotion_keyword_map.get(emotion, [emotion]))
+        
+        all_evidence = []
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            evidence_pieces = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='emotional_resonance',
+                target_keywords=emotion_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context=f"Emotional resonance: {', '.join(primary_emotions)}"
+            )
+            
+            all_evidence.extend(evidence_pieces)
+        
+        return self._create_theme_evidence_enhanced(
+            'Emotional Resonance',
+            'emotional_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def validate_micro_climate_evidence(self, micro_climate: Dict[str, Any], 
+                                      web_pages: List[PageContent], 
+                                      destination: str) -> ThemeEvidence:
+        """Validate micro-climate and timing evidence."""
+        climate_keywords = []
+        source_urls = []
+        
+        # Best time of day
+        best_times = micro_climate.get('best_time_of_day', [])
+        for time_period in best_times:
+            if 'morning' in time_period.lower():
+                climate_keywords.extend(['morning', 'sunrise', 'early', 'dawn', 'am'])
+            elif 'evening' in time_period.lower():
+                climate_keywords.extend(['evening', 'sunset', 'dusk', 'pm', 'twilight'])
+            elif 'afternoon' in time_period.lower():
+                climate_keywords.extend(['afternoon', 'midday', 'noon'])
+        
+        # Weather dependencies
+        weather_deps = micro_climate.get('weather_dependencies', [])
+        for weather in weather_deps:
+            if 'sunny' in weather.lower():
+                climate_keywords.extend(['sunny', 'clear', 'bright', 'sunshine'])
+            elif 'rainy' in weather.lower():
+                climate_keywords.extend(['rainy', 'wet', 'indoor', 'covered'])
+        
+        all_evidence = []
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            evidence_pieces = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='micro_climate',
+                target_keywords=climate_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context="Timing and weather considerations"
+            )
+            
+            all_evidence.extend(evidence_pieces)
+        
+        return self._create_theme_evidence_enhanced(
+            'Micro Climate & Timing',
+            'climate_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def validate_cultural_evidence_enhanced(self, cultural_sensitivity: Dict[str, Any], 
+                                          web_pages: List[PageContent], 
+                                          destination: str) -> ThemeEvidence:
+        """Enhanced cultural sensitivity validation with detailed cultural analysis."""
+        cultural_keywords = []
+        source_urls = []
+        
+        considerations = cultural_sensitivity.get('considerations', [])
+        immersion_level = cultural_sensitivity.get('cultural_immersion_level', '')
+        
+        # Extract keywords from considerations
+        for consideration in considerations:
+            cultural_keywords.extend(consideration.lower().split())
+        
+        # Add keywords based on immersion level
+        if 'high' in immersion_level:
+            cultural_keywords.extend(['traditional', 'authentic', 'local customs', 'cultural protocol', 'ceremony'])
+        elif 'moderate' in immersion_level:
+            cultural_keywords.extend(['respectful', 'cultural awareness', 'local etiquette'])
+        
+        # General cultural keywords
+        cultural_keywords.extend([
+            'dress code', 'cultural norms', 'respect', 'tradition', 'customs',
+            'religious', 'sacred', 'appropriate', 'behavior', 'etiquette'
+        ])
+        
+        all_evidence = []
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            evidence_pieces = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='cultural_sensitivity',
+                target_keywords=cultural_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context=f"Cultural sensitivity: {immersion_level}"
+            )
+            
+            all_evidence.extend(evidence_pieces)
+        
+        return self._create_theme_evidence_enhanced(
+            'Cultural Sensitivity',
+            'cultural_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def validate_interconnection_evidence_enhanced(self, interconnections: Dict[str, Any], 
+                                                 web_pages: List[PageContent], 
+                                                 destination: str) -> ThemeEvidence:
+        """Enhanced theme interconnection validation with detailed combination analysis."""
+        interconnection_keywords = []
+        source_urls = []
+        
+        natural_combos = interconnections.get('natural_combinations', [])
+        complementary = interconnections.get('complementary_activities', [])
+        
+        # Extract keywords from combinations
+        for combo in natural_combos:
+            interconnection_keywords.extend(combo.lower().split())
+        
+        for activity in complementary:
+            interconnection_keywords.extend(activity.lower().split())
+        
+        # General interconnection keywords
+        interconnection_keywords.extend([
+            'combine with', 'pair with', 'also visit', 'nearby', 'walking distance',
+            'close to', 'next to', 'together', 'same area', 'same day'
+        ])
+        
+        all_evidence = []
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            evidence_pieces = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='theme_interconnections',
+                target_keywords=interconnection_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context="Theme combinations and interconnections"
+            )
+            
+            all_evidence.extend(evidence_pieces)
+        
+        return self._create_theme_evidence_enhanced(
+            'Theme Interconnections',
+            'interconnection_analysis',
+            all_evidence,
+            source_urls
+        )
+
+    def validate_weather_dependencies_evidence(self, weather_deps: List[str], 
+                                             web_pages: List[PageContent], 
+                                             destination: str) -> ThemeEvidence:
+        """Validate weather dependency claims with evidence."""
+        weather_keywords = []
+        source_urls = []
+        
+        # Weather-specific keywords
+        weather_keyword_map = {
+            'sunny': ['sunny', 'clear', 'bright', 'sunshine', 'outdoor', 'good weather'],
+            'rainy': ['rainy', 'wet', 'indoor', 'covered', 'shelter', 'bad weather'],
+            'windy': ['windy', 'wind', 'breezy', 'gusty'],
+            'hot': ['hot', 'warm', 'summer', 'heat', 'temperature'],
+            'cold': ['cold', 'winter', 'snow', 'freezing', 'chilly']
+        }
+        
+        for weather in weather_deps:
+            weather_lower = weather.lower()
+            for weather_type, keywords in weather_keyword_map.items():
+                if weather_type in weather_lower:
+                    weather_keywords.extend(keywords)
+        
+        # General weather keywords
+        weather_keywords.extend(['weather', 'climate', 'season', 'temperature', 'conditions'])
+        
+        all_evidence = []
+        for page in web_pages:
+            if not page.content:
+                continue
+            
+            source_urls.append(page.url)
+            
+            evidence_pieces = self.extract_specialized_evidence_enhanced(
+                content=page.content,
+                evidence_type='weather_dependencies',
+                target_keywords=weather_keywords,
+                destination=destination,
+                source_url=page.url,
+                source_title=page.title,
+                context=f"Weather dependencies: {', '.join(weather_deps)}"
+            )
+            
+            all_evidence.extend(evidence_pieces)
+        
+        return self._create_theme_evidence_enhanced(
+            'Weather Dependencies',
+            'weather_analysis',
+            all_evidence,
+            source_urls
         ) 

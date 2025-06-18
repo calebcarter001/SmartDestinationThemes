@@ -199,10 +199,11 @@ async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> 
     enhancement_start_time = time.time()
     
     if destination_profiles:
-        # Process with enhanced intelligence
+        # Process with enhanced intelligence - pass web_data for evidence collection
         processed_files = processor.process_destinations_with_progress(
             destination_profiles, 
-            generate_dashboard=True
+            generate_dashboard=True,
+            web_data=web_data  # Pass web data for evidence collection
         )
         
         performance_stats['enhancement_time'] = time.time() - enhancement_start_time

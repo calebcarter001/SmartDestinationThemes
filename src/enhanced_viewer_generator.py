@@ -10,6 +10,11 @@ import os
 from datetime import datetime
 from typing import Dict, Any
 from pathlib import Path
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class EnhancedViewerGenerator:
     """Generates individual HTML files for enhanced destination intelligence data."""
@@ -59,23 +64,36 @@ class EnhancedViewerGenerator:
         
         # Generate individual destination files
         for json_file in json_files:
-            result = self.generate_destination_viewer(json_file, output_dir)
-            if result:
-                generated_files.append(result)
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
                 
-                # Load data for index
-                try:
-                    with open(json_file, 'r') as f:
-                        data = json.load(f)
-                        destination_name = data.get('destination_name', 'Unknown')
-                        destination_data[destination_name] = {
-                            'file': os.path.basename(result),
-                            'quality_score': data.get('quality_assessment', {}).get('overall_score', 0),
-                            'hidden_gems': data.get('intelligence_insights', {}).get('hidden_gems_count', 0),
-                            'theme_count': len(data.get('affinities', []))
-                        }
-                except:
-                    continue
+                # Set current file for evidence loading
+                self._current_json_file = json_file
+                
+                destination_name = data.get('destination_name', 'Unknown Destination')
+                sanitized_name = self._sanitize_filename(destination_name)
+                
+                # Generate destination HTML
+                html_content = self._generate_destination_html(data)
+                
+                # Save HTML file
+                html_filename = f"{sanitized_name}.html"
+                html_filepath = os.path.join(output_dir, html_filename)
+                
+                with open(html_filepath, 'w', encoding='utf-8') as f:
+                    f.write(html_content)
+                
+                generated_files.append(html_filepath)
+                destination_data[destination_name] = {
+                    'html_file': html_filename,
+                    'data': data
+                }
+                
+                print(f"✅ Generated enhanced viewer: {html_filepath}")
+                
+            except Exception as e:
+                print(f"❌ Error processing {json_file}: {e}")
         
         # Generate index page
         if destination_data:
@@ -92,10 +110,35 @@ class EnhancedViewerGenerator:
         return generated_files
     
     def _generate_destination_html(self, data: Dict[str, Any]) -> str:
-        """Generate HTML content for a single destination."""
+        """Generate complete HTML for a destination."""
+        
+        # Load evidence data if separate evidence file exists
+        evidence_data = {}
+        evidence_file_ref = data.get('evidence_file_reference')
+        if evidence_file_ref:
+            # Try to load evidence file from same directory as main JSON
+            try:
+                import os
+                json_dir = os.path.dirname(getattr(self, '_current_json_file', ''))
+                evidence_file_path = os.path.join(json_dir, evidence_file_ref)
+                if os.path.exists(evidence_file_path):
+                    with open(evidence_file_path, 'r', encoding='utf-8') as f:
+                        import json
+                        evidence_data = json.load(f)
+                        logger.info(f"Loaded evidence data from {evidence_file_path}")
+            except Exception as e:
+                logger.warning(f"Could not load evidence file {evidence_file_ref}: {e}")
         
         destination_name = data.get('destination_name', 'Unknown Destination')
         affinities = data.get('affinities', [])
+        
+        # Merge evidence back into affinities for display
+        theme_evidence = evidence_data.get('theme_evidence', {})
+        for affinity in affinities:
+            theme_name = affinity.get('theme', 'Unknown')
+            if theme_name in theme_evidence:
+                affinity['comprehensive_attribute_evidence'] = theme_evidence[theme_name]
+        
         quality_assessment = data.get('quality_assessment', {})
         intelligence_insights = data.get('intelligence_insights', {})
         composition_analysis = data.get('composition_analysis', {})
@@ -350,7 +393,7 @@ class EnhancedViewerGenerator:
         return ''.join(badges)
     
     def _generate_evidence_validation_display(self, evidence_summary: dict) -> str:
-        """Generate evidence validation display for a theme with actual evidence pieces."""
+        """Generate enhanced evidence validation display with clickable URLs and comprehensive source information."""
         if not evidence_summary:
             return '<div class="evidence-status no-evidence"><span class="evidence-icon">❓</span> No evidence validation data</div>'
         
@@ -373,7 +416,7 @@ class EnhancedViewerGenerator:
         
         config = status_config.get(validation_status, status_config['pending'])
         
-        # Evidence metrics
+        # Enhanced evidence metrics
         metrics_html = ""
         if evidence_count > 0:
             authority_bar = f'<div class="authority-bar"><div class="authority-fill" style="width: {average_authority*100}%; background: {config["color"]}"></div></div>'
@@ -484,6 +527,48 @@ class EnhancedViewerGenerator:
         if len(url) > 40:
             return url[:37] + '...'
         return url
+
+    def _extract_domain(self, url: str) -> str:
+        """Extract domain from URL for display."""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            domain = parsed.netloc
+            # Remove www. prefix
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            return domain
+        except:
+            return "unknown"
+
+    def _get_relevance_color(self, relevance_score: float) -> str:
+        """Get color for relevance score."""
+        if relevance_score >= 0.8:
+            return '#28a745'  # Green
+        elif relevance_score >= 0.6:
+            return '#20c997'  # Teal
+        elif relevance_score >= 0.4:
+            return '#ffc107'  # Yellow
+        elif relevance_score >= 0.2:
+            return '#fd7e14'  # Orange
+        else:
+            return '#dc3545'  # Red
+
+    def _truncate_text(self, text: str, max_length: int) -> str:
+        """Truncate text to specified length."""
+        if len(text) <= max_length:
+            return text
+        return text[:max_length-3] + '...'
+
+    def _format_gap_name(self, gap: str) -> str:
+        """Format evidence gap name for display."""
+        gap_names = {
+            'insufficient_evidence_count': 'Not Enough Evidence',
+            'low_source_diversity': 'Limited Sources',
+            'low_authority_sources': 'Low Authority',
+            'low_relevance_scores': 'Low Relevance'
+        }
+        return gap_names.get(gap, gap.replace('_', ' ').title())
 
     def _generate_evidence_paperclip(self, theme_name: str, theme_data: dict) -> str:
         """Generate paperclip icon for evidence modal."""
@@ -620,8 +705,13 @@ class EnhancedViewerGenerator:
             'llm_generated': True  # Most attributes are LLM generated
         }
         
+        # Convert to JSON and escape for HTML
         import json
-        evidence_json = json.dumps(evidence_data).replace('"', '&quot;')
+        try:
+            evidence_json = json.dumps(evidence_data).replace('"', '&quot;').replace("'", "&#39;")
+        except Exception as e:
+            logger.warning(f"Error serializing evidence for {attribute_name}: {e}")
+            return '<i class="fas fa-paperclip evidence-paperclip no-evidence" title="Error loading evidence for this attribute"></i>'
         
         return f'''<i class="fas fa-paperclip evidence-paperclip" 
                     onclick="showAttributeEvidenceModal('{theme_name}', '{attribute_name}', '{evidence_json}')" 
@@ -912,8 +1002,11 @@ class EnhancedViewerGenerator:
         
         destination_cards = []
         for dest_name, dest_info in destination_data.items():
-            quality_score = dest_info['quality_score']
+            data = dest_info['data']
+            quality_score = data.get('quality_assessment', {}).get('overall_score', 0)
             quality_level = self._get_quality_level(quality_score)
+            theme_count = len(data.get('affinities', []))
+            hidden_gems = data.get('intelligence_insights', {}).get('hidden_gems_count', 0)
             
             destination_cards.append(f"""
             <div class="destination-index-card">
@@ -922,11 +1015,11 @@ class EnhancedViewerGenerator:
                     <span class="quality-badge quality-{quality_level.lower().replace(' ', '-')}">{quality_level}</span>
                 </div>
                 <div class="dest-card-stats">
-                    <div class="stat"><strong>{dest_info['theme_count']}</strong> themes</div>
-                    <div class="stat"><strong>{dest_info['hidden_gems']}</strong> hidden gems</div>
+                    <div class="stat"><strong>{theme_count}</strong> themes</div>
+                    <div class="stat"><strong>{hidden_gems}</strong> hidden gems</div>
                     <div class="stat"><strong>{quality_score:.3f}</strong> quality score</div>
                 </div>
-                <a href="{dest_info['file']}" class="view-button">View Details</a>
+                <a href="{dest_info['html_file']}" class="view-button">View Details</a>
             </div>
             """)
         

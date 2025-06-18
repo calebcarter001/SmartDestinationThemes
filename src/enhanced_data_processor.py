@@ -56,13 +56,15 @@ class EnhancedDataProcessor:
         self.depth_levels = ['macro', 'micro', 'nano']
 
     def process_destinations_with_progress(self, destinations_data: Dict[str, Any], 
-                                         generate_dashboard: bool = True) -> Dict[str, str]:
+                                         generate_dashboard: bool = True,
+                                         web_data: Dict[str, Any] = None) -> Dict[str, str]:
         """
         Process multiple destinations with progress tracking and organized output.
         
         Args:
             destinations_data: Dictionary of destination name -> destination data
             generate_dashboard: Whether to generate HTML dashboard
+            web_data: Web discovery data for evidence collection
             
         Returns:
             Dictionary of destination name -> output file path
@@ -70,6 +72,8 @@ class EnhancedDataProcessor:
         
         print(f"\n🚀 Processing {len(destinations_data)} destinations with Enhanced Intelligence")
         print(f"📁 Session output directory: {self.session_output_dir}")
+        if web_data:
+            print(f"🌐 Web evidence collection enabled for {len(web_data)} destinations")
         print("="*70)
         
         # Create session output directories
@@ -91,14 +95,67 @@ class EnhancedDataProcessor:
             dest_progress.set_description(f"Processing {destination_name}")
             
             try:
-                # Process single destination with progress
+                # Get web data for this destination
+                dest_web_data = web_data.get(destination_name, {}) if web_data else {}
+                
+                # Process single destination with progress and web data
                 enhanced_data = self._process_single_destination_with_progress(
-                    destination_data, destination_name
+                    destination_data, destination_name, dest_web_data
                 )
                 
                 # Save enhanced JSON
                 json_filename = f"{self._sanitize_filename(destination_name)}_enhanced.json"
                 json_filepath = os.path.join(self.session_output_dir, "json", json_filename)
+                
+                # Save evidence separately
+                evidence_filename = f"{self._sanitize_filename(destination_name)}_evidence.json"
+                evidence_filepath = os.path.join(self.session_output_dir, "json", evidence_filename)
+                
+                # Extract evidence data for separate file
+                evidence_data = {
+                    'destination_id': enhanced_data.get('destination_id', ''),
+                    'destination_name': destination_name,
+                    'evidence_metadata': {
+                        'generation_timestamp': datetime.now().isoformat(),
+                        'total_themes_with_evidence': 0,
+                        'total_evidence_pieces': 0,
+                        'evidence_summary': {}
+                    },
+                    'theme_evidence': {}
+                }
+                
+                # Extract evidence from each theme
+                for affinity in enhanced_data.get('affinities', []):
+                    theme_name = affinity.get('theme', 'Unknown')
+                    comprehensive_evidence = affinity.get('comprehensive_attribute_evidence', {})
+                    
+                    if comprehensive_evidence:
+                        # Convert to JSON-serializable format properly
+                        try:
+                            serializable_evidence = self.evidence_validator.to_json_serializable(comprehensive_evidence)
+                            evidence_data['theme_evidence'][theme_name] = serializable_evidence
+                            evidence_data['evidence_metadata']['total_themes_with_evidence'] += 1
+                            
+                            # Count evidence pieces from serialized data
+                            for attr_evidence in serializable_evidence.values():
+                                if isinstance(attr_evidence, dict) and 'evidence_pieces' in attr_evidence:
+                                    evidence_data['evidence_metadata']['total_evidence_pieces'] += len(attr_evidence['evidence_pieces'])
+                        except Exception as e:
+                            logger.error(f"Error serializing evidence for theme {theme_name}: {e}")
+                            # Store as string representation as fallback
+                            evidence_data['theme_evidence'][theme_name] = str(comprehensive_evidence)
+                
+                # Save evidence file without default=str to avoid string conversion
+                with open(evidence_filepath, 'w', encoding='utf-8') as f:
+                    json.dump(evidence_data, f, indent=2)
+                
+                # Remove comprehensive evidence from main JSON and add reference
+                for affinity in enhanced_data.get('affinities', []):
+                    if 'comprehensive_attribute_evidence' in affinity:
+                        del affinity['comprehensive_attribute_evidence']
+                
+                # Add evidence file reference to main data
+                enhanced_data['evidence_file_reference'] = evidence_filename
                 
                 with open(json_filepath, 'w', encoding='utf-8') as f:
                     json.dump(enhanced_data, f, indent=2, default=str)
@@ -146,7 +203,8 @@ class EnhancedDataProcessor:
         return processed_files
 
     def _process_single_destination_with_progress(self, destination_data: Dict[str, Any], 
-                                                destination_name: str) -> Dict[str, Any]:
+                                                destination_name: str,
+                                                web_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Process a single destination with detailed progress tracking."""
         
         affinities = destination_data.get('affinities', [])
@@ -169,7 +227,7 @@ class EnhancedDataProcessor:
             try:
                 # Apply all intelligence layers with sub-progress
                 enhanced_affinity = self._enhance_single_affinity_with_progress(
-                    affinity, destination_name, affinity_progress
+                    affinity, destination_name, affinity_progress, web_data
                 )
                 enhanced_affinities.append(enhanced_affinity)
                 
@@ -215,8 +273,31 @@ class EnhancedDataProcessor:
 
     def _enhance_single_affinity_with_progress(self, affinity: Dict[str, Any], 
                                              destination_name: str, 
-                                             parent_progress: tqdm) -> Dict[str, Any]:
+                                             parent_progress: tqdm,
+                                             web_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Enhance a single affinity with detailed progress tracking."""
+        
+        # Convert web_data to PageContent objects for evidence validation
+        web_pages = []
+        if web_data and 'content' in web_data:
+            for page_data in web_data['content']:
+                try:
+                    page_content = PageContent(
+                        url=page_data.get('url', ''),
+                        title=page_data.get('title', ''),
+                        content=page_data.get('content', ''),
+                        content_length=len(page_data.get('content', '')),
+                        metadata={
+                            'relevance_score': page_data.get('relevance_score', 0.5),
+                            'source': 'web_discovery'
+                        }
+                    )
+                    web_pages.append(page_content)
+                except Exception as e:
+                    logger.warning(f"Error converting page data to PageContent: {e}")
+        
+        # Store web_pages for evidence validation
+        self.web_pages = web_pages
         
         # Intelligence processing steps - using existing methods
         intelligence_steps = [
@@ -262,10 +343,14 @@ class EnhancedDataProcessor:
                 logger.warning(f"Error in {step_name} for {affinity.get('theme', 'unknown')}: {e}")
         
         # Validate ALL attributes with comprehensive evidence collection if web pages available
-        if hasattr(self, 'evidence_validator') and hasattr(self, 'web_pages') and self.web_pages:
-            enhanced['comprehensive_attribute_evidence'] = self.evidence_validator.validate_all_theme_attributes(
-                enhanced, self.web_pages, destination_name
-            )
+        if hasattr(self, 'evidence_validator') and web_pages:
+            try:
+                enhanced['comprehensive_attribute_evidence'] = self.evidence_validator.validate_all_theme_attributes(
+                    enhanced, web_pages, destination_name
+                )
+                logger.info(f"Evidence validation completed for {affinity.get('theme', 'unknown')} with {len(web_pages)} pages")
+            except Exception as e:
+                logger.error(f"Error in evidence validation for {affinity.get('theme', 'unknown')}: {e}")
         
         return enhanced
 

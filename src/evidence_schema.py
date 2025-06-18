@@ -34,27 +34,32 @@ class ValidationStatus(str, Enum):
     PENDING = "pending"                       # Validation not yet performed
 
 class EvidencePiece(BaseModel):
-    """Individual piece of evidence supporting a theme."""
+    """Individual piece of evidence extracted from web content."""
     
-    evidence_id: str = Field(description="Unique identifier for this evidence piece")
-    text_content: str = Field(description="The actual evidence text", max_length=1000)
-    source_url: str = Field(description="URL where evidence was found")
+    text_content: str = Field(description="The actual text content that serves as evidence")
+    source_url: str = Field(description="URL where this evidence was found")
     source_title: str = Field(description="Title of the source page")
-    source_type: EvidenceSourceType = Field(description="Classification of evidence source")
+    source_type: EvidenceSourceType = Field(description="Type of source")
     
-    authority_score: float = Field(ge=0, le=1, description="Authority score of the source")
-    quality_rating: EvidenceQuality = Field(description="Quality assessment of evidence")
-    relevance_score: float = Field(ge=0, le=1, description="How relevant to the theme")
+    relevance_score: float = Field(ge=0, le=1, description="How relevant this evidence is to the claim")
+    authority_score: float = Field(ge=0, le=1, description="Authority/credibility of the source")
+    quality_rating: EvidenceQuality = Field(description="Overall quality assessment")
     
-    word_count: int = Field(ge=0, description="Number of words in evidence")
-    contains_destination_mention: bool = Field(description="Evidence specifically mentions destination")
-    contains_theme_keywords: List[str] = Field(default_factory=list, description="Matched theme keywords")
+    evidence_type: str = Field(description="Type of evidence (theme, price, authenticity, etc.)")
+    extraction_timestamp: datetime = Field(default_factory=datetime.now, description="When evidence was extracted")
     
-    extracted_at: datetime = Field(default_factory=datetime.now, description="When evidence was extracted")
-    processed_by: str = Field(default="focused_processor", description="System that processed evidence")
-    validation_confidence: float = Field(ge=0, le=1, description="Confidence in validation")
+    # Enhanced fields for better tracking
+    context_keywords: List[str] = Field(default_factory=list, description="Keywords used to find this evidence")
+    validation_context: str = Field(default="", description="Context of what this evidence validates")
+    pattern_matched: Optional[str] = Field(None, description="Regex pattern that matched this evidence")
+    sentence_position: Optional[int] = Field(None, description="Position of sentence in source content")
+    surrounding_context: Optional[str] = Field(None, description="Surrounding text for context")
     
-    semantic_similarity: Optional[float] = Field(None, ge=0, le=1, description="Semantic similarity to theme")
+    @validator('relevance_score', 'authority_score')
+    def score_must_be_valid(cls, v):
+        if not 0 <= v <= 1:
+            raise ValueError('Score must be between 0 and 1')
+        return v
 
 class ThemeEvidence(BaseModel):
     """Collection of evidence for a specific theme."""

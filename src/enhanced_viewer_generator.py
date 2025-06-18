@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Dict, Any
 from pathlib import Path
 import logging
+import hashlib
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -38,6 +39,9 @@ class EnhancedViewerGenerator:
         
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
+        
+        # Set current file for evidence loading
+        self._current_json_file = json_file
         
         # Generate HTML for this destination
         destination_name = data.get('destination_name', 'Unknown Destination')
@@ -266,6 +270,9 @@ class EnhancedViewerGenerator:
     </div>
     
     <script>
+        // Initialize global evidence store
+        window.evidenceStore = {self._get_evidence_store_json()};
+        
         {self._get_enhanced_javascript()}
     </script>
 </body>
@@ -572,8 +579,10 @@ class EnhancedViewerGenerator:
 
     def _generate_evidence_paperclip(self, theme_name: str, theme_data: dict) -> str:
         """Generate paperclip icon for evidence modal."""
-        evidence_summary = theme_data.get('evidence_summary', {})
-        evidence_pieces = evidence_summary.get('evidence_pieces', [])
+        # Get evidence from comprehensive_attribute_evidence which contains the loaded evidence data
+        comprehensive_evidence = theme_data.get('comprehensive_attribute_evidence', {})
+        main_theme_evidence = comprehensive_evidence.get('main_theme', {})
+        evidence_pieces = main_theme_evidence.get('evidence_pieces', [])
         
         # Collect all evidence types for this theme
         all_evidence = {
@@ -599,12 +608,18 @@ class EnhancedViewerGenerator:
         if not has_evidence:
             return '<i class="fas fa-paperclip evidence-paperclip no-evidence" title="No evidence available"></i>'
         
-        # Generate evidence data for modal (escape quotes for HTML attribute)
-        import json
-        evidence_json = json.dumps(all_evidence).replace('"', '&quot;')
+        # Create unique ID for this evidence using deterministic hash
+        import hashlib
+        evidence_str = f"{theme_name}_theme_evidence_{str(sorted(str(all_evidence)))}"
+        evidence_id = f"{theme_name.replace(' ', '_')}_theme_evidence_{hashlib.md5(evidence_str.encode()).hexdigest()[:8]}"
+        
+        # Store in evidence store instead of embedding in onclick
+        if not hasattr(self, '_evidence_store'):
+            self._evidence_store = {}
+        self._evidence_store[evidence_id] = all_evidence
         
         return f'''<i class="fas fa-paperclip evidence-paperclip" 
-                    onclick="showEvidenceModal('{theme_name}', '{evidence_json}')" 
+                    onclick="showThemeEvidenceModal('{theme_name}', '{evidence_id}')" 
                     title="View evidence for {theme_name}"></i>'''
     
     def _generate_theme_details(self, theme, depth_analysis, contextual_info, micro_climate, cultural_sensitivity, interconnections) -> str:
@@ -697,6 +712,10 @@ class EnhancedViewerGenerator:
         if not attribute_evidence:
             return '<i class="fas fa-paperclip evidence-paperclip no-evidence" title="No evidence available for this attribute"></i>'
         
+        # Create unique ID for this evidence using deterministic hash
+        evidence_str = f"{theme_name}_{attribute_name}_{str(sorted(str(attribute_evidence)))}"
+        evidence_id = f"{theme_name.replace(' ', '_')}_{attribute_name}_{hashlib.md5(evidence_str.encode()).hexdigest()[:8]}"
+        
         # Create evidence data for modal
         evidence_data = {
             'attribute_name': attribute_name,
@@ -705,16 +724,13 @@ class EnhancedViewerGenerator:
             'llm_generated': True  # Most attributes are LLM generated
         }
         
-        # Convert to JSON and escape for HTML
-        import json
-        try:
-            evidence_json = json.dumps(evidence_data).replace('"', '&quot;').replace("'", "&#39;")
-        except Exception as e:
-            logger.warning(f"Error serializing evidence for {attribute_name}: {e}")
-            return '<i class="fas fa-paperclip evidence-paperclip no-evidence" title="Error loading evidence for this attribute"></i>'
+        # Store in evidence store
+        if not hasattr(self, '_evidence_store'):
+            self._evidence_store = {}
+        self._evidence_store[evidence_id] = evidence_data
         
         return f'''<i class="fas fa-paperclip evidence-paperclip" 
-                    onclick="showAttributeEvidenceModal('{theme_name}', '{attribute_name}', '{evidence_json}')" 
+                    onclick="showAttributeEvidenceModal('{theme_name}', '{attribute_name}', '{evidence_id}')" 
                     title="View evidence for {attribute_name.replace('_', ' ')}"></i>'''
     
     def _generate_intelligence_insights(self, intelligence_insights: dict) -> str:
@@ -2022,14 +2038,15 @@ class EnhancedViewerGenerator:
                 modalContent += '<div class="evidence-section">';
                 modalContent += '<h3>🔍 Theme Evidence</h3>';
                 evidence.theme_evidence.forEach(piece => {
-                    modalContent += `
-                    <div class="evidence-item">
-                        <div class="evidence-type-tag">Web Evidence</div>
-                        <p><strong>Text:</strong> "${piece.text_content || 'No text available'}"</p>
-                        <p><strong>Source:</strong> <a href="${piece.source_url || '#'}" target="_blank">${piece.source_title || 'Unknown Source'}</a></p>
-                        <p><strong>Authority Score:</strong> ${(piece.authority_score || 0).toFixed(2)}</p>
-                        <p><strong>Quality:</strong> ${piece.quality_rating || 'Unknown'}</p>
-                    </div>`;
+                                            modalContent += `
+                        <div class="evidence-item">
+                            <div class="evidence-type-tag">Web Evidence</div>
+                            <p><strong>Text:</strong> "${piece.text_content || 'No text available'}"</p>
+                            <p><strong>Source:</strong> <a href="${piece.source_url || '#'}" target="_blank" style="color: #007bff; text-decoration: underline;">${piece.source_title || 'Unknown Source'}</a></p>
+                            <p><strong>URL:</strong> <a href="${piece.source_url || '#'}" target="_blank" style="color: #007bff; text-decoration: underline; font-family: monospace; font-size: 0.9em;">${piece.source_url || 'No URL'}</a></p>
+                            <p><strong>Authority Score:</strong> ${(piece.authority_score || 0).toFixed(2)}</p>
+                            <p><strong>Quality:</strong> ${piece.quality_rating || 'Unknown'}</p>
+                        </div>`;
                 });
                 modalContent += '</div>';
             }
@@ -2116,23 +2133,31 @@ class EnhancedViewerGenerator:
         }
         
         // Attribute-specific evidence modal
-        function showAttributeEvidenceModal(themeName, attributeName, evidenceData) {
+        function showAttributeEvidenceModal(themeName, attributeName, evidenceId) {
+            console.log('Modal called with:', {themeName, attributeName, evidenceId});
+            
             const modal = document.getElementById('evidenceModal');
             const modalTitle = document.getElementById('modalTitle');
             const modalBody = document.getElementById('modalBody');
             
+            if (!modal || !modalTitle || !modalBody) {
+                console.error('Modal elements not found');
+                return;
+            }
+            
             modalTitle.textContent = `Evidence for: ${themeName} - ${attributeName.replace('_', ' ')}`;
             
-            // Parse evidence data if it's a string
-            let evidence;
-            try {
-                evidence = typeof evidenceData === 'string' ? JSON.parse(evidenceData) : evidenceData;
-            } catch (e) {
-                console.error('Error parsing evidence data:', e);
-                modalBody.innerHTML = '<p>Error loading evidence data.</p>';
+            // Get evidence data from global store
+            const evidenceData = window.evidenceStore && window.evidenceStore[evidenceId];
+            if (!evidenceData) {
+                console.error('Evidence not found for ID:', evidenceId);
+                console.log('Available evidence IDs:', Object.keys(window.evidenceStore || {}));
+                modalBody.innerHTML = '<div class="alert alert-warning">Evidence data not available for this attribute.</div>';
                 modal.style.display = 'block';
                 return;
             }
+            
+            console.log('Evidence data found:', evidenceData);
             
             // Generate modal content for attribute evidence
             let modalContent = '';
@@ -2142,23 +2167,40 @@ class EnhancedViewerGenerator:
             modalContent += `<h3>📊 ${attributeName.replace('_', ' ').toUpperCase()} Data</h3>`;
             modalContent += '<div class="evidence-item">';
             modalContent += '<div class="evidence-type-tag">LLM Generated</div>';
-            modalContent += `<p><strong>Value:</strong> ${JSON.stringify(evidence.attribute_data, null, 2)}</p>`;
+            modalContent += `<p><strong>Value:</strong> ${JSON.stringify(evidenceData.attribute_data, null, 2)}</p>`;
             modalContent += '</div>';
             modalContent += '</div>';
             
             // Show evidence if available
-            if (evidence.evidence && Object.keys(evidence.evidence).length > 0) {
+            if (evidenceData.evidence && Object.keys(evidenceData.evidence).length > 0) {
                 modalContent += '<div class="evidence-section">';
                 modalContent += '<h3>🔍 Supporting Evidence</h3>';
                 
-                const evidenceObj = evidence.evidence;
+                const evidenceObj = evidenceData.evidence;
+                let evidencePieces = [];
+                
+                // Handle direct evidence structure: evidenceData.evidence.evidence_pieces
                 if (evidenceObj.evidence_pieces && evidenceObj.evidence_pieces.length > 0) {
-                    evidenceObj.evidence_pieces.forEach(piece => {
+                    evidencePieces = evidenceObj.evidence_pieces;
+                } 
+                // Handle nested sub-theme structure: evidenceData.evidence["Sub Theme Name"].evidence_pieces
+                else {
+                    // Look for nested sub-themes or other structures
+                    Object.values(evidenceObj).forEach(subEvidence => {
+                        if (subEvidence && subEvidence.evidence_pieces && subEvidence.evidence_pieces.length > 0) {
+                            evidencePieces = evidencePieces.concat(subEvidence.evidence_pieces);
+                        }
+                    });
+                }
+                
+                if (evidencePieces.length > 0) {
+                    evidencePieces.forEach(piece => {
                         modalContent += `
                         <div class="evidence-item">
                             <div class="evidence-type-tag">Web Evidence</div>
                             <p><strong>Text:</strong> "${piece.text_content || 'No text available'}"</p>
-                            <p><strong>Source:</strong> <a href="${piece.source_url || '#'}" target="_blank">${piece.source_title || 'Unknown Source'}</a></p>
+                            <p><strong>Source:</strong> <a href="${piece.source_url || '#'}" target="_blank" style="color: #007bff; text-decoration: underline;">${piece.source_title || 'Unknown Source'}</a></p>
+                            <p><strong>URL:</strong> <a href="${piece.source_url || '#'}" target="_blank" style="color: #007bff; text-decoration: underline; font-family: monospace; font-size: 0.9em;">${piece.source_url || 'No URL'}</a></p>
                             <p><strong>Authority Score:</strong> ${(piece.authority_score || 0).toFixed(2)}</p>
                             <p><strong>Quality:</strong> ${piece.quality_rating || 'Unknown'}</p>
                         </div>`;
@@ -2183,6 +2225,125 @@ class EnhancedViewerGenerator:
             modalBody.innerHTML = modalContent;
             modal.style.display = 'block';
         }
+        
+        // Theme-level evidence modal
+        function showThemeEvidenceModal(themeName, evidenceId) {
+            console.log('Theme modal called with:', {themeName, evidenceId});
+            
+            const modal = document.getElementById('evidenceModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            if (!modal || !modalTitle || !modalBody) {
+                console.error('Modal elements not found');
+                return;
+            }
+            
+            modalTitle.textContent = `Evidence for: ${themeName}`;
+            
+            // Get evidence data from global store
+            const evidenceData = window.evidenceStore && window.evidenceStore[evidenceId];
+            if (!evidenceData) {
+                console.error('Evidence not found for ID:', evidenceId);
+                console.log('Available evidence IDs:', Object.keys(window.evidenceStore || {}));
+                modalBody.innerHTML = '<div class="alert alert-warning">Evidence data not available for this theme.</div>';
+                modal.style.display = 'block';
+                return;
+            }
+            
+            console.log('Theme evidence data found:', evidenceData);
+            
+            // Generate modal content for theme evidence
+            let modalContent = '';
+            
+            // Theme Evidence
+            if (evidenceData.theme_evidence && evidenceData.theme_evidence.length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🔍 Theme Evidence</h3>';
+                evidenceData.theme_evidence.forEach((piece, index) => {
+                    modalContent += `
+                    <div class="evidence-item">
+                        <div class="evidence-type-tag">Web Evidence ${index + 1}</div>
+                        <p><strong>Text:</strong> "${piece.text_content || 'No text available'}"</p>
+                        <p><strong>Source:</strong> <a href="${piece.source_url || '#'}" target="_blank" style="color: #007bff; text-decoration: underline;">${piece.source_title || 'Unknown Source'}</a></p>
+                        <p><strong>URL:</strong> <a href="${piece.source_url || '#'}" target="_blank" style="color: #007bff; text-decoration: underline; font-family: monospace; font-size: 0.9em;">${piece.source_url || 'No URL'}</a></p>
+                        <p><strong>Authority Score:</strong> ${(piece.authority_score || 0).toFixed(2)}</p>
+                        <p><strong>Quality:</strong> ${piece.quality_rating || 'Unknown'}</p>
+                    </div>`;
+                });
+                modalContent += '</div>';
+            }
+            
+            // Nano Themes
+            if (evidenceData.nano_themes && evidenceData.nano_themes.length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🔬 Nano Themes</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="evidence-type-tag">Detailed Insights</div>';
+                modalContent += '<p>' + evidenceData.nano_themes.join(', ') + '</p>';
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            // Price Insights
+            if (evidenceData.price_insights && Object.keys(evidenceData.price_insights).length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>💰 Price Information</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="evidence-type-tag">Price Analysis</div>';
+                Object.entries(evidenceData.price_insights).forEach(([key, value]) => {
+                    modalContent += `<p><strong>${key.replace('_', ' ').toUpperCase()}:</strong> ${value}</p>`;
+                });
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            // Authenticity Analysis
+            if (evidenceData.authenticity_analysis && Object.keys(evidenceData.authenticity_analysis).length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🏛️ Authenticity Analysis</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="evidence-type-tag">Authenticity Metrics</div>';
+                Object.entries(evidenceData.authenticity_analysis).forEach(([key, value]) => {
+                    modalContent += `<p><strong>${key.replace('_', ' ').toUpperCase()}:</strong> ${value}</p>`;
+                });
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            // Hidden Gem Score
+            if (evidenceData.hidden_gem_score && Object.keys(evidenceData.hidden_gem_score).length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>💎 Hidden Gem Analysis</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="evidence-type-tag">Uniqueness Metrics</div>';
+                Object.entries(evidenceData.hidden_gem_score).forEach(([key, value]) => {
+                    modalContent += `<p><strong>${key.replace('_', ' ').toUpperCase()}:</strong> ${value}</p>`;
+                });
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            // LLM Generated indicator
+            if (evidenceData.llm_generated) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="llm-generated-tag">LLM Generated</div>';
+                modalContent += '<p>This theme insight was generated by our AI system and may not have external web evidence.</p>';
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            if (!modalContent) {
+                modalContent = '<p>No evidence data available for this theme.</p>';
+            }
+            
+            modalBody.innerHTML = modalContent;
+            modal.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
         """
     
     def _get_confidence_color(self, confidence: float) -> str:
@@ -2209,4 +2370,16 @@ class EnhancedViewerGenerator:
     
     def _sanitize_filename(self, name: str) -> str:
         """Sanitize destination name for filename."""
-        return "".join(c.lower() if c.isalnum() else '_' for c in name).strip('_') 
+        return "".join(c.lower() if c.isalnum() else '_' for c in name).strip('_')
+    
+    def _get_evidence_store_json(self) -> str:
+        """Get the evidence store as JSON string for JavaScript."""
+        if not hasattr(self, '_evidence_store') or not self._evidence_store:
+            return '{}'
+        
+        import json
+        try:
+            return json.dumps(self._evidence_store, default=str)
+        except Exception as e:
+            logger.warning(f"Error serializing evidence store: {e}")
+            return '{}'

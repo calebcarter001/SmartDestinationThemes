@@ -223,14 +223,102 @@ class WebDiscoveryTool:
             return None
     
     async def _extract_content_fallback(self, url: str) -> Optional[Dict[str, Any]]:
-        """Fallback content extraction when no API is available"""
+        """Fallback content extraction using basic web scraping"""
         
-        # Return minimal content structure for processing
-        return {
-            'title': f'Travel content from {url}',
-            'content': f'Travel information and recommendations for the destination from {url}',
-            'relevance_score': 0.5
-        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+                
+                async with session.get(url, headers=headers, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        html_content = await response.text()
+                        
+                        # Basic HTML content extraction
+                        extracted_content = self._extract_text_from_html(html_content)
+                        
+                        if extracted_content and len(extracted_content) > 100:
+                            return {
+                                'title': self._extract_title_from_html(html_content),
+                                'content': extracted_content[:2000],  # Limit content length
+                                'relevance_score': 0.6
+                            }
+                        else:
+                            logger.warning(f"Insufficient content extracted from {url}")
+                            return None
+                    else:
+                        logger.warning(f"HTTP {response.status} for {url}")
+                        return None
+                        
+        except Exception as e:
+            logger.warning(f"Web scraping failed for {url}: {e}")
+            return None
+    
+    def _extract_text_from_html(self, html_content: str) -> str:
+        """Extract readable text from HTML content"""
+        try:
+            from bs4 import BeautifulSoup
+            
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Remove script and style elements
+            for script in soup(["script", "style", "nav", "header", "footer"]):
+                script.decompose()
+            
+            # Get text content
+            text = soup.get_text()
+            
+            # Clean up text
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            text = ' '.join(chunk for chunk in chunks if chunk)
+            
+            return text
+            
+        except ImportError:
+            # Fallback without BeautifulSoup - basic regex cleaning
+            import re
+            
+            # Remove HTML tags
+            text = re.sub(r'<[^>]+>', '', html_content)
+            
+            # Clean up whitespace
+            text = re.sub(r'\s+', ' ', text).strip()
+            
+            return text
+        except Exception as e:
+            logger.warning(f"HTML text extraction failed: {e}")
+            return ""
+    
+    def _extract_title_from_html(self, html_content: str) -> str:
+        """Extract title from HTML content"""
+        try:
+            from bs4 import BeautifulSoup
+            
+            soup = BeautifulSoup(html_content, 'html.parser')
+            title_tag = soup.find('title')
+            
+            if title_tag:
+                return title_tag.get_text().strip()
+            else:
+                # Try to find h1 as fallback
+                h1_tag = soup.find('h1')
+                if h1_tag:
+                    return h1_tag.get_text().strip()
+                    
+        except ImportError:
+            # Fallback without BeautifulSoup - basic regex
+            import re
+            
+            title_match = re.search(r'<title[^>]*>([^<]+)</title>', html_content, re.IGNORECASE)
+            if title_match:
+                return title_match.group(1).strip()
+                
+        except Exception as e:
+            logger.warning(f"HTML title extraction failed: {e}")
+            
+        return "Web Content"
     
     def _validate_content(self, content: Dict[str, Any]) -> bool:
         """Validate extracted content quality"""

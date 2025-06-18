@@ -218,7 +218,6 @@ class WebDiscoveryTool:
                     else:
                         logger.warning(f"Jina Reader API returned status {response.status} for {url}")
                         return None
-                        
         except Exception as e:
             logger.error(f"Jina Reader API error for {url}: {e}")
             return None

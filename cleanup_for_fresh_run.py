@@ -190,6 +190,10 @@ def main():
     temp_test_files = [f for f in glob.glob("test_*.py") if any(pattern in f for pattern in ["temp_", "debug_", "_tmp", "_test_run"])]
     temp_files.extend(temp_test_files)
     
+    # Add specific temporary test files
+    if os.path.exists("test_dev_staging_manager.py"):
+        temp_files.append("test_dev_staging_manager.py")
+    
     if temp_files:
         for temp_file in temp_files:
             try:
@@ -197,6 +201,60 @@ def main():
                 print(f"✅ Removed temporary file: {temp_file}")
             except Exception as e:
                 print(f"⚠️  Error removing {temp_file}: {e}")
+    
+    # NEW: Clean session output directories
+    print("🧹 Cleaning session output directories...")
+    session_dirs = glob.glob("outputs/session_*")
+    if session_dirs:
+        for session_dir in session_dirs:
+            try:
+                if os.path.isdir(session_dir):
+                    shutil.rmtree(session_dir)
+                    print(f"✅ Removed session directory: {session_dir}")
+                else:
+                    os.remove(session_dir)
+                    print(f"✅ Removed session file: {session_dir}")
+            except Exception as e:
+                print(f"⚠️  Error removing {session_dir}: {e}")
+    else:
+        print("✅ No session output directories found")
+    
+    # NEW: Clean development staging files
+    print("🧹 Cleaning development staging files...")
+    dev_staging_cleaned = 0
+    
+    # Clean dev_staging/dashboard/* files
+    if os.path.exists("dev_staging/dashboard"):
+        dashboard_files = glob.glob("dev_staging/dashboard/*")
+        for dash_file in dashboard_files:
+            try:
+                if os.path.isfile(dash_file):
+                    os.remove(dash_file)
+                    dev_staging_cleaned += 1
+                elif os.path.isdir(dash_file):
+                    shutil.rmtree(dash_file)
+                    dev_staging_cleaned += 1
+            except Exception as e:
+                print(f"⚠️  Error removing {dash_file}: {e}")
+    
+    # Clean dev_staging/json/* files
+    if os.path.exists("dev_staging/json"):
+        json_files = glob.glob("dev_staging/json/*")
+        for json_file in json_files:
+            try:
+                if os.path.isfile(json_file):
+                    os.remove(json_file)
+                    dev_staging_cleaned += 1
+                elif os.path.isdir(json_file):
+                    shutil.rmtree(json_file)
+                    dev_staging_cleaned += 1
+            except Exception as e:
+                print(f"⚠️  Error removing {json_file}: {e}")
+    
+    if dev_staging_cleaned > 0:
+        print(f"✅ Cleaned development staging: removed {dev_staging_cleaned} items")
+    else:
+        print("✅ Development staging: already clean")
     
     print("\n" + "=" * 60)
     print("🎉 Cleanup completed! System ready for fresh run.")
@@ -211,6 +269,31 @@ def main():
             print(f"   {dir_name}/: {status}")
         else:
             print(f"   {dir_name}/: ✅ Directory doesn't exist")
+    
+    # NEW: Check session output directories
+    remaining_sessions = glob.glob("outputs/session_*")
+    if remaining_sessions:
+        print(f"   Session outputs: ⚠️  {len(remaining_sessions)} directories remaining")
+        for session_dir in remaining_sessions[:3]:  # Show first 3
+            print(f"      - {session_dir}")
+        if len(remaining_sessions) > 3:
+            print(f"      - ... and {len(remaining_sessions) - 3} more")
+    else:
+        print("   Session outputs: ✅ All removed")
+    
+    # NEW: Check development staging directories
+    dev_dashboard_count = len(glob.glob("dev_staging/dashboard/*")) if os.path.exists("dev_staging/dashboard") else 0
+    dev_json_count = len(glob.glob("dev_staging/json/*")) if os.path.exists("dev_staging/json") else 0
+    total_dev_staging = dev_dashboard_count + dev_json_count
+    
+    if total_dev_staging > 0:
+        print(f"   Development staging: ⚠️  {total_dev_staging} files remaining")
+        if dev_dashboard_count > 0:
+            print(f"      - Dashboard files: {dev_dashboard_count}")
+        if dev_json_count > 0:
+            print(f"      - JSON files: {dev_json_count}")
+    else:
+        print("   Development staging: ✅ Clean")
     
     # Check database and large files
     for db_file in db_files:

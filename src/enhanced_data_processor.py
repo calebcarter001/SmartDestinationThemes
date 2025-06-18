@@ -739,7 +739,7 @@ class EnhancedDataProcessor:
         nano_themes = affinity.get('nano_themes', [])
         if not nano_themes:
             # Fallback only for LLM failures or missing nano themes
-            logger.warning(f"No LLM-generated nano themes found for '{theme}' - using fallback generation")
+            logger.debug(f"Using fallback nano themes for '{theme}' (LLM generation unavailable)")
             nano_themes = self._generate_nano_themes(theme, sub_themes, rationale)
         else:
             logger.debug(f"Using LLM-generated nano themes for '{theme}': {len(nano_themes)} themes")

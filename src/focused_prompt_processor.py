@@ -52,20 +52,49 @@ class FocusedPromptProcessor:
     def __init__(self, llm_generator, config: Dict[str, Any]):
         self.llm_generator = llm_generator
         self.config = config
-        self.max_parallel_requests = config.get('performance', {}).get('max_parallel_llm_requests', 5)
-        self.batch_size = config.get('performance', {}).get('theme_batch_size', 8)  # Process themes in batches
-        self.enable_intelligent_batching = config.get('performance', {}).get('enable_intelligent_batching', True)
-        self.enable_response_caching = config.get('performance', {}).get('enable_llm_response_caching', True)
+        
+        # Get performance configuration from both new and legacy sections
+        perf_config = config.get('performance_optimization', {})
+        legacy_config = config.get('performance', {})
+        
+        # Use new config first, fallback to legacy
+        self.max_parallel_requests = (
+            perf_config.get('max_concurrent_web_requests') or
+            legacy_config.get('max_parallel_llm_requests', 5)
+        )
+        self.batch_size = (
+            perf_config.get('theme_batch_size') or
+            legacy_config.get('theme_batch_size', 8)
+        )
+        self.enable_intelligent_batching = (
+            perf_config.get('enable_intelligent_batching') if 'enable_intelligent_batching' in perf_config
+            else legacy_config.get('enable_intelligent_batching', True)
+        )
+        self.enable_response_caching = (
+            perf_config.get('enable_persistent_cache') if 'enable_persistent_cache' in perf_config
+            else legacy_config.get('enable_llm_response_caching', True)
+        )
+        
+        # Enhanced performance features
+        self.enable_work_stealing = perf_config.get('enable_work_stealing', False)
+        self.worker_pool_size = perf_config.get('worker_pool_size', 12)
+        self.enable_streaming = perf_config.get('enable_streaming_results', False)
+        self.progressive_feedback_interval = perf_config.get('progressive_feedback_interval', 2.0)
+        
+        # Initialize in-memory cache (fallback for when persistent cache is not available)
         self._response_cache = {} if self.enable_response_caching else None
         
-        # Performance monitoring
+        # Performance monitoring (enhanced)
         self.performance_metrics = {
             'total_llm_calls': 0,
             'cache_hits': 0,
             'cache_misses': 0,
             'batch_count': 0,
             'processing_times': [],
-            'theme_counts': []
+            'theme_counts': [],
+            'work_stealing_operations': 0,
+            'streaming_chunks_sent': 0,
+            'memory_usage_mb': 0
         }
         
     async def process_destination(self, destination: str, web_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

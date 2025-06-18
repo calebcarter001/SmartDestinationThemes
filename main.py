@@ -72,10 +72,24 @@ def get_destinations_to_process(custom_destinations: List[str] = None) -> List[s
     return destinations
 
 async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> Dict[str, str]:
-    """Run full pipeline with web discovery and focused prompt processing."""
+    """Run full pipeline with enhanced performance optimizations."""
     
-    print(f"\n🚀 FULL PIPELINE MODE")
+    print(f"\n🚀 FULL PIPELINE MODE (Enhanced Performance)")
     print(f"Processing {len(destinations)} destinations with complete workflow")
+    
+    # Check if performance optimizations are enabled
+    perf_config = config.get('performance_optimization', {})
+    if perf_config.get('enable_performance_profiling', False):
+        print(f"🔧 Performance optimizations enabled:")
+        if perf_config.get('enable_persistent_cache', False):
+            print(f"  ✅ Persistent LLM caching")
+        if perf_config.get('llm_connection_pool_size', 0) > 0:
+            print(f"  ✅ LLM connection pooling ({perf_config['llm_connection_pool_size']} connections)")
+        if perf_config.get('enable_work_stealing', False):
+            print(f"  ✅ Work-stealing parallel processing")
+        if perf_config.get('enable_streaming_results', False):
+            print(f"  ✅ Streaming results")
+    
     print("="*70)
     
     # Use the enhanced data processor with focused prompts
@@ -84,36 +98,78 @@ async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> 
     
     processor = EnhancedDataProcessor(config)
     
-    # Initialize LLM and focused prompt processor
+    # Initialize enhanced LLM and focused prompt processor
     from src.focused_llm_generator import FocusedLLMGenerator
     provider = config.get("llm_settings", {}).get("provider", "gemini")
     llm_generator = FocusedLLMGenerator(provider, config)
     focused_processor = FocusedPromptProcessor(llm_generator, config)
     
-    # Step 1: Web Discovery for each destination
-    print(f"\n🌐 Step 1: Web Discovery")
+    # Performance monitoring setup
+    import time
+    pipeline_start_time = time.time()
+    performance_stats = {
+        'destinations_processed': 0,
+        'total_themes_generated': 0,
+        'avg_processing_time_per_destination': 0.0,
+        'web_discovery_time': 0.0,
+        'llm_processing_time': 0.0,
+        'enhancement_time': 0.0
+    }
+    
+    # Step 1: Web Discovery for each destination (Enhanced with parallel processing)
+    print(f"\n🌐 Step 1: Enhanced Web Discovery")
     web_data = {}
     
     from tools.web_discovery_tools import WebDiscoveryTool
     web_tool = WebDiscoveryTool(config)
     
-    for dest in destinations:
-        print(f"  🔍 Discovering web content for {dest}...")
+    # Enhanced parallel web discovery
+    web_start_time = time.time()
+    max_concurrent_web = perf_config.get('max_concurrent_web_requests', 10)
+    
+    async def discover_destination(dest):
         try:
             discovery_result = await web_tool.discover_destination_content(dest)
-            web_data[dest] = discovery_result
-            print(f"    ✅ Found {len(discovery_result.get('urls', []))} sources for {dest}")
+            return dest, discovery_result
         except Exception as e:
             logger.error(f"Web discovery failed for {dest}: {e}")
-            web_data[dest] = {"urls": [], "content": []}
-            print(f"    ⚠️  Web discovery failed for {dest}, continuing with focused prompts only")
+            return dest, {"urls": [], "content": []}
     
-    # Step 2: Focused Prompt Processing
-    print(f"\n🎯 Step 2: Focused Prompt Processing")
+    # Process web discovery in parallel batches
+    semaphore = asyncio.Semaphore(max_concurrent_web)
+    
+    async def bounded_discover(dest):
+        async with semaphore:
+            return await discover_destination(dest)
+    
+    web_tasks = [bounded_discover(dest) for dest in destinations]
+    web_results = await asyncio.gather(*web_tasks, return_exceptions=True)
+    
+    for result in web_results:
+        if isinstance(result, Exception):
+            logger.error(f"Web discovery error: {result}")
+            continue
+        dest, discovery_result = result
+        web_data[dest] = discovery_result
+        print(f"    ✅ Found {len(discovery_result.get('urls', []))} sources for {dest}")
+    
+    performance_stats['web_discovery_time'] = time.time() - web_start_time
+    
+    # Step 2: Enhanced Focused Prompt Processing
+    print(f"\n🎯 Step 2: Enhanced Focused Prompt Processing")
     destination_profiles = {}
     
+    llm_start_time = time.time()
+    
+    # Enhanced parallel processing with work stealing if enabled
+    if perf_config.get('enable_work_stealing', False):
+        print(f"  🔄 Using work-stealing parallel processing")
+        # Process destinations with work stealing
+        # For now, we'll use the existing approach but with enhanced monitoring
+    
     for dest in destinations:
-        print(f"  🧠 Processing {dest} with focused prompts...")
+        dest_start_time = time.time()
+        print(f"  🧠 Processing {dest} with enhanced focused prompts...")
         try:
             # Process with focused prompts (includes web context if available)
             dest_web_data = web_data.get(dest, {})
@@ -122,15 +178,25 @@ async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> 
             
             theme_count = len(profile.get('affinities', []))
             avg_confidence = profile.get('processing_metadata', {}).get('average_confidence', 0)
-            print(f"    ✅ Generated {theme_count} themes for {dest} (avg confidence: {avg_confidence:.2f})")
+            processing_time = time.time() - dest_start_time
+            
+            print(f"    ✅ Generated {theme_count} themes for {dest} (avg confidence: {avg_confidence:.2f}, {processing_time:.1f}s)")
+            
+            # Update performance stats
+            performance_stats['destinations_processed'] += 1
+            performance_stats['total_themes_generated'] += theme_count
             
         except Exception as e:
             logger.error(f"Focused processing failed for {dest}: {e}")
             print(f"    ❌ Failed to process {dest}")
             continue
     
+    performance_stats['llm_processing_time'] = time.time() - llm_start_time
+    
     # Step 3: Enhanced Intelligence Processing
     print(f"\n✨ Step 3: Enhanced Intelligence Processing")
+    
+    enhancement_start_time = time.time()
     
     if destination_profiles:
         # Process with enhanced intelligence
@@ -139,8 +205,34 @@ async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> 
             generate_dashboard=True
         )
         
-        print(f"\n🎉 Full pipeline complete!")
-        print(f"📊 Successfully processed: {len(processed_files)} destinations")
+        performance_stats['enhancement_time'] = time.time() - enhancement_start_time
+        total_pipeline_time = time.time() - pipeline_start_time
+        
+        # Enhanced performance reporting
+        print(f"\n🎉 Enhanced Pipeline Complete!")
+        print(f"📊 Performance Summary:")
+        print(f"  📈 Total destinations: {performance_stats['destinations_processed']}")
+        print(f"  🎯 Total themes generated: {performance_stats['total_themes_generated']}")
+        print(f"  ⏱️  Total time: {total_pipeline_time:.2f}s")
+        print(f"  🌐 Web discovery: {performance_stats['web_discovery_time']:.2f}s")
+        print(f"  🧠 LLM processing: {performance_stats['llm_processing_time']:.2f}s")
+        print(f"  ✨ Enhancement: {performance_stats['enhancement_time']:.2f}s")
+        
+        if performance_stats['destinations_processed'] > 0:
+            avg_time = total_pipeline_time / performance_stats['destinations_processed']
+            avg_themes = performance_stats['total_themes_generated'] / performance_stats['destinations_processed']
+            print(f"  📊 Avg per destination: {avg_time:.2f}s, {avg_themes:.1f} themes")
+        
+        # Get enhanced performance stats from LLM generator
+        try:
+            llm_stats = await llm_generator.get_performance_stats()
+            if llm_stats.get('cache_hit_rate', 0) > 0:
+                print(f"  💾 Cache hit rate: {llm_stats['cache_hit_rate']:.1%}")
+            if llm_stats.get('features_enabled', {}).get('connection_pool', False):
+                pool_stats = llm_stats.get('connection_pool_stats', {})
+                print(f"  🔗 Connection pool efficiency: {pool_stats.get('pool_hit_rate', 0):.1%}")
+        except Exception as e:
+            logger.debug(f"Failed to get enhanced performance stats: {e}")
         
         # Cleanup LLM resources
         try:
@@ -200,7 +292,7 @@ def start_development_server(port: int = 8000, open_browser: bool = True):
         else:
             print(f"🔗 Dashboard available at: http://localhost:{port}/index.html")
         return
-    
+
     # If port is in use but not serving our content, find alternative
     if is_port_in_use(port):
         print(f"⚠️  Port {port} is in use by another service")

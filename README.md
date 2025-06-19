@@ -1,17 +1,18 @@
-# 🌍 SmartDestinationThemes
+# 🌍 Destination Insights Discovery
 
-An intelligent destination analysis system that discovers, analyzes, and validates travel themes using advanced prompt processing, web discovery, and evidence-based validation. Built as an internal tool for content strategists and product managers, featuring an interactive dashboard with comprehensive theme analysis and professional Expedia-inspired design.
+An intelligent travel destination analysis system powered by **multi-agent orchestration** that discovers, analyzes, and validates travel themes using advanced AI, web discovery, and evidence-based validation. Featuring a professional interactive dashboard with comprehensive intelligence analysis.
+
+> **🎉 Latest Update**: Complete agentic system overhaul with multi-agent orchestration, evidence validation fixes, back navigation, and 25 top global destinations ready for processing!
 
 ## ✨ Key Features
 
-- **🤖 Agentic Workflow System**: Multi-agent orchestration with intelligent task coordination and autonomous processing
-- **🧠 Enhanced Intelligence Processing**: 4-phase decomposed prompt system with 18 validation attributes
-- **🎯 Content Intelligence**: 4 specialized attributes for factual content extraction and source validation
-- **🔍 Evidence-Based Validation**: Real-time web evidence collection with travel authority scoring  
-- **📊 Interactive Dashboard**: Professional HTML interface with expandable content sections
-- **🌐 Smart Server Management**: Automatic port detection and conflict resolution
-- **⚡ Performance Optimized**: Parallel processing, intelligent caching, and connection pooling
-- **🎨 Professional Design**: Clean Expedia-inspired UI with brand colors (#00355F)
+- **🤖 Multi-Agent Orchestration**: 6 intelligent agents working in harmony for comprehensive destination analysis
+- **🧠 Advanced Intelligence Processing**: 18 validation attributes with 4-phase decomposed LLM processing
+- **🔍 Evidence-Based Validation**: Real-time web evidence with travel authority scoring and cross-source verification
+- **📊 Professional Interactive Dashboard**: Clean design with evidence modals, back navigation, and quality indicators
+- **⚡ High-Performance Architecture**: Agent-based parallel processing with intelligent fallback systems
+- **🌍 Global Coverage**: Ready to process 25 of the world's top travel destinations
+- **🎨 Modern UI/UX**: Professional Expedia-inspired interface with responsive design
 
 ## 🚀 Quick Start
 
@@ -28,7 +29,7 @@ pip install -r requirements.txt
 ### 2. Configure API Keys
 Create a `.env` file in the project root:
 ```bash
-# LLM APIs (required - choose one)
+# LLM APIs (required - choose one or both)
 GEMINI_API_KEY=your_gemini_api_key
 OPENAI_API_KEY=your_openai_api_key
 
@@ -37,16 +38,7 @@ BRAVE_SEARCH_API_KEY=your_brave_search_api_key
 JINA_API_KEY=your_jina_api_key
 ```
 
-### 3. Configure Destinations
-Edit `config/config.yaml` to specify destinations:
-```yaml
-destinations:
-  - "Paris, France"
-  - "Tokyo, Japan"
-  - "New York, USA"
-```
-
-### 4. Run the Application
+### 3. Run the Application
 ```bash
 # Clean previous runs and start fresh processing
 python cleanup_for_fresh_run.py
@@ -56,439 +48,433 @@ python main.py
 python start_server.py
 ```
 
-## 🤖 Agentic Workflow System
+### 4. Access Dashboard
+Navigate to: **http://localhost:8000**
+- 📊 **Main Dashboard**: Overview of all destinations
+- 🎯 **Individual Pages**: Detailed analysis per destination
+- 🔙 **Back Navigation**: Easy navigation between pages
+- 📎 **Evidence Modals**: Click paperclips to view web evidence
 
-### Multi-Agent Architecture
+## 🏗️ System Architecture
 
-The SmartDestinationThemes application now features an **intelligent multi-agent orchestration system** that coordinates autonomous agents for comprehensive destination processing:
+### High-Level System Overview
+📊 **[View System Architecture](docs/architecture-overview.md)**
 
-#### 🎭 Agent Orchestrator
-- **Central Command Center**: Coordinates all agent activities and workflow execution
-- **Task Distribution**: Intelligent task routing based on agent capabilities and workload
-- **State Management**: Maintains workflow state and ensures processing continuity
-- **Performance Monitoring**: Real-time tracking of agent performance and resource utilization
+The Destination Insights Discovery system features a sophisticated **multi-agent orchestration architecture** that coordinates intelligent agents for comprehensive destination processing.
 
-#### 🕷️ Web Discovery Agent
-- **Intelligent Web Crawling**: Adaptive content discovery from travel authority sources
-- **Smart Query Generation**: Context-aware search query optimization
-- **Content Filtering**: Quality-based content selection and relevance scoring
+### Agent Workflow Sequence
+🔄 **[View Agent Workflow](docs/agent-workflow.md)**
+
+The system processes destinations through a **4-phase intelligent workflow** with parallel processing and quality assurance at every step.
+
+### Data Flow Architecture
+🌊 **[View Data Flow](docs/data-flow.md)**
+
+Evidence and intelligence flow through **multiple validation layers** ensuring high-quality, authoritative destination insights.
+
+### Agent Communication Pattern
+📡 **[View Agent Communication](docs/agent-communication.md)**
+
+Agents communicate through an **asynchronous message bus** with intelligent task coordination and resource management.
+
+## 🤖 Multi-Agent System
+
+### 🎭 Orchestrator Agent
+**Central Command & Coordination**
+- **Workflow Management**: Coordinates all agent activities and task distribution
+- **State Tracking**: Maintains comprehensive workflow state across all phases
+- **Resource Allocation**: Intelligent resource management and load balancing
+- **Quality Monitoring**: Real-time performance tracking and optimization
+
+### 🕷️ Web Discovery Agent
+**Intelligent Content Discovery**
+- **Smart Query Generation**: Context-aware search query optimization for travel content
+- **Authority Filtering**: Prioritizes high-authority travel sources (Lonely Planet, government tourism sites)
+- **Content Validation**: Quality-based content selection with relevance scoring
 - **Source Verification**: Travel authority validation and credibility assessment
 
-#### 🧠 LLM Orchestration Agent
-- **Resource Management**: Intelligent LLM resource allocation and optimization
-- **Processing Strategy**: Adaptive processing approaches based on content complexity
-- **Quality Control**: Performance monitoring and result optimization
-- **Cache Management**: Intelligent caching for improved efficiency
+**Performance**: ~11.6 seconds per destination, 9 high-quality sources average
 
-#### 💡 Intelligence Enhancement Agent
-- **Attribute Processing**: 18 specialized intelligence attributes with adaptive selection
+### 🧠 LLM Orchestration Agent
+**Resource Management & Processing**
+- **Adaptive Resource Allocation**: Intelligent LLM connection pooling and optimization
+- **4-Phase Processing**: Theme discovery → Analysis → Enhancement → Quality assessment
+- **Performance Optimization**: Intelligent batching and caching for efficiency
+- **Quality Control**: Continuous monitoring and result optimization
+
+**Performance**: ~0.01 seconds per destination (cached), 23 themes average
+
+### 💡 Intelligence Enhancement Agent
+**Advanced Attribute Processing**
+- **18 Intelligence Attributes**: Core intelligence (14) + Content intelligence (4)
+- **Dependency-Aware Processing**: Optimized processing order based on attribute relationships
 - **Context-Aware Enhancement**: Destination-specific intelligence optimization
-- **Dependency Management**: Intelligent processing order based on attribute dependencies
-- **Quality Optimization**: Continuous improvement of enhancement quality
+- **Quality-Driven Optimization**: Continuous improvement of enhancement quality
 
-#### 🔍 Evidence Validation Agent
-- **Cross-Source Verification**: Multi-source evidence validation and conflict resolution
-- **Authority Scoring**: Source credibility assessment and authority ranking
-- **Fact Checking**: Real-time validation against authoritative travel sources
-- **Evidence Synthesis**: Intelligent evidence aggregation and consensus building
+**Core Attributes**: nano_themes, price_insights, seasonality, traveler_types, accessibility, authenticity_analysis, hidden_gem_score, depth_analysis, cultural_sensitivity, experience_intensity, time_commitment, local_transportation, accommodation_types, booking_considerations
 
-#### ✅ Quality Assurance Agent
-- **Continuous Monitoring**: Real-time quality assessment throughout the workflow
-- **Adaptive Interventions**: Dynamic quality improvements and error correction
-- **Performance Analytics**: Comprehensive quality metrics and reporting
+**Content Attributes**: iconic_landmarks, practical_travel_intelligence, neighborhood_insights, content_discovery_intelligence
+
+### 🔍 Evidence Validation Agent
+**Cross-Source Verification & Authority Scoring**
+- **Multi-Source Validation**: Cross-references evidence across multiple travel authorities
+- **Authority Scoring**: Weights sources by domain authority and travel relevance
+- **Conflict Resolution**: Intelligent resolution of conflicting evidence
+- **Evidence Synthesis**: Aggregates evidence into comprehensive theme support
+
+**Performance**: ~0.11 seconds per destination, 38 evidence pieces average across themes
+
+### ✅ Quality Assurance Agent
+**Continuous Monitoring & Adaptive Intervention**
+- **Real-Time Quality Assessment**: Monitors quality throughout the entire workflow
+- **Adaptive Interventions**: Automatic quality improvements and error correction
+- **Performance Analytics**: Comprehensive quality metrics and trend analysis
 - **Optimization Recommendations**: Intelligent suggestions for workflow improvements
 
-### Agent Communication & Coordination
+## 🌍 Ready-to-Process Destinations
 
-- **Message-Based Architecture**: Asynchronous inter-agent communication with message routing
-- **Workflow Orchestration**: Sequential and parallel task execution with dependency management
-- **Error Handling & Recovery**: Robust error handling with automatic retries and fallback strategies
-- **Performance Optimization**: Dynamic resource allocation and load balancing
+The system is pre-configured with **25 of the world's top travel destinations**:
 
-### Configuration & Control
+### 🏛️ Historic & Cultural Sites
+- **Athens, Greece** - Ancient wonders and archaeological treasures
+- **Rome, Italy** - Eternal city with millennia of history
+- **Cairo, Egypt** - Pyramids and ancient Egyptian civilization
+- **Agra, India** - Taj Mahal and Mughal architecture
+- **Beijing, China** - Great Wall and imperial heritage
+- **Stonehenge, England** - Prehistoric monument and mystery
+- **Siem Reap, Cambodia** - Gateway to Angkor Wat temples
+- **Chichen Itza, Mexico** - Mayan archaeological wonder
+- **Machu Picchu, Peru** - Lost city of the Incas
+- **Bagan, Myanmar** - Ancient temple complex
 
-```yaml
-# Agent system configuration in config/agent_config.yaml
-agents:
-  orchestrator:
-    enabled: true
-    max_concurrent_workflows: 3
-  
-  web_discovery:
-    enabled: true
-    adaptive_query_generation: true
-    authority_filtering: true
-  
-  llm_orchestration:
-    enabled: true
-    adaptive_resource_allocation: true
-    performance_optimization: true
-  
-  intelligence_enhancement:
-    enabled: true
-    adaptive_attribute_processing: true
-    dependency_aware_processing: true
-  
-  evidence_validation:
-    enabled: true
-    cross_source_validation: true
-    conflict_resolution: true
-  
-  quality_assurance:
-    enabled: true
-    continuous_monitoring: true
-    adaptive_interventions: true
-```
+### 🏞️ Natural Wonders
+- **Grand Canyon, Arizona, USA** - Iconic geological marvel
+- **Reykjavik, Iceland** - Northern Lights gateway
+- **Giant's Causeway, Northern Ireland** - Volcanic basalt formations
+- **Bryce Canyon, Utah, USA** - Stunning red rock formations
+- **Antelope Canyon, Arizona, USA** - Slot canyon photography paradise
+- **Reynisfjara Beach, Iceland** - Dramatic black sand volcanic beach
+- **Yosemite National Park, California, USA** - Granite cliffs and waterfalls
+- **Dead Sea, Jordan** - Unique salt lake experience
+- **Ha Long Bay, Vietnam** - Emerald waters and limestone islands
+- **Jeita Grotto, Lebanon** - Stunning limestone cave system
 
-### Testing the Agent System
-
-```bash
-# Test the complete agentic workflow
-python test_agents.py
-
-# Test individual agent capabilities
-python -m agents.test_web_discovery
-python -m agents.test_llm_orchestration
-```
-
-## 🎯 Core Architecture
-
-### Enhanced Intelligence Pipeline
-
-#### 1. Web Discovery (35-45s)
-- **Smart Content Discovery**: Searches 10+ travel websites per destination
-- **Authority-Based Filtering**: Prioritizes high-authority travel sources
-- **Content Extraction**: Clean text extraction using Jina Reader API
-- **Fallback Systems**: Built-in scrapers when APIs unavailable
-
-#### 2. Focused Prompt Processing (0.01-0.03s)
-**4-Phase Decomposition** prevents LLM truncation:
-- **Phase 1 - Theme Discovery**: 5 parallel prompts for comprehensive coverage
-- **Phase 2 - Theme Analysis**: Sequential analysis for depth
-- **Phase 3 - Content Enhancement**: Parallel enhancement for quality
-- **Phase 4 - Quality Assessment**: Sequential validation and scoring
-
-#### 3. Enhanced Intelligence Processing (5-20s)
-**18 Validation Attributes** per theme:
-
-**Core Intelligence (14 attributes):**
-- `nano_themes` - Micro-level theme breakdown
-- `price_insights` - Comprehensive pricing analysis
-- `seasonality` - Peak/shoulder/off-season recommendations
-- `traveler_types` - Solo/couple/family/group suitability
-- `accessibility` - Physical/dietary/budget accessibility
-- `authenticity_analysis` - Local vs. tourist experience rating
-- `hidden_gem_score` - Off-the-beaten-path potential
-- `depth_analysis` - Experience depth and complexity
-- `cultural_sensitivity` - Cultural considerations and etiquette
-- `experience_intensity` - Physical and emotional intensity
-- `time_commitment` - Duration recommendations
-- `local_transportation` - Getting around information
-- `accommodation_types` - Lodging recommendations
-- `booking_considerations` - Advance planning requirements
-
-**Content Intelligence (4 specialized attributes):**
-- `iconic_landmarks` - Specific landmarks with compelling descriptions and unique characteristics
-- `practical_travel_intelligence` - Actual costs, timing data, booking specifics, and money-saving tips
-- `neighborhood_insights` - Area names, personalities, specialties, and accommodation recommendations
-- `content_discovery_intelligence` - Source validation, marketing phrases, and authority metadata
-
-#### 4. Evidence Validation & Dashboard Generation
-- **Comprehensive Evidence Collection**: Validates all attributes with web evidence
-- **Authority Scoring**: Sources ranked by domain authority and relevance
-- **Interactive Dashboard**: Professional HTML with expandable content sections
-- **Development Staging**: Automatic staging for immediate viewing
+### 🏙️ World-Class Cities
+- **Tokyo, Japan** - Modern metropolis meets ancient tradition
+- **London, UK** - Historic capital with royal heritage
+- **Paris, France** - City of light and romance
+- **Florence, Italy** - Renaissance art and architecture capital
+- **Vienna, Austria** - Imperial elegance and classical music
 
 ## 📊 Dashboard Features
 
 ### Professional Theme Cards
-- **Clean Design**: Expedia-inspired styling with brand colors
-- **Expandable Sections**: Click to reveal detailed content intelligence
-- **Quality Indicators**: Visual status indicators for theme completeness
-- **Responsive Layout**: Professional grid system for optimal viewing
+- **Clean Design**: Modern, responsive layout with professional typography
+- **Evidence Integration**: Blue paperclip icons (📎) for themes with web evidence
+- **Quality Indicators**: Visual badges showing theme completeness and authority
+- **Expandable Content**: Click to reveal detailed intelligence attributes
 
-### Content Intelligence Display
-- **🏛️ Iconic Landmarks**: Specific locations with unique characteristics
-- **💡 Practical Intelligence**: Real costs, booking timing, and money-saving tips
-- **🏘️ Neighborhood Insights**: Area personalities and accommodation recommendations
-- **🔍 Source Validation**: Travel authority scoring and content credibility
+### Evidence Modal System
+- **Real Web URLs**: Clickable links to authoritative travel sources
+- **Authority Scoring**: Source credibility and relevance ratings
+- **Cross-Source Validation**: Evidence verified across multiple sources
+- **Quality Ratings**: Excellent, good, and acceptable quality indicators
+
+### Navigation & User Experience
+- **Back Navigation**: Easy return to main dashboard from any destination
+- **Responsive Design**: Optimized for desktop and mobile viewing
+- **Loading Indicators**: Real-time progress tracking during processing
+- **Professional Styling**: Consistent branding and visual hierarchy
 
 ### Intelligence Insights
 - **💎 Hidden Gems Detection**: Identifies off-the-beaten-path experiences
-- **🏆 Authenticity Scoring**: Measures local vs. tourist-oriented experiences  
+- **🏆 Authenticity Scoring**: Measures local vs. tourist-oriented experiences
 - **📈 Quality Metrics**: Comprehensive quality assessment with confidence scoring
 - **🎨 Composition Analysis**: Theme distribution and diversity analysis
 
-## 🔧 Configuration
+## ⚙️ Configuration
 
 ### Core Settings (`config/config.yaml`)
 ```yaml
-# Server configuration
+# Application name and branding
+app_name: "Destination Insights Discovery"
+
+# Server configuration with auto-detection
 server:
   default_port: 8000
-  host: "localhost"
   auto_port_detection: true
   max_port_attempts: 10
-  open_browser_by_default: true
 
-# LLM settings
+# LLM configuration
 llm_settings:
   provider: "gemini"  # or "openai"
   gemini_model_name: "gemini-2.0-flash"
-  openai_model_name: "gpt-4o-mini"
+  openai_model_name: "o4-mini"
 
-# Destinations to process
+# Agent system configuration
+agents:
+  enabled: true
+  migration_mode: "fallback"  # Try agents first, fallback to legacy
+  
+  orchestrator:
+    max_parallel_destinations: 3
+    quality_threshold: 0.75
+    
+  web_discovery:
+    enabled: true
+    max_sources_per_destination: 12
+    adaptive_query_generation: true
+    
+  intelligence_enhancement:
+    enabled: true
+    adaptive_attribute_processing: true
+    
+  evidence_validation:
+    enabled: true
+    cross_source_validation: true
+    
+# Pre-configured with 25 top destinations
 destinations:
-  - "Paris, France"
   - "Tokyo, Japan"
-  - "New York, USA"
-
-# Agentic workflow settings
-agentic_workflow:
-  enabled: true
-  orchestration_mode: "intelligent"  # or "sequential"
-  parallel_processing: true
-  max_concurrent_destinations: 2
-
-# Quality settings
-data_quality_heuristics:
-  enabled: true
-  rich_data_confidence: 0.75
-  medium_data_confidence: 0.55
-  poor_data_confidence: 0.35
+  - "Grand Canyon, Arizona, USA"
+  - "Reykjavik, Iceland"
+  # ... 22 more destinations
 ```
 
 ### Agent-Specific Configuration (`config/agent_config.yaml`)
 ```yaml
-# Complete agent system configuration
+# Detailed agent behavior configuration
 agents:
   orchestrator:
-    enabled: true
-    max_concurrent_workflows: 3
-    workflow_timeout: 300  # 5 minutes
+    workflow_timeout: 300
     enable_performance_monitoring: true
-  
+    
   web_discovery:
-    enabled: true
-    adaptive_query_generation: true
-    authority_filtering: true
-    max_sources_per_destination: 15
     content_quality_threshold: 0.6
-  
+    authority_filtering: true
+    
   llm_orchestration:
-    enabled: true
     adaptive_resource_allocation: true
-    performance_optimization: true
-    enable_intelligent_batching: true
     max_concurrent_requests: 8
-  
+    
   intelligence_enhancement:
-    enabled: true
-    adaptive_attribute_processing: true
     dependency_aware_processing: true
     quality_driven_optimization: true
-  
+    
   evidence_validation:
-    enabled: true
-    cross_source_validation: true
-    conflict_resolution: true
     evidence_sufficiency_threshold: 0.7
-  
+    conflict_resolution: true
+    
   quality_assurance:
-    enabled: true
     continuous_monitoring: true
-    adaptive_interventions: true
-    quality_threshold: 0.8
-```
-
-## 📈 Results & Output
-
-### Dashboard Access
-After processing, access results at:
-- **Main Dashboard**: `http://localhost:8000/index.html`
-- **Individual Destinations**: `http://localhost:8000/paris__france.html`
-- **Development Staging**: Automatically staged in `dev_staging/dashboard/`
-
-### File Structure
-```
-outputs/session_YYYYMMDD_HHMMSS/
-├── dashboard/
-│   ├── index.html              # Main dashboard
-│   ├── paris__france.html      # Individual destination pages
-│   └── ...
-├── json/
-│   ├── paris__france_enhanced.json    # Enhanced theme data
-│   ├── paris__france_evidence.json    # Evidence data
-│   └── ...
-└── session_summary.json       # Processing summary
-
-dev_staging/
-├── dashboard/                  # Latest session staged for development
-└── json/                      # Latest JSON data
+    intervention_threshold: 0.5
 ```
 
 ## 🚀 Advanced Usage
 
-### Agentic Workflow Integration
+### Processing Modes
 
-The application now supports **two processing modes**:
-
-#### Traditional Mode (Backward Compatible)
+#### Agent Mode (Recommended)
 ```bash
-# Use existing functionality with enhanced performance
+# Uses intelligent multi-agent orchestration
 python main.py
 ```
 
-#### Agentic Workflow Mode
+#### Legacy Mode (Fallback)
 ```bash
-# Enable multi-agent orchestration in config/config.yaml
-agentic_workflow:
-  enabled: true
-  orchestration_mode: "intelligent"
-
-# Run with agent orchestration
-python main.py --use-agents
-
-# Test agent system specifically
-python test_agents.py
+# Traditional processing (automatically used if agents fail)
+# Configured in config.yaml with migration_mode: "fallback"
 ```
-
-### Separated Architecture
-**Processing**: `main.py` handles data processing and staging
-**Server**: `start_server.py` provides standalone web server
-
-Benefits:
-- Independent processing and serving
-- Multiple processing sessions with persistent server
-- Better development workflow control
-- Agent-based parallel processing for improved performance
 
 ### Command Line Options
 
-#### Data Processing (`main.py`)
+#### Data Processing
 ```bash
-# Process default destinations from config
+# Process all configured destinations
 python main.py
 
 # Process specific destinations
 python main.py --destinations "Bali, Indonesia" "Santorini, Greece"
 
-# Process without browser instructions
+# Clean run without browser instructions
 python main.py --no-browser
 ```
 
-#### Standalone Server (`start_server.py`)
+#### Server Management
 ```bash
-# Start server for latest processed data
+# Start server for latest results
 python start_server.py
 
-# Custom port
-python start_server.py --port 8080
-
-# No browser opening
-python start_server.py --no-browser
+# Custom port and options
+python start_server.py --port 8080 --no-browser
 
 # List available sessions
 python start_server.py --list-sessions
-
-# Serve specific session
-python start_server.py --session session_20250617_231222
 ```
 
 ### Utility Scripts
 
-#### Cleanup for Fresh Runs
 ```bash
-# Clean all caches, outputs, and staging for fresh processing
+# Complete system cleanup
 python cleanup_for_fresh_run.py
-```
 
-#### Dashboard Opener
-```bash
-# Quick dashboard access utility
+# Quick dashboard access
 python open_dashboard.py
 ```
 
-## 📊 Performance Metrics
+## 📈 Performance Metrics
 
-### Processing Times
-- **Small destinations**: ~40-50 seconds
-- **Major cities**: ~60-70 seconds  
-- **Multiple destinations**: ~20-25s per destination (parallel)
+### Agent System Performance
+- **Web Discovery**: ~11.6 seconds per destination
+- **LLM Processing**: ~0.01 seconds (cached) per destination
+- **Intelligence Enhancement**: ~0.01 seconds per destination
+- **Evidence Validation**: ~0.11 seconds per destination
+- **Total Processing**: ~12 seconds per destination
 
 ### Quality Distribution
-- **Excellent**: 0.8+ (comprehensive themes with strong evidence)
-- **Good**: 0.6-0.8 (solid themes with moderate evidence)
-- **Acceptable**: 0.4-0.6 (basic themes, limited evidence)
+- **Excellent** (0.85+): Comprehensive themes with strong multi-source evidence
+- **Good** (0.70-0.84): Solid themes with moderate evidence support
+- **Acceptable** (0.50-0.69): Basic themes with limited evidence
 
-### Resource Usage
-- **Memory**: 200-500MB depending on complexity
-- **Storage**: 1-5MB per destination
-- **Cache Hit Rate**: 100% for repeated processing
+### Evidence Statistics
+- **Average Evidence per Destination**: 38 pieces across 23 themes
+- **Source Authority**: Government tourism sites, Lonely Planet, major travel authorities
+- **Evidence Coverage**: 52% of themes have real web evidence (others use AI analysis)
 
 ## 🛠️ Troubleshooting
 
-### Common Issues
+### Common Issues & Solutions
 
-**"No evidence validation data"**
-- ✅ **Fixed**: Now shows "Enhanced theme analysis complete" 
-- Content intelligence attributes properly integrated
-
-**Port Conflicts**
-- ✅ **Fixed**: Automatic port detection and conflict resolution
-- Clear messaging about active ports and URLs
-
-**Content Intelligence Missing**
-- Ensure LLM API keys are properly configured
-- Check logs for content intelligence processing status
-
-## 🎨 Customization
-
-### Adding Destinations
-Edit `config/config.yaml`:
-```yaml
-destinations:
-  - "Your Custom Destination"
-  - "Another Location"
+**"Dashboard index file not found"**
+```bash
+# Solution: Generate dashboard first
+python main.py
 ```
 
-### Adjusting Quality Thresholds
+**"Agent system failed, falling back to legacy"**
+- Check API keys in `.env` file
+- Verify internet connectivity
+- Review logs for specific agent errors
+
+**"Evidence validation report empty"**
+- ✅ **Fixed in latest version**: Evidence validation now properly integrated
+- All themes show appropriate evidence or AI analysis indicators
+
+**"No back button on destination pages"**
+- ✅ **Fixed in latest version**: All pages now have back navigation
+
+### Performance Optimization
 ```yaml
-data_quality_heuristics:
-  rich_data_confidence: 0.75    # Strict filtering
-  poor_data_confidence: 0.35    # Lenient filtering
+# Optimize for your system in config.yaml
+performance_optimization:
+  llm_connection_pool:
+    max_connections: 10  # Increase for better performance
+  
+  agent_max_concurrent_web_requests: 6  # Adjust based on bandwidth
 ```
 
-### Styling Customization
-Theme cards use Expedia brand colors and professional styling defined in the enhanced viewer generator. Modify `src/enhanced_viewer_generator.py` for custom styling.
+## 🧪 Testing & Development
 
-## 🏗️ Project Structure
+### Testing the Agent System
+```bash
+# Test complete agent workflow
+python test_agents.py
+
+# Test individual agents (if test files exist)
+python test_individual_agents.py
+```
+
+### Development Tools
+```bash
+# Clean development environment
+python cleanup_for_fresh_run.py
+
+# Monitor agent performance
+# View logs in real-time during processing
+tail -f logs/destination_intelligence.log
+```
+
+## 📁 Project Structure
 
 ```
 SmartDestinationThemes/
-├── src/                        # Core application code
-│   ├── core/                   # Core processing modules
-│   ├── utils/                  # Utility functions
-│   ├── enhanced_data_processor.py
-│   ├── enhanced_viewer_generator.py
-│   ├── content_intelligence_processor.py
-│   └── schemas.py
-├── tools/                      # External tool integrations
-├── config/                     # Configuration files
-├── main.py                     # Main processing script
-├── start_server.py            # Standalone server
-├── cleanup_for_fresh_run.py   # Cleanup utility
-├── open_dashboard.py          # Dashboard opener
-└── requirements.txt           # Dependencies
+├── 🤖 agents/                     # Multi-agent system
+│   ├── orchestrator_agent.py      # Central orchestration
+│   ├── web_discovery_agent.py     # Content discovery
+│   ├── llm_orchestration_agent.py # LLM management
+│   ├── intelligence_enhancement_agent.py  # Intelligence processing
+│   ├── evidence_validation_agent.py       # Evidence validation
+│   └── quality_assurance_agent.py         # Quality monitoring
+├── 📊 src/                        # Core application logic
+│   ├── agent_integration_layer.py # Agent-legacy bridge
+│   ├── enhanced_viewer_generator.py       # Dashboard generation
+│   ├── content_intelligence_processor.py  # Intelligence processing
+│   └── core/                      # Core modules
+├── ⚙️ config/                     # Configuration files
+│   ├── config.yaml               # Main configuration
+│   └── agent_config.yaml         # Agent-specific settings
+├── 🛠️ tools/                      # External integrations
+├── 📱 dev_staging/                # Development dashboard
+├── 📊 outputs/                    # Processing results
+├── 🚀 main.py                     # Main processing entry point
+├── 🌐 start_server.py             # Standalone dashboard server
+└── 🧹 cleanup_for_fresh_run.py    # System cleanup utility
 ```
+
+## 🎨 Customization
+
+### Adding New Destinations
+```yaml
+# Edit config/config.yaml
+destinations:
+  - "Your Custom Destination, Country"
+  - "Another Amazing Place, Region"
+```
+
+### Styling Customization
+The dashboard uses a professional design system that can be customized in `src/enhanced_viewer_generator.py`:
+- Modern color palette with travel industry standards
+- Responsive typography and spacing
+- Professional card layouts and evidence integration
+
+### Agent Behavior Customization
+Fine-tune agent behavior in `config/agent_config.yaml`:
+- Quality thresholds and validation criteria
+- Performance optimization settings
+- Resource allocation and timeouts
+
+## 🎯 Use Cases
+
+### Content Strategy Teams
+- **Market Research**: Comprehensive destination intelligence for content planning
+- **SEO Strategy**: Evidence-backed content themes with authority source validation
+- **Competitive Analysis**: Hidden gems and unique positioning opportunities
+
+### Product Managers
+- **Feature Development**: Data-driven insights for travel product features
+- **Market Expansion**: Intelligence for new destination offerings
+- **Quality Assurance**: Evidence validation for content accuracy
+
+### Travel Industry Professionals
+- **Destination Marketing**: Professional insights for tourism promotion
+- **Travel Planning**: Comprehensive intelligence for itinerary development
+- **Content Creation**: Authority-backed themes for travel content
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+We welcome contributions to the Destination Insights Discovery project!
+
+1. **Fork the repository**
+2. **Create feature branch**: `git checkout -b feature/amazing-feature`
+3. **Commit changes**: `git commit -m 'Add amazing feature'`
+4. **Push to branch**: `git push origin feature/amazing-feature`
+5. **Open Pull Request**
+
+### Development Guidelines
+- Follow existing code structure and naming conventions
+- Add tests for new agent functionality
+- Update documentation for new features
+- Ensure backward compatibility with legacy systems
 
 ## 📄 License
 
@@ -496,4 +482,25 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*Built for intelligent travel content strategy and destination analysis*
+## 🎉 Recent Updates
+
+### Version 2.0 - Agentic System Overhaul
+- ✅ **Multi-Agent Architecture**: Complete redesign with 6 intelligent agents
+- ✅ **Evidence Validation**: Fixed evidence modal system with real web URLs
+- ✅ **Application Rebranding**: Renamed to "Destination Insights Discovery"
+- ✅ **Back Navigation**: Added back buttons to all destination pages
+- ✅ **Top 25 Destinations**: Pre-configured with world's best travel destinations
+- ✅ **Performance Optimization**: Agent-based parallel processing
+- ✅ **Quality Assurance**: Continuous monitoring and adaptive interventions
+
+### Technical Improvements
+- ✅ **Agent Integration Layer**: Seamless agent-legacy system bridge
+- ✅ **Evidence Report Integration**: Fixed datetime serialization issues
+- ✅ **Professional Dashboard**: Modern UI with evidence paperclips
+- ✅ **Codebase Cleanup**: Removed temporary files and optimized structure
+
+---
+
+*🌍 Built for intelligent travel insights and destination discovery*
+
+**Ready to explore the world's most incredible destinations with AI-powered intelligence!** 🚀

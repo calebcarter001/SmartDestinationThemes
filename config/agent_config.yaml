@@ -1,0 +1,205 @@
+# Agent System Configuration
+# Controls the multi-agent orchestration system for SmartDestinationThemes
+
+agents:
+  # Master agent system control
+  enabled: true  # Set to true to enable agent system
+  migration_mode: "agents_only"  # Options: "legacy_only", "agents_only", "parallel", "hybrid"
+  
+  # Performance comparison and analysis
+  enable_comparison: false  # Run both systems in parallel for comparison
+  enable_performance_tracking: true
+  
+  # Orchestrator settings
+  orchestrator:
+    max_parallel_destinations: 3  # Maximum destinations to process in parallel
+    quality_threshold: 0.75  # Minimum quality threshold for acceptance
+    max_workflow_retries: 2  # Maximum retries per workflow
+    enable_adaptive_thresholds: true  # Dynamically adjust quality thresholds
+  
+  # Process-specific agent controls
+  web_discovery:
+    enabled: true
+    max_sources_per_destination: 12  # Increased for agent intelligence
+    timeout_seconds: 45
+    enable_content_validation: true
+    min_content_quality: 0.6
+    min_source_diversity: 0.7
+    adaptive_query_generation: true  # Enable intelligent query generation
+    enhanced_fallback: true  # Use enhanced fallback strategies
+  
+  llm_orchestration:
+    enabled: true
+    adaptive_resource_allocation: true  # Intelligent resource allocation
+    connection_pool_management: true
+    performance_optimization: true
+    enable_intelligent_batching: true
+    enable_work_stealing: true
+    worker_pool_size: 12
+    max_concurrent_requests: 8
+  
+  intelligence_enhancement:
+    enabled: true
+    adaptive_attribute_processing: true  # Context-aware attribute selection
+    dependency_aware_processing: true  # Process attributes based on dependencies
+    quality_driven_optimization: true  # Optimize based on quality metrics
+    enable_attribute_prioritization: true
+  
+  evidence_validation:
+    enabled: true
+    cross_source_validation: true  # Validate across multiple sources
+    conflict_resolution: true  # Resolve conflicting evidence
+    authority_scoring: true  # Weight by source authority
+    real_time_fact_checking: true
+    evidence_sufficiency_threshold: 0.7
+  
+  quality_assurance:
+    enabled: true
+    continuous_monitoring: true  # Monitor quality throughout pipeline
+    adaptive_intervention: true  # Automatic quality interventions
+    predictive_quality_assessment: true
+    enable_early_stopping: true  # Stop processing if quality is sufficient
+    intervention_threshold: 0.5  # Trigger intervention below this quality
+
+# Performance optimization settings
+performance_optimization:
+  # LLM Connection Management
+  llm_connection_pool_size: 8  # Connection pool size
+  enable_persistent_cache: true  # Persistent caching across sessions
+  cache_expiry_hours: 24
+  
+  # Parallel Processing
+  max_concurrent_web_requests: 6  # Web discovery concurrency
+  theme_batch_size: 8
+  enable_intelligent_batching: true
+  
+  # Work Stealing and Advanced Parallelism
+  enable_work_stealing: true
+  worker_pool_size: 12
+  work_steal_threshold: 2
+  max_steal_attempts: 3
+  
+  # Streaming and Progressive Results
+  enable_streaming_results: false  # Enable for real-time progress updates
+  progressive_feedback_interval: 2.0
+  max_streaming_chunk_size: 1048576  # 1MB
+  
+  # Resource Management
+  max_llm_retries: 3
+  retry_base_delay: 1.0
+  retry_max_delay: 30.0
+
+# Quality assurance settings
+data_quality_heuristics:
+  enabled: true
+  rich_data_confidence: 0.85  # Increased for agent system
+  medium_data_confidence: 0.65
+  poor_data_confidence: 0.35
+  
+  # Agent-specific quality gates
+  min_evidence_pieces_per_theme: 3
+  min_source_diversity_score: 0.6
+  max_evidence_per_source: 5
+  require_destination_mention: true
+  min_authority_score: 0.4
+
+# Web discovery enhancement
+web_discovery:
+  max_sources_per_destination: 12  # Increased for better coverage
+  timeout_seconds: 45
+  enable_content_validation: true
+  min_content_length_chars: 200
+  
+  # Intelligent query generation
+  adaptive_queries: true
+  query_complexity_adjustment: true
+  context_aware_search: true
+  
+  # Custom query templates for different destination types
+  custom_queries:
+    major_city:
+      - "{destination} hidden gems local secrets"
+      - "{destination} neighborhood guide districts"
+      - "{destination} best restaurants local food scene"
+      - "{destination} cultural experiences authentic"
+    natural_area:
+      - "{destination} outdoor activities hiking trails"
+      - "{destination} scenic photography spots"
+      - "{destination} wildlife nature conservation"
+    historical_site:
+      - "{destination} historical significance architecture"
+      - "{destination} cultural heritage traditions"
+      - "{destination} guided tours educational"
+
+# Evidence validation configuration
+evidence_validation:
+  min_evidence_pieces: 2
+  min_source_diversity: 3  # Minimum number of different sources
+  max_evidence_per_source: 5
+  require_destination_mention: true
+  min_content_length: 50
+  min_authority_score: 0.3
+  
+  # Authority domain scoring
+  high_authority_domains:
+    - "lonelyplanet.com"
+    - "tripadvisor.com"
+    - "booking.com"
+    - "expedia.com"
+    - "timeout.com"
+    - "fodors.com"
+    - "frommers.com"
+    - "ricksteves.com"
+    - "nationalgeographic.com"
+    - "cntraveler.com"
+  
+  medium_authority_domains:
+    - "wikipedia.org"
+    - "wikitravel.org"
+    - "atlasobscura.com"
+    - "nomadicmatt.com"
+    - "wanderlust.co.uk"
+
+# Monitoring and logging
+monitoring:
+  enable_agent_metrics: true
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  performance_logging: true
+  quality_metrics_tracking: true
+  
+  # Dashboard integration
+  enable_performance_dashboard: true
+  update_interval_seconds: 10
+  
+  # Export settings
+  export_metrics: true
+  metrics_export_interval: 300  # 5 minutes
+  metrics_retention_days: 30
+
+# Development and debugging
+development:
+  debug_mode: false
+  verbose_logging: false
+  save_intermediate_results: false
+  enable_step_by_step_debugging: false
+  
+  # Testing and validation
+  enable_unit_tests: false
+  enable_integration_tests: false
+  mock_external_apis: false  # For testing without API keys
+
+# Migration settings
+migration:
+  # Rollback configuration
+  enable_automatic_rollback: true
+  rollback_on_quality_degradation: true
+  quality_degradation_threshold: 0.1  # 10% quality drop triggers rollback
+  
+  # Gradual migration
+  migration_percentage: 100  # Percentage of requests to route to agents
+  a_b_testing: false
+  control_group_percentage: 0  # Percentage to keep on legacy system
+  
+  # Comparison and validation
+  cross_validation: false  # Run both systems and compare
+  cross_validation_sample_rate: 0.1  # 10% of requests for comparison 

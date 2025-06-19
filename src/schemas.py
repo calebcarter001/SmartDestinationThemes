@@ -296,7 +296,7 @@ class ProcessedPageChunk(BaseModel):
 
 class FetchPageInput(BaseModel):
     """Input schema for fetching a single web page."""
-    url: str = Field(description="The URL of the web page to fetch.")
+    url: str = Field(description="The URL of the web page to fetch.") 
 
 # New Content Intelligence Attributes (Additive to existing framework)
 

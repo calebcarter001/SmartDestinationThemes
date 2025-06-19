@@ -44,7 +44,7 @@ class EnhancedViewerGenerator:
         self._current_json_file = json_file
         
         # Generate HTML for this destination
-        destination_name = data.get('destination_name', 'Unknown Destination')
+        destination_name = data.get('destination', data.get('destination_name', 'Unknown Destination'))
         html_content = self._generate_destination_html(data)
         
         # Create filename
@@ -69,13 +69,23 @@ class EnhancedViewerGenerator:
         # Generate individual destination files
         for json_file in json_files:
             try:
+                # Skip evidence files (they contain lists, not destination data)
+                if json_file.endswith('_evidence.json'):
+                    print(f"⏭️ Skipping evidence file: {json_file}")
+                    continue
+                
                 with open(json_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
+                
+                # Skip if data is not a dictionary (safety check)
+                if not isinstance(data, dict):
+                    print(f"⏭️ Skipping non-dictionary data in: {json_file}")
+                    continue
                 
                 # Set current file for evidence loading
                 self._current_json_file = json_file
                 
-                destination_name = data.get('destination_name', 'Unknown Destination')
+                destination_name = data.get('destination', data.get('destination_name', 'Unknown Destination'))
                 sanitized_name = self._sanitize_filename(destination_name)
                 
                 # Generate destination HTML
@@ -133,7 +143,7 @@ class EnhancedViewerGenerator:
             except Exception as e:
                 logger.warning(f"Could not load evidence file {evidence_file_ref}: {e}")
         
-        destination_name = data.get('destination_name', 'Unknown Destination')
+        destination_name = data.get('destination', data.get('destination_name', 'Unknown Destination'))
         affinities = data.get('affinities', [])
         
         # Merge evidence back into affinities for display
@@ -143,13 +153,13 @@ class EnhancedViewerGenerator:
             if theme_name in theme_evidence:
                 affinity['comprehensive_attribute_evidence'] = theme_evidence[theme_name]
         
-        quality_assessment = data.get('quality_assessment', {})
         intelligence_insights = data.get('intelligence_insights', {})
         composition_analysis = data.get('composition_analysis', {})
         qa_workflow = data.get('qa_workflow', {})
         comprehensive_evidence = data.get('comprehensive_evidence', {})
         
-        # Quality metrics
+        # Quality metrics - get from intelligence_insights.quality_assessment
+        quality_assessment = intelligence_insights.get('quality_assessment', {})
         quality_score = quality_assessment.get('overall_score', 0)
         quality_level = quality_assessment.get('quality_level', 'Unknown')
         
@@ -182,7 +192,7 @@ class EnhancedViewerGenerator:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{destination_name} - Enhanced Intelligence Dashboard</title>
+            <title>{destination_name} - Destination Insights Discovery</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         {self._get_enhanced_css()}
@@ -192,6 +202,11 @@ class EnhancedViewerGenerator:
     <div class="container">
         <!-- Header Section -->
         <header class="destination-header">
+            <div class="header-top">
+                <a href="index.html" class="back-button">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
             <div class="header-content">
                 <h1 class="destination-title">{destination_name}</h1>
                 <div class="quality-badge quality-{quality_level.lower().replace(' ', '-')}">
@@ -252,7 +267,7 @@ class EnhancedViewerGenerator:
         
         <!-- Footer -->
         <footer class="dashboard-footer">
-            <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | SmartDestinationThemes Enhanced Intelligence System</p>
+            <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Destination Insights Discovery</p>
         </footer>
     </div>
     
@@ -272,6 +287,7 @@ class EnhancedViewerGenerator:
     <script>
         // Initialize global evidence store
         window.evidenceStore = {self._get_evidence_store_json()};
+        console.log('Evidence store initialized with', Object.keys(window.evidenceStore).length, 'items');
         
         {self._get_enhanced_javascript()}
     </script>
@@ -299,6 +315,10 @@ class EnhancedViewerGenerator:
         confidence = theme.get('confidence', 0)
         rationale = theme.get('rationale', 'No rationale provided')
         
+        # Get theme quality from processing metadata
+        processing_metadata = theme.get('processing_metadata', {})
+        theme_quality_score = processing_metadata.get('quality_score', confidence)
+        
         # Enhanced intelligence data
         depth_analysis = theme.get('depth_analysis', {})
         authenticity_analysis = theme.get('authenticity_analysis', {})
@@ -313,7 +333,7 @@ class EnhancedViewerGenerator:
             experience_intensity, hidden_gem_score
         )
         
-        # Generate evidence validation display  
+        # Generate evidence validation display
         # Check for content intelligence evidence first
         content_evidence_summary = self._create_content_intelligence_evidence_summary(theme)
         evidence_summary = theme.get('evidence_summary', content_evidence_summary)
@@ -328,7 +348,8 @@ class EnhancedViewerGenerator:
         # Generate content intelligence display
         content_intelligence_html = self._generate_content_intelligence_display(theme)
         
-        confidence_color = self._get_confidence_color(confidence)
+        confidence_color = self._get_confidence_color(theme_quality_score)
+        quality_level = self._get_quality_level(theme_quality_score)
         
         return f"""
         <div class="theme-card enhanced-theme">
@@ -336,9 +357,10 @@ class EnhancedViewerGenerator:
                 <div class="theme-title-section">
                     <h3 class="theme-title">{theme_name} {self._generate_evidence_paperclip(theme_name, theme)}</h3>
                     <span class="theme-category">{category}</span>
+                    <span class="theme-quality-badge quality-{quality_level.lower().replace(' ', '-')}">{quality_level}</span>
                 </div>
                 <div class="confidence-score" style="background: {confidence_color}">
-                    {confidence:.2f}
+                    {theme_quality_score:.3f}
                 </div>
             </div>
             
@@ -1043,22 +1065,31 @@ class EnhancedViewerGenerator:
     def _generate_attribute_paperclip(self, theme_name: str, attribute_name: str, 
                                     attribute_data: Any, comprehensive_evidence: Dict[str, Any]) -> str:
         """Generate paperclip icon for specific attribute with evidence."""
-        # Check if we have evidence for this specific attribute
+        import hashlib
+        
+        # Always show paperclip since we have the attribute data (even if LLM generated)
+        # Check if we have specific web evidence for this attribute OR theme-level evidence
         attribute_evidence = comprehensive_evidence.get(attribute_name, {})
         
-        if not attribute_evidence:
-            return '<i class="fas fa-paperclip evidence-paperclip no-evidence" title="No evidence available for this attribute"></i>'
+        # Also check for theme-level evidence (main_theme.evidence_pieces)
+        theme_evidence = comprehensive_evidence.get('main_theme', {})
+        theme_evidence_pieces = theme_evidence.get('evidence_pieces', []) if isinstance(theme_evidence, dict) else []
+        
+        # Determine if we have any web evidence (attribute-specific OR theme-level)
+        has_web_evidence = len(attribute_evidence) > 0 or len(theme_evidence_pieces) > 0
         
         # Create unique ID for this evidence using deterministic hash
-        evidence_str = f"{theme_name}_{attribute_name}_{str(sorted(str(attribute_evidence)))}"
+        evidence_str = f"{theme_name}_{attribute_name}_{str(attribute_data)}"
         evidence_id = f"{theme_name.replace(' ', '_')}_{attribute_name}_{hashlib.md5(evidence_str.encode()).hexdigest()[:8]}"
         
-        # Create evidence data for modal
+        # Create evidence data for modal - include both attribute and theme evidence
         evidence_data = {
             'attribute_name': attribute_name,
             'attribute_data': attribute_data,
             'evidence': attribute_evidence,
-            'llm_generated': True  # Most attributes are LLM generated
+            'theme_evidence': theme_evidence_pieces,  # Include theme-level evidence
+            'llm_generated': not has_web_evidence,  # True if no web evidence at all
+            'has_web_evidence': has_web_evidence
         }
         
         # Store in evidence store
@@ -1066,9 +1097,13 @@ class EnhancedViewerGenerator:
             self._evidence_store = {}
         self._evidence_store[evidence_id] = evidence_data
         
-        return f'''<i class="fas fa-paperclip evidence-paperclip" 
+        # Paperclip color based on evidence availability (attribute-specific OR theme-level)
+        paperclip_class = "evidence-paperclip" if has_web_evidence else "evidence-paperclip no-evidence"
+        title_text = f"View evidence for {attribute_name.replace('_', ' ')}" if has_web_evidence else f"View data for {attribute_name.replace('_', ' ')} (AI generated)"
+        
+        return f'''<i class="fas fa-paperclip {paperclip_class}" 
                     onclick="showAttributeEvidenceModal('{theme_name}', '{attribute_name}', '{evidence_id}')" 
-                    title="View evidence for {attribute_name.replace('_', ' ')}"></i>'''
+                    title="{title_text}"></i>'''
     
     def _generate_intelligence_insights(self, intelligence_insights: dict) -> str:
         """Generate intelligence insights cards."""
@@ -1462,10 +1497,13 @@ class EnhancedViewerGenerator:
         destination_cards = []
         for dest_name, dest_info in destination_data.items():
             data = dest_info['data']
-            quality_score = data.get('quality_assessment', {}).get('overall_score', 0)
-            quality_level = self._get_quality_level(quality_score)
+            # Get quality assessment from intelligence_insights.quality_assessment
+            intelligence_insights = data.get('intelligence_insights', {})
+            quality_assessment = intelligence_insights.get('quality_assessment', {})
+            quality_score = quality_assessment.get('overall_score', 0)
+            quality_level = quality_assessment.get('quality_level', self._get_quality_level(quality_score))
             theme_count = len(data.get('affinities', []))
-            hidden_gems = data.get('intelligence_insights', {}).get('hidden_gems_count', 0)
+            hidden_gems = intelligence_insights.get('hidden_gems_count', 0)
             
             destination_cards.append(f"""
             <div class="destination-index-card">
@@ -1488,7 +1526,7 @@ class EnhancedViewerGenerator:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Intelligence Dashboard - SmartDestinationThemes</title>
+            <title>Destination Insights Discovery - Multi-Destination Dashboard</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         {self._get_enhanced_css()}
@@ -1552,17 +1590,17 @@ class EnhancedViewerGenerator:
 </head>
 <body>
     <div class="container">
-        <div class="index-header">
-            <h1>🧠 Enhanced Intelligence Dashboard</h1>
-            <p>SmartDestinationThemes with Advanced Intelligence Analysis</p>
-        </div>
+                    <div class="index-header">
+                <h1>🧠 Destination Insights Discovery</h1>
+                <p>Advanced Travel Intelligence & Destination Analysis</p>
+            </div>
         
         <div class="destinations-index-grid">
             {"".join(destination_cards)}
         </div>
         
         <footer class="dashboard-footer">
-            <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | SmartDestinationThemes Enhanced Intelligence System</p>
+            <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Destination Insights Discovery</p>
         </footer>
     </div>
 </body>
@@ -1601,6 +1639,36 @@ class EnhancedViewerGenerator:
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
         
+        .header-top {
+            margin-bottom: 1rem;
+        }
+        
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #667eea;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .back-button:hover {
+            background: rgba(102, 126, 234, 0.2);
+            color: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+        }
+        
+        .back-button i {
+            font-size: 0.8rem;
+        }
+        
         .header-content {
             display: flex;
             justify-content: space-between;
@@ -1627,6 +1695,7 @@ class EnhancedViewerGenerator:
         .quality-good { background: #cce5ff; color: #004085; }
         .quality-acceptable { background: #fff3cd; color: #856404; }
         .quality-needs-improvement { background: #f8d7da; color: #721c24; }
+        .quality-unknown { background: #e2e3e5; color: #6c757d; }
         
         .header-stats {
             display: flex;
@@ -1713,6 +1782,22 @@ class EnhancedViewerGenerator:
             font-size: 0.8rem;
             font-weight: 500;
         }
+        
+        .theme-quality-badge {
+            background: #6c757d;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        
+        .theme-quality-badge.quality-excellent { background: #28a745; }
+        .theme-quality-badge.quality-good { background: #17a2b8; }
+        .theme-quality-badge.quality-acceptable { background: #ffc107; color: #000; }
+        .theme-quality-badge.quality-poor { background: #dc3545; }
+        .theme-quality-badge.quality-unknown { background: #6c757d; }
         
         .confidence-score {
             background: #667eea;
@@ -2145,7 +2230,11 @@ class EnhancedViewerGenerator:
 
         .evidence-paperclip.no-evidence {
             color: #6c757d;
-            cursor: not-allowed;
+            cursor: pointer;
+        }
+        
+        .evidence-paperclip.no-evidence:hover {
+            color: #495057;
         }
 
         /* Modal styling */
@@ -2646,7 +2735,7 @@ class EnhancedViewerGenerator:
             }, 100);
             
             // Initialize evidence toggles
-            console.log('Enhanced Intelligence Dashboard with Evidence loaded');
+            console.log('Destination Insights Discovery loaded');
         });
         
         // Hover effects for theme cards
@@ -2820,7 +2909,29 @@ class EnhancedViewerGenerator:
             modalContent += '</div>';
             modalContent += '</div>';
             
-            // Show evidence if available
+            // Show theme evidence first (web evidence that supports the theme)
+            if (evidenceData.theme_evidence && evidenceData.theme_evidence.length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🔍 Theme Web Evidence</h3>';
+                modalContent += '<p style="color: #666; font-style: italic; margin-bottom: 15px;">Web evidence supporting the overall theme (this attribute is part of this theme)</p>';
+                
+                evidenceData.theme_evidence.forEach((piece, index) => {
+                    const hasUrl = piece.source_url && piece.source_url !== '#' && piece.source_url !== '';
+                    modalContent += `
+                    <div class="evidence-item">
+                        <div class="evidence-type-tag">${hasUrl ? 'Web Evidence' : 'Content Evidence'} ${index + 1}</div>
+                        <p><strong>Text:</strong> "${piece.text_content || 'No text available'}"</p>
+                        ${hasUrl ? `<p><strong>Source:</strong> <a href="${piece.source_url}" target="_blank" style="color: #007bff; text-decoration: underline;">${piece.source_title || 'View Source'}</a></p>` : `<p><strong>Source:</strong> ${piece.source_title || 'AI Generated'}</p>`}
+                        ${hasUrl ? `<p><strong>URL:</strong> <a href="${piece.source_url}" target="_blank" style="color: #007bff; text-decoration: underline; font-family: monospace; font-size: 0.9em; word-break: break-all;">${piece.source_url}</a></p>` : ''}
+                        <p><strong>Authority Score:</strong> ${(piece.authority_score || 0).toFixed(2)}</p>
+                        <p><strong>Quality:</strong> ${piece.quality_rating || 'Unknown'}</p>
+                        <p><strong>Source Type:</strong> ${piece.source_type || 'web'}</p>
+                    </div>`;
+                });
+                modalContent += '</div>';
+            }
+            
+            // Show attribute-specific evidence if available
             if (evidenceData.evidence && Object.keys(evidenceData.evidence).length > 0) {
                 modalContent += '<div class="evidence-section">';
                 modalContent += '<h3>🔍 Supporting Evidence</h3>';
@@ -2862,7 +2973,8 @@ class EnhancedViewerGenerator:
                 }
                 
                 modalContent += '</div>';
-            } else {
+            } else if (!evidenceData.theme_evidence || evidenceData.theme_evidence.length === 0) {
+                // Only show "no evidence" if there's no theme evidence either
                 modalContent += '<div class="evidence-section">';
                 modalContent += '<div class="evidence-item">';
                 modalContent += '<div class="llm-generated-tag">LLM Generated</div>';
@@ -2905,19 +3017,28 @@ class EnhancedViewerGenerator:
             // Generate modal content for theme evidence
             let modalContent = '';
             
-            // Theme Evidence
+            // Theme Evidence - check both theme_evidence and main_theme.evidence_pieces
+            let themeEvidencePieces = [];
             if (evidenceData.theme_evidence && evidenceData.theme_evidence.length > 0) {
+                themeEvidencePieces = evidenceData.theme_evidence;
+            } else if (evidenceData.main_theme && evidenceData.main_theme.evidence_pieces && evidenceData.main_theme.evidence_pieces.length > 0) {
+                themeEvidencePieces = evidenceData.main_theme.evidence_pieces;
+            }
+            
+            if (themeEvidencePieces.length > 0) {
                 modalContent += '<div class="evidence-section">';
-                modalContent += '<h3>🔍 Theme Evidence</h3>';
-                evidenceData.theme_evidence.forEach((piece, index) => {
+                modalContent += '<h3>🔍 Web Evidence Sources</h3>';
+                themeEvidencePieces.forEach((piece, index) => {
+                    const hasUrl = piece.source_url && piece.source_url !== '#' && piece.source_url !== '';
                     modalContent += `
                     <div class="evidence-item">
-                        <div class="evidence-type-tag">Web Evidence ${index + 1}</div>
+                        <div class="evidence-type-tag">${hasUrl ? 'Web Evidence' : 'Content Evidence'} ${index + 1}</div>
                         <p><strong>Text:</strong> "${piece.text_content || 'No text available'}"</p>
-                        <p><strong>Source:</strong> <a href="${piece.source_url || '#'}" target="_blank" style="color: #007bff; text-decoration: underline;">${piece.source_title || 'Unknown Source'}</a></p>
-                        <p><strong>URL:</strong> <a href="${piece.source_url || '#'}" target="_blank" style="color: #007bff; text-decoration: underline; font-family: monospace; font-size: 0.9em;">${piece.source_url || 'No URL'}</a></p>
+                        ${hasUrl ? `<p><strong>Source:</strong> <a href="${piece.source_url}" target="_blank" style="color: #007bff; text-decoration: underline;">${piece.source_title || 'View Source'}</a></p>` : `<p><strong>Source:</strong> ${piece.source_title || 'AI Generated'}</p>`}
+                        ${hasUrl ? `<p><strong>URL:</strong> <a href="${piece.source_url}" target="_blank" style="color: #007bff; text-decoration: underline; font-family: monospace; font-size: 0.9em; word-break: break-all;">${piece.source_url}</a></p>` : ''}
                         <p><strong>Authority Score:</strong> ${(piece.authority_score || 0).toFixed(2)}</p>
                         <p><strong>Quality:</strong> ${piece.quality_rating || 'Unknown'}</p>
+                        <p><strong>Source Type:</strong> ${piece.source_type || 'web'}</p>
                     </div>`;
                 });
                 modalContent += '</div>';

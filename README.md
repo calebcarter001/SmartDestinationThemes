@@ -4,6 +4,7 @@ An intelligent destination analysis system that discovers, analyzes, and validat
 
 ## ✨ Key Features
 
+- **🤖 Agentic Workflow System**: Multi-agent orchestration with intelligent task coordination and autonomous processing
 - **🧠 Enhanced Intelligence Processing**: 4-phase decomposed prompt system with 18 validation attributes
 - **🎯 Content Intelligence**: 4 specialized attributes for factual content extraction and source validation
 - **🔍 Evidence-Based Validation**: Real-time web evidence collection with travel authority scoring  
@@ -55,6 +56,101 @@ python main.py
 python start_server.py
 ```
 
+## 🤖 Agentic Workflow System
+
+### Multi-Agent Architecture
+
+The SmartDestinationThemes application now features an **intelligent multi-agent orchestration system** that coordinates autonomous agents for comprehensive destination processing:
+
+#### 🎭 Agent Orchestrator
+- **Central Command Center**: Coordinates all agent activities and workflow execution
+- **Task Distribution**: Intelligent task routing based on agent capabilities and workload
+- **State Management**: Maintains workflow state and ensures processing continuity
+- **Performance Monitoring**: Real-time tracking of agent performance and resource utilization
+
+#### 🕷️ Web Discovery Agent
+- **Intelligent Web Crawling**: Adaptive content discovery from travel authority sources
+- **Smart Query Generation**: Context-aware search query optimization
+- **Content Filtering**: Quality-based content selection and relevance scoring
+- **Source Verification**: Travel authority validation and credibility assessment
+
+#### 🧠 LLM Orchestration Agent
+- **Resource Management**: Intelligent LLM resource allocation and optimization
+- **Processing Strategy**: Adaptive processing approaches based on content complexity
+- **Quality Control**: Performance monitoring and result optimization
+- **Cache Management**: Intelligent caching for improved efficiency
+
+#### 💡 Intelligence Enhancement Agent
+- **Attribute Processing**: 18 specialized intelligence attributes with adaptive selection
+- **Context-Aware Enhancement**: Destination-specific intelligence optimization
+- **Dependency Management**: Intelligent processing order based on attribute dependencies
+- **Quality Optimization**: Continuous improvement of enhancement quality
+
+#### 🔍 Evidence Validation Agent
+- **Cross-Source Verification**: Multi-source evidence validation and conflict resolution
+- **Authority Scoring**: Source credibility assessment and authority ranking
+- **Fact Checking**: Real-time validation against authoritative travel sources
+- **Evidence Synthesis**: Intelligent evidence aggregation and consensus building
+
+#### ✅ Quality Assurance Agent
+- **Continuous Monitoring**: Real-time quality assessment throughout the workflow
+- **Adaptive Interventions**: Dynamic quality improvements and error correction
+- **Performance Analytics**: Comprehensive quality metrics and reporting
+- **Optimization Recommendations**: Intelligent suggestions for workflow improvements
+
+### Agent Communication & Coordination
+
+- **Message-Based Architecture**: Asynchronous inter-agent communication with message routing
+- **Workflow Orchestration**: Sequential and parallel task execution with dependency management
+- **Error Handling & Recovery**: Robust error handling with automatic retries and fallback strategies
+- **Performance Optimization**: Dynamic resource allocation and load balancing
+
+### Configuration & Control
+
+```yaml
+# Agent system configuration in config/agent_config.yaml
+agents:
+  orchestrator:
+    enabled: true
+    max_concurrent_workflows: 3
+  
+  web_discovery:
+    enabled: true
+    adaptive_query_generation: true
+    authority_filtering: true
+  
+  llm_orchestration:
+    enabled: true
+    adaptive_resource_allocation: true
+    performance_optimization: true
+  
+  intelligence_enhancement:
+    enabled: true
+    adaptive_attribute_processing: true
+    dependency_aware_processing: true
+  
+  evidence_validation:
+    enabled: true
+    cross_source_validation: true
+    conflict_resolution: true
+  
+  quality_assurance:
+    enabled: true
+    continuous_monitoring: true
+    adaptive_interventions: true
+```
+
+### Testing the Agent System
+
+```bash
+# Test the complete agentic workflow
+python test_agents.py
+
+# Test individual agent capabilities
+python -m agents.test_web_discovery
+python -m agents.test_llm_orchestration
+```
+
 ## 🎯 Core Architecture
 
 ### Enhanced Intelligence Pipeline
@@ -77,7 +173,7 @@ python start_server.py
 
 **Core Intelligence (14 attributes):**
 - `nano_themes` - Micro-level theme breakdown
-- `price_insights` - Comprehensive pricing analysis  
+- `price_insights` - Comprehensive pricing analysis
 - `seasonality` - Peak/shoulder/off-season recommendations
 - `traveler_types` - Solo/couple/family/group suitability
 - `accessibility` - Physical/dietary/budget accessibility
@@ -147,12 +243,62 @@ destinations:
   - "Tokyo, Japan"
   - "New York, USA"
 
+# Agentic workflow settings
+agentic_workflow:
+  enabled: true
+  orchestration_mode: "intelligent"  # or "sequential"
+  parallel_processing: true
+  max_concurrent_destinations: 2
+
 # Quality settings
 data_quality_heuristics:
   enabled: true
   rich_data_confidence: 0.75
   medium_data_confidence: 0.55
   poor_data_confidence: 0.35
+```
+
+### Agent-Specific Configuration (`config/agent_config.yaml`)
+```yaml
+# Complete agent system configuration
+agents:
+  orchestrator:
+    enabled: true
+    max_concurrent_workflows: 3
+    workflow_timeout: 300  # 5 minutes
+    enable_performance_monitoring: true
+  
+  web_discovery:
+    enabled: true
+    adaptive_query_generation: true
+    authority_filtering: true
+    max_sources_per_destination: 15
+    content_quality_threshold: 0.6
+  
+  llm_orchestration:
+    enabled: true
+    adaptive_resource_allocation: true
+    performance_optimization: true
+    enable_intelligent_batching: true
+    max_concurrent_requests: 8
+  
+  intelligence_enhancement:
+    enabled: true
+    adaptive_attribute_processing: true
+    dependency_aware_processing: true
+    quality_driven_optimization: true
+  
+  evidence_validation:
+    enabled: true
+    cross_source_validation: true
+    conflict_resolution: true
+    evidence_sufficiency_threshold: 0.7
+  
+  quality_assurance:
+    enabled: true
+    continuous_monitoring: true
+    adaptive_interventions: true
+    quality_threshold: 0.8
 ```
 
 ## 📈 Results & Output
@@ -183,6 +329,30 @@ dev_staging/
 
 ## 🚀 Advanced Usage
 
+### Agentic Workflow Integration
+
+The application now supports **two processing modes**:
+
+#### Traditional Mode (Backward Compatible)
+```bash
+# Use existing functionality with enhanced performance
+python main.py
+```
+
+#### Agentic Workflow Mode
+```bash
+# Enable multi-agent orchestration in config/config.yaml
+agentic_workflow:
+  enabled: true
+  orchestration_mode: "intelligent"
+
+# Run with agent orchestration
+python main.py --use-agents
+
+# Test agent system specifically
+python test_agents.py
+```
+
 ### Separated Architecture
 **Processing**: `main.py` handles data processing and staging
 **Server**: `start_server.py` provides standalone web server
@@ -191,6 +361,7 @@ Benefits:
 - Independent processing and serving
 - Multiple processing sessions with persistent server
 - Better development workflow control
+- Agent-based parallel processing for improved performance
 
 ### Command Line Options
 

@@ -412,7 +412,110 @@ development:
 
 # Destinations to process (add your destinations here)
 destinations:
-  - "Paris, France"
   - "Tokyo, Japan"
-  - "New York, USA"
+
+# =============================================================================
+# AGENT SYSTEM CONFIGURATION
+# =============================================================================
+
+agents:
+  # Master agent system control
+  enabled: true   # Agent system is now ready for production!
+  migration_mode: "fallback"  # Try agents first, fallback to legacy if needed
+  
+  # Performance comparison and analysis
+  enable_comparison: false  # Run both systems in parallel for comparison
+  enable_performance_tracking: true
+  
+  # Orchestrator settings
+  orchestrator:
+    max_parallel_destinations: 3  # Maximum destinations to process in parallel
+    quality_threshold: 0.75  # Minimum quality threshold for acceptance
+    max_workflow_retries: 2  # Maximum retries per workflow
+    enable_adaptive_thresholds: true  # Dynamically adjust quality thresholds
+  
+  # Process-specific agent controls
+  web_discovery:
+    enabled: false
+    max_sources_per_destination: 12  # Increased for agent intelligence
+    timeout_seconds: 45
+    enable_content_validation: true
+    min_content_quality: 0.6
+    min_source_diversity: 0.7
+    adaptive_query_generation: true  # Enable intelligent query generation
+    enhanced_fallback: true  # Use enhanced fallback strategies
+  
+  llm_orchestration:
+    enabled: false
+    adaptive_resource_allocation: true  # Intelligent resource allocation
+    connection_pool_management: true
+    performance_optimization: true
+    enable_intelligent_batching: true
+    enable_work_stealing: true
+    worker_pool_size: 12
+    max_concurrent_requests: 8
+  
+  intelligence_enhancement:
+    enabled: false
+    adaptive_attribute_processing: true  # Context-aware attribute selection
+    dependency_aware_processing: true  # Process attributes based on dependencies
+    quality_driven_optimization: true  # Optimize based on quality metrics
+    enable_attribute_prioritization: true
+  
+  evidence_validation:
+    enabled: false
+    cross_source_validation: true  # Validate across multiple sources
+    conflict_resolution: true  # Resolve conflicting evidence
+    authority_scoring: true  # Weight by source authority
+    real_time_fact_checking: true
+    evidence_sufficiency_threshold: 0.7
+  
+  quality_assurance:
+    enabled: false
+    continuous_monitoring: true  # Monitor quality throughout pipeline
+    adaptive_intervention: true  # Automatic quality interventions
+    predictive_quality_assessment: true
+    enable_early_stopping: true  # Stop processing if quality is sufficient
+    intervention_threshold: 0.5  # Trigger intervention below this quality
+
+# Agent performance optimization (extends existing performance_optimization)
+agent_performance_optimization:
+  # Agent-specific LLM connection management
+  agent_llm_connection_pool_size: 8  # Connection pool size for agents
+  
+  # Agent parallel processing
+  agent_max_concurrent_web_requests: 6  # Web discovery concurrency for agents
+  agent_theme_batch_size: 8
+  
+  # Agent work stealing and advanced parallelism
+  agent_enable_work_stealing: true
+  agent_worker_pool_size: 12
+  agent_work_steal_threshold: 2
+  agent_max_steal_attempts: 3
+  
+  # Agent streaming and progressive results
+  agent_enable_streaming_results: false  # Enable for real-time progress updates
+  agent_progressive_feedback_interval: 2.0
+  agent_max_streaming_chunk_size: 1048576  # 1MB
+  
+  # Agent resource management
+  agent_max_llm_retries: 3
+  agent_retry_base_delay: 1.0
+  agent_retry_max_delay: 30.0
+
+# Migration settings for agent system
+agent_migration:
+  # Rollback configuration
+  enable_automatic_rollback: true
+  rollback_on_quality_degradation: true
+  quality_degradation_threshold: 0.1  # 10% quality drop triggers rollback
+  
+  # Gradual migration
+  migration_percentage: 100  # Percentage of requests to route to agents
+  a_b_testing: false
+  control_group_percentage: 0  # Percentage to keep on legacy system
+  
+  # Comparison and validation
+  cross_validation: false  # Run both systems and compare
+  cross_validation_sample_rate: 0.1  # 10% of requests for comparison
  

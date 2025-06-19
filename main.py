@@ -67,7 +67,86 @@ def get_destinations_to_process(custom_destinations: List[str] = None) -> List[s
     return destinations
 
 async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> Dict[str, str]:
-    """Run the complete processing pipeline for all destinations."""
+    """Run the complete processing pipeline for all destinations using agent integration."""
+    
+    # Import agent integration layer
+    from src.agent_integration_layer import AgentCompatibilityLayer
+    
+    print(f"\n⚙️  Initializing processing system...")
+    
+    # Initialize agent integration layer
+    agent_layer = AgentCompatibilityLayer(config)
+    await agent_layer.initialize()
+    
+    # Check if using agents or legacy system
+    agents_enabled = config.get('agents', {}).get('enabled', False)
+    migration_mode = config.get('agents', {}).get('migration_mode', 'legacy_only')
+    
+    if agents_enabled or migration_mode != 'legacy_only':
+        print(f"🤖 Using Agent System - Mode: {migration_mode}")
+    else:
+        print(f"🔧 Using Legacy System")
+    
+    try:
+        # Process destinations using the integration layer
+        result = await agent_layer.process_destinations(destinations)
+        
+        # Extract processed files for compatibility (ProcessingResult object)
+        processed_files = result.processed_files
+        
+        # Display results
+        print(f"\n🎉 Processing Complete!")
+        print(f"📊 System Used: {result.system_used}")
+        print(f"📈 Destinations Processed: {result.destinations_processed}")
+        print(f"🎯 Successful Destinations: {result.successful_destinations}")
+        print(f"⏱️  Processing Time: {result.processing_time:.1f}s")
+        
+        # Display agent-specific metrics if available
+        if result.agent_results:
+            agent_results = result.agent_results
+            quality_scores = [r.quality_score for r in agent_results.values() if hasattr(r, 'quality_score')]
+            if quality_scores:
+                avg_quality = sum(quality_scores) / len(quality_scores)
+                print(f"🏆 Average Quality Score: {avg_quality:.3f}")
+        
+        # Display comparison data if available
+        if result.comparison_data:
+            comparison = result.comparison_data['comparison_metrics']
+            print(f"\n🔀 System Comparison:")
+            print(f"  Legacy Time: {comparison.get('performance_comparison', {}).get('legacy_time', 0):.1f}s")
+            print(f"  Agent Time: {comparison.get('performance_comparison', {}).get('agent_time', 0):.1f}s")
+            speedup = comparison.get('performance_comparison', {}).get('speedup_factor', 0)
+            if speedup > 1:
+                print(f"  🚀 Speedup: {speedup:.2f}x faster with agents")
+            elif speedup > 0 and speedup < 1:
+                print(f"  🐌 Slowdown: {1/speedup:.2f}x slower with agents")
+        
+        # Performance summary from integration layer
+        performance_summary = agent_layer.get_performance_summary()
+        if performance_summary.get('agent_performance'):
+            agent_perf = performance_summary['agent_performance']
+            print(f"\n🤖 Agent Performance Summary:")
+            print(f"  Average Processing Time: {agent_perf.get('average_processing_time', 0):.1f}s")
+            print(f"  Average Success Rate: {agent_perf.get('average_success_rate', 0):.1%}")
+            print(f"  Average Quality Score: {agent_perf.get('average_quality_score', 0):.3f}")
+        
+        return processed_files
+        
+    except Exception as e:
+        logger.error(f"Processing pipeline failed: {e}")
+        print(f"❌ Processing failed: {e}")
+        return {}
+    
+    finally:
+        # Cleanup integration layer
+        try:
+            await agent_layer.cleanup()
+        except Exception as e:
+            logger.debug(f"Integration layer cleanup warning: {e}")
+
+# Legacy pipeline function (kept for reference and fallback)
+async def run_legacy_pipeline(destinations: List[str], config: Dict[str, Any]) -> Dict[str, str]:
+    """Run the original legacy processing pipeline (for reference/fallback)."""
     
     # Import here to avoid circular imports and reduce startup time
     from src.enhanced_data_processor import EnhancedDataProcessor
@@ -77,7 +156,7 @@ async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> 
     from src.monitoring import AffinityMonitoring
     
     # Initialize components
-    print(f"\n⚙️  Initializing processing components...")
+    print(f"\n⚙️  Initializing legacy processing components...")
     
     # Initialize LLM generator
     # Use the primary LLM provider from config

@@ -215,18 +215,14 @@ class EvidenceValidator:
             evidence_id = hashlib.md5(f"{source_url}_{sentence_clean}".encode()).hexdigest()[:12]
             
             evidence_piece = EvidencePiece(
-                evidence_id=evidence_id,
                 text_content=sentence_clean[:1000],  # Limit to 1000 chars
                 source_url=source_url,
                 source_title=source_title,
                 source_type=source_type,
+                relevance_score=relevance_score,
                 authority_score=authority_score,
                 quality_rating=self._assess_evidence_quality(sentence_clean, authority_score),
-                relevance_score=relevance_score,
-                word_count=len(word_tokenize(sentence_clean)) if sentence_clean else 0,
-                contains_destination_mention=bool(destination_matches),
-                contains_theme_keywords=theme_matches,
-                semantic_similarity=semantic_similarity
+                evidence_type="theme_validation"
             )
             
             evidence_pieces.append(evidence_piece)
@@ -298,18 +294,14 @@ class EvidenceValidator:
             evidence_id = hashlib.md5(f"{source_url}_{evidence_type}_{sentence_clean}".encode()).hexdigest()[:12]
             
             evidence_piece = EvidencePiece(
-                evidence_id=evidence_id,
                 text_content=sentence_clean[:1000],
                 source_url=source_url,
                 source_title=source_title,
                 source_type=source_type,
+                relevance_score=relevance_score,
                 authority_score=authority_score,
                 quality_rating=self._assess_evidence_quality(sentence_clean, authority_score),
-                relevance_score=relevance_score,
-                word_count=len(word_tokenize(sentence_clean)) if sentence_clean else 0,
-                contains_destination_mention=bool(destination_matches),
-                contains_theme_keywords=keyword_matches + pattern_matches,
-                semantic_similarity=None  # Not using semantic similarity for specialized evidence
+                evidence_type=evidence_type
             )
             
             evidence_pieces.append(evidence_piece)
@@ -530,9 +522,8 @@ class EvidenceValidator:
             meets_min_evidence_requirement=meets_min_evidence,
             meets_source_diversity_requirement=meets_source_diversity,
             meets_quality_threshold=meets_quality,
-            strongest_evidence=limited_evidence[0].evidence_id if limited_evidence else None,
-            evidence_gaps=self._identify_evidence_gaps(theme_name, limited_evidence),
-            conflicting_evidence=[]
+            strongest_evidence=None,
+            evidence_gaps=self._identify_evidence_gaps(theme_name, limited_evidence)
         )
 
     def validate_theme_evidence(self, theme: str, category: str, 

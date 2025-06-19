@@ -113,7 +113,7 @@ class DashboardServer:
         """Start the dashboard server."""
         port = port or self.port
         
-        print("🚀 SmartDestinationThemes Dashboard Server")
+        print("🚀 Destination Insights Discovery Server")
         print("="*50)
         
         # Check if dashboard files exist
@@ -145,10 +145,12 @@ class DashboardServer:
             print(f"🌐 Starting dashboard server on port {port}")
             print(f"📁 Serving from: {Path(self.directory).absolute()}")
             
+            handler_directory = self.directory
+
             # Custom handler to serve from specific directory and suppress logs
             class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 def __init__(self, *args, **kwargs):
-                    super().__init__(*args, directory=self.directory, **kwargs)
+                    super().__init__(*args, directory=handler_directory, **kwargs)
                 
                 def log_message(self, format, *args):
                     # Suppress request logging for cleaner output
@@ -239,7 +241,7 @@ def main():
     """Main entry point."""
     import argparse
     
-    parser = argparse.ArgumentParser(description='SmartDestinationThemes Dashboard Server')
+    parser = argparse.ArgumentParser(description='Destination Insights Discovery Server')
     parser.add_argument('--port', type=int, help='Port to run server on (default: 8000)')
     parser.add_argument('--no-browser', action='store_true', help='Do not open browser automatically')
     parser.add_argument('--list-sessions', action='store_true', help='List available dashboard sessions')

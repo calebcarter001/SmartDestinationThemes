@@ -226,7 +226,7 @@ class FocusedLLMGenerator:
         try:
             # Don't attempt async cleanup in destructor as it can cause warnings
             # The cleanup should be called explicitly before object destruction
-            pass
+                    pass
         except Exception:
             # Ignore cleanup errors in destructor
             pass 

@@ -144,9 +144,9 @@ class EvidenceValidationConfig(BaseModel):
     min_unique_sources: int = Field(ge=1, default=2, description="Minimum unique sources required")
     max_evidence_per_source: int = Field(ge=1, default=3, description="Maximum evidence from single source")
     
-    min_authority_score: float = Field(ge=0, le=1, default=0.3, description="Minimum source authority required")
-    min_relevance_score: float = Field(ge=0, le=1, default=0.5, description="Minimum relevance required")
-    min_content_length: int = Field(ge=10, default=50, description="Minimum content length")
+    min_authority_score: float = Field(ge=0, le=1, default=0.2, description="Minimum source authority required")
+    min_relevance_score: float = Field(ge=0, le=1, default=0.3, description="Minimum relevance required")
+    min_content_length: int = Field(ge=10, default=30, description="Minimum content length")
     
     confidence_boost_per_evidence: float = Field(ge=0, le=0.2, default=0.05, description="Confidence boost per evidence piece")
     confidence_penalty_no_evidence: float = Field(ge=0, le=0.5, default=0.2, description="Confidence penalty for no evidence")
@@ -168,8 +168,9 @@ class EvidenceValidationConfig(BaseModel):
     )
     
     require_source_diversity: bool = Field(default=True, description="Evidence must come from diverse sources")
-    enable_semantic_validation: bool = Field(default=True, description="Use semantic similarity for validation")
-    semantic_similarity_threshold: float = Field(ge=0, le=1, default=0.7, description="Minimum semantic similarity")
+    require_destination_mention: bool = Field(default=False, description="Evidence must mention the destination")
+    enable_semantic_validation: bool = Field(default=False, description="Use semantic similarity for validation")
+    semantic_similarity_threshold: float = Field(ge=0, le=1, default=0.5, description="Minimum semantic similarity")
     
     @validator('max_evidence_pieces')
     def max_must_be_greater_than_min(cls, v, values):

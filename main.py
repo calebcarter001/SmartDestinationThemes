@@ -38,6 +38,17 @@ def parse_arguments():
                        help='Specific destinations to process (overrides default list)')
     parser.add_argument('--no-browser', action='store_true',
                        help='Do not show server instructions after processing')
+    
+    # Seasonal image generation options
+    parser.add_argument('--seasonal-images', action='store_true',
+                       help='Enable seasonal image generation during processing')
+    parser.add_argument('--no-seasonal-images', action='store_true',
+                       help='Disable seasonal image generation (overrides config)')
+    parser.add_argument('--force-seasonal-images', action='store_true',
+                       help='Force regenerate existing seasonal images')
+    parser.add_argument('--seasonal-images-only', action='store_true',
+                       help='Only generate seasonal images (skip main processing)')
+    
     return parser.parse_args()
 
 def load_config():
@@ -48,6 +59,28 @@ def load_config():
     except Exception as e:
         logger.error(f"Failed to load configuration: {e}")
         return None
+
+def apply_seasonal_image_config(config: Dict[str, Any], args) -> Dict[str, Any]:
+    """Apply seasonal image command line arguments to configuration."""
+    
+    # Get current seasonal imagery config
+    seasonal_config = config.get('seasonal_imagery', {})
+    
+    # Apply command line overrides
+    if args.seasonal_images:
+        seasonal_config['enabled'] = True
+        print("🎨 Seasonal image generation enabled via --seasonal-images")
+    elif args.no_seasonal_images:
+        seasonal_config['enabled'] = False
+        print("🚫 Seasonal image generation disabled via --no-seasonal-images")
+    
+    if args.force_seasonal_images:
+        seasonal_config['force_regenerate'] = True
+        print("🔄 Force regenerate seasonal images enabled")
+    
+    # Update config
+    config['seasonal_imagery'] = seasonal_config
+    return config
 
 def get_destinations_to_process(custom_destinations: List[str] = None) -> List[str]:
     """Get list of destinations to process."""
@@ -65,6 +98,120 @@ def get_destinations_to_process(custom_destinations: List[str] = None) -> List[s
         raise ValueError("No destinations found in configuration. Please add destinations to config.yaml or use --destinations argument.")
     
     return destinations
+
+async def run_seasonal_images_only(destinations: List[str], config: Dict[str, Any], force_regenerate: bool = False) -> bool:
+    """Run seasonal image generation only (skip main processing)."""
+    
+    print(f"\n🎨 Seasonal Images Only Mode")
+    print(f"🎯 Generating seasonal images for {len(destinations)} destinations")
+    print("="*60)
+    
+    # Import seasonal image generator
+    from src.seasonal_image_generator import SeasonalImageGenerator
+    from pathlib import Path
+    import time
+    
+    # Initialize generator
+    image_generator = SeasonalImageGenerator(config)
+    
+    # Check API status
+    import os
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        print("❌ OpenAI API key not found")
+        print("   Set OPENAI_API_KEY in your .env file")
+        return False
+    
+    print(f"✅ OpenAI API key found")
+    
+    # Create output directory with timestamp
+    from datetime import datetime
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    output_dir = Path(f"seasonal_images_{timestamp}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"📁 Output directory: {output_dir}")
+    
+    # Process destinations
+    total_start_time = time.time()
+    successful_destinations = 0
+    failed_destinations = 0
+    
+    for i, destination in enumerate(destinations, 1):
+        print(f"\n🎯 [{i}/{len(destinations)}] Processing: {destination}")
+        print("-" * 50)
+        
+        start_time = time.time()
+        
+        try:
+            # Check for existing images
+            dest_name = destination.lower().replace(', ', '_').replace(' ', '_').replace(',', '')
+            dest_images_dir = output_dir / "images" / dest_name
+            
+            existing_seasons = []
+            if dest_images_dir.exists():
+                seasons = ['spring', 'summer', 'autumn', 'winter']
+                for season in seasons:
+                    if (dest_images_dir / f"{season}.jpg").exists():
+                        existing_seasons.append(season)
+            
+            if existing_seasons and not force_regenerate:
+                print(f"⚠️  Images already exist: {', '.join(existing_seasons)}")
+                print("   Use --force-seasonal-images to regenerate")
+                successful_destinations += 1
+                continue
+            
+            # Generate images
+            images_generated = await asyncio.get_event_loop().run_in_executor(
+                None,
+                image_generator.generate_seasonal_images,
+                destination,
+                output_dir / "images"
+            )
+            
+            processing_time = time.time() - start_time
+            
+            # Report results
+            successful_seasons = [season for season, data in images_generated.items() 
+                                if season != 'collage' and 'error' not in data]
+            failed_seasons = [season for season, data in images_generated.items() 
+                            if season != 'collage' and 'error' in data]
+            
+            print(f"✅ Generated {len(successful_seasons)} seasonal images in {processing_time:.1f}s")
+            
+            if successful_seasons:
+                print(f"   🌸 Seasons: {', '.join(successful_seasons)}")
+            
+            if failed_seasons:
+                print(f"   ❌ Failed: {', '.join(failed_seasons)}")
+            
+            # Check for collage
+            if 'collage' in images_generated and 'error' not in images_generated['collage']:
+                print("   🖼️  Seasonal collage created")
+            
+            if len(successful_seasons) > 0:
+                successful_destinations += 1
+            else:
+                failed_destinations += 1
+                
+        except Exception as e:
+            processing_time = time.time() - start_time
+            print(f"❌ Failed to generate images: {e}")
+            print(f"   Processing time: {processing_time:.1f}s")
+            failed_destinations += 1
+    
+    # Final summary
+    total_time = time.time() - total_start_time
+    
+    print("\n" + "="*60)
+    print("🎨 Seasonal Image Generation Complete")
+    print(f"✅ Successful: {successful_destinations}/{len(destinations)}")
+    print(f"❌ Failed: {failed_destinations}")
+    print(f"⏱️  Total Time: {total_time:.1f}s")
+    print(f"📈 Average: {total_time/len(destinations):.1f}s per destination")
+    print(f"📁 Images saved to: {output_dir.absolute()}")
+    
+    return failed_destinations == 0
 
 async def run_full_pipeline(destinations: List[str], config: Dict[str, Any]) -> Dict[str, str]:
     """Run the complete processing pipeline for all destinations using agent integration."""
@@ -314,6 +461,9 @@ async def main():
         print("❌ Failed to load configuration")
         return
     
+    # Apply seasonal image configuration
+    config = apply_seasonal_image_config(config, args)
+    
     # Get destinations to process
     print("📊 Loading destinations...")
     try:
@@ -324,12 +474,34 @@ async def main():
         return
     
     try:
-        # Full pipeline mode (only mode now)
+        # Handle seasonal images only mode
+        if args.seasonal_images_only:
+            success = await run_seasonal_images_only(
+                destinations, 
+                config, 
+                force_regenerate=args.force_seasonal_images
+            )
+            
+            if success:
+                print(f"\n🎉 Seasonal image generation completed successfully!")
+            else:
+                print(f"\n❌ Some seasonal image generations failed")
+            return
+        
+        # Full pipeline mode with optional seasonal images
         processed_files = await run_full_pipeline(destinations, config)
         
         if processed_files:
             print(f"\n🎉 Processing Complete!")
             print(f"📊 Successfully processed: {len(processed_files)} destinations")
+            
+            # Display seasonal image status if enabled
+            seasonal_config = config.get('seasonal_imagery', {})
+            if seasonal_config.get('enabled', False):
+                print(f"🎨 Seasonal images: Enabled (Phase 3.5 integration)")
+            else:
+                print(f"🎨 Seasonal images: Disabled")
+                print(f"   💡 Use --seasonal-images to enable")
             
             # Stage latest data for development server
             print(f"\n📁 Staging latest data for development server...")
@@ -351,6 +523,14 @@ async def main():
                 for dest in destinations:
                     dest_filename = dest.lower().replace(', ', '__').replace(' ', '_')
                     print(f"   • {dest}: http://localhost:8000/{dest_filename}.html")
+                    
+                # Seasonal images availability note
+                seasonal_config = config.get('seasonal_imagery', {})
+                if seasonal_config.get('enabled', False):
+                    print(f"\n🎨 Seasonal Images:")
+                    print(f"   • Images integrated into destination viewers")
+                    print(f"   • 4 seasons per destination + collages")
+                    print(f"   • Generated via DALL-E 3 during processing")
         else:
             print(f"\n❌ No data was processed successfully")
             

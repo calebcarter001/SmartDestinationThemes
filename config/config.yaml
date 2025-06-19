@@ -1,6 +1,34 @@
 # Example configuration file for Destination Intelligence Discovery
 # Copy this file to config.yaml and update with your settings
 
+# Destinations to process (Top 25 Global Travel Destinations - Complete Library Rebuild)
+destinations:
+  - "Tokyo, Japan"
+  - "Grand Canyon, Arizona, USA"
+  - "Reykjavik, Iceland"
+  - "Giant's Causeway, Northern Ireland, UK"
+  - "Bryce Canyon, Utah, USA"
+  - "Antelope Canyon, Arizona, USA"
+  - "Reynisfjara Beach, Iceland"
+  - "Yosemite National Park, California, USA"
+  - "Dead Sea, Jordan"
+  - "Ha Long Bay, Vietnam"
+  - "Jeita Grotto, Lebanon"
+  - "Athens, Greece"
+  - "Siem Reap, Cambodia"
+  - "Chichen Itza, Mexico"
+  - "Machu Picchu, Peru"
+  - "Cairo, Egypt"
+  - "Stonehenge, England, UK"
+  - "Rome, Italy"
+  - "Bagan, Myanmar"
+  - "Agra, India"
+  - "Beijing, China"
+  - "London, UK"
+  - "Paris, France"
+  - "Florence, Italy"
+  - "Vienna, Austria"
+
 # Database configuration
 database:
   path: "enhanced_destination_intelligence.db"
@@ -410,9 +438,6 @@ development:
   auto_reload: false
   profiling_enabled: false
 
-# Destinations to process (Testing Citation Enhancement System)
-destinations:
-  - "Tokyo, Japan"
 
 # =============================================================================
 # AGENT SYSTEM CONFIGURATION
@@ -420,8 +445,8 @@ destinations:
 
 agents:
   # Master agent system control
-  enabled: true   # Agent system is now ready for production!
-  migration_mode: "agent_only"  # Use agents only for testing citation enhancement
+  enabled: true   # Agent system ready for complete library rebuild!
+  migration_mode: "agent_only"  # Full multi-agent processing with Citation Enhancement
   
   # Performance comparison and analysis
   enable_comparison: false  # Run both systems in parallel for comparison
@@ -473,10 +498,47 @@ agents:
   quality_assurance:
     enabled: true  # Enable for citation enhancement testing
     continuous_monitoring: true  # Monitor quality throughout pipeline
-    adaptive_intervention: true  # Automatic quality interventions
-    predictive_quality_assessment: true
-    enable_early_stopping: true  # Stop processing if quality is sufficient
-    intervention_threshold: 0.5  # Trigger intervention below this quality
+
+# =============================================================================  
+# SEASONAL IMAGERY CONFIGURATION
+# =============================================================================
+
+seasonal_imagery:
+  # Feature control
+  enabled: false  # Enable seasonal image generation for destinations
+  
+  # DALL-E API settings
+  model: "dall-e-3"  # DALL-E model version
+  image_size: "1024x1024"  # Image dimensions
+  quality: "standard"  # 'standard' or 'hd' for DALL-E 3
+  timeout_seconds: 60  # API timeout
+  
+  # Seasonal prompting
+  season_prompts:
+    spring: "soft cherry blossoms, pastel light, fresh blooms, gentle morning light"
+    summer: "vibrant colors, lively festivals, sunny skies, bright daylight" 
+    autumn: "golden leaves, warm evening glow, harvest colors, amber light"
+    winter: "snow-covered streets, twinkling lights, cozy atmosphere, crisp air"
+  
+  # Prompt template for image generation  
+  prompt_template: "High-resolution professional travel photography of {destination} in {season}, {details}. Stunning composition, vibrant colors, iconic landmarks visible, {season} atmosphere."
+  
+  # Integration settings
+  parallel_generation: true  # Generate images in parallel with other processing
+  create_collage: true  # Create seasonal collage from individual images  
+  store_metadata: true  # Store generation metadata for dashboard
+  
+  # Error handling
+  max_retries: 2  # Retry attempts for failed generations
+  fallback_to_web_search: false  # Use web images if DALL-E fails
+  graceful_degradation: true  # Continue processing if image generation fails
+
+# Quality assurance configuration (continued)
+quality_assurance_extended:
+  adaptive_intervention: true  # Automatic quality interventions
+  predictive_quality_assessment: true
+  enable_early_stopping: true  # Stop processing if quality is sufficient
+  intervention_threshold: 0.5  # Trigger intervention below this quality
 
 # Agent performance optimization (extends existing performance_optimization)
 agent_performance_optimization:

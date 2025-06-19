@@ -11,6 +11,7 @@ from .llm_orchestration_agent import LLMOrchestrationAgent
 from .intelligence_enhancement_agent import IntelligenceEnhancementAgent
 from .evidence_validation_agent import EvidenceValidationAgent
 from .quality_assurance_agent import QualityAssuranceAgent
+from .seasonal_image_agent import SeasonalImageAgent
 
 __all__ = [
     'BaseAgent',
@@ -22,7 +23,8 @@ __all__ = [
     'LLMOrchestrationAgent', 
     'IntelligenceEnhancementAgent',
     'EvidenceValidationAgent',
-    'QualityAssuranceAgent'
+    'QualityAssuranceAgent',
+    'SeasonalImageAgent'
 ]
 
 __version__ = "1.0.0" 

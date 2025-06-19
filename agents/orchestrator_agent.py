@@ -17,6 +17,7 @@ from .llm_orchestration_agent import LLMOrchestrationAgent
 from .intelligence_enhancement_agent import IntelligenceEnhancementAgent
 from .evidence_validation_agent import EvidenceValidationAgent
 from .quality_assurance_agent import QualityAssuranceAgent
+from .seasonal_image_agent import SeasonalImageAgent
 from .data_models import WorkflowResult
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,7 @@ class AgentOrchestrator(BaseAgent):
             self.agents['llm_orchestration'] = LLMOrchestrationAgent(self.config)
             self.agents['intelligence_enhancement'] = IntelligenceEnhancementAgent(self.config)
             self.agents['evidence_validation'] = EvidenceValidationAgent(self.config)
+            self.agents['seasonal_image'] = SeasonalImageAgent(self.config)
             self.agents['quality_assurance'] = QualityAssuranceAgent(self.config)
             
             # Initialize agents and set up communication channels
@@ -359,6 +361,46 @@ class AgentOrchestrator(BaseAgent):
             workflow_state.phase_results['evidence_validation'] = evidence_result
             workflow_state.phase_results['intelligence_enhancement'] = enhancement_result
             
+            # Phase 3.5: Seasonal Image Generation (Parallel with processing)
+            self.logger.info(f"🎨 Phase 3.5: Seasonal Image Generation for {destination}")
+            workflow_state.current_phase = "seasonal_image_generation"
+            
+            # Determine output directory for images
+            output_dir = None
+            if workflow_state.resource_allocation:
+                output_dir = workflow_state.resource_allocation.get('output_directory')
+            
+            if not output_dir:
+                # Try to extract timestamp from workflow_id for session directory
+                import re
+                timestamp_match = re.search(r'(\d+)$', workflow_id)
+                if timestamp_match:
+                    timestamp = timestamp_match.group(1)
+                    output_dir = f"outputs/session_agent_{timestamp}"
+                else:
+                    # Fallback to current timestamp
+                    import time
+                    current_timestamp = int(time.time())
+                    output_dir = f"outputs/session_agent_{current_timestamp}"
+            
+            # Generate seasonal images
+            seasonal_image_result = await self._execute_agent_task(
+                'seasonal_image',
+                'generate_seasonal_images',
+                {
+                    'destination': destination,
+                    'output_dir': output_dir,
+                    'enhanced_themes': workflow_state.phase_results.get('intelligence_enhancement', {}),
+                    'workflow_context': {
+                        'workflow_id': workflow_id,
+                        'destination': destination
+                    }
+                }
+            )
+            
+            # Store seasonal image results
+            workflow_state.phase_results['seasonal_image_generation'] = seasonal_image_result
+            
             # Phase 4: Quality Assurance and Final Integration
             self.logger.info(f"🔍 Phase 4: Quality Assurance for {destination}")
             workflow_state.current_phase = "quality_assurance"
@@ -484,6 +526,37 @@ class AgentOrchestrator(BaseAgent):
                         return 0.5
                     else:
                         return 0.2
+        
+        # Handle seasonal image generation
+        elif phase == 'seasonal_image_generation':
+            if hasattr(phase_result, 'data') and phase_result.data:
+                # AgentResponse with SeasonalImageResult
+                seasonal_data = phase_result.data
+                if getattr(seasonal_data, 'success', False):
+                    # Quality based on successful image generation
+                    images_count = len(getattr(seasonal_data, 'images_generated', {}))
+                    collage_created = getattr(seasonal_data, 'collage_created', False)
+                    
+                    base_score = 0.6  # Base score for enabled but no images
+                    if images_count >= 4:  # All seasons
+                        base_score = 0.9
+                    elif images_count >= 2:  # Some seasons
+                        base_score = 0.7
+                    elif images_count >= 1:  # At least one image
+                        base_score = 0.6
+                    
+                    # Bonus for collage
+                    if collage_created:
+                        base_score = min(base_score + 0.1, 1.0)
+                    
+                    return base_score
+                else:
+                    # Failed but graceful degradation
+                    graceful_degradation = getattr(seasonal_data, 'metadata', {}).get('graceful_degradation', False)
+                    return 0.5 if graceful_degradation else 0.2
+            else:
+                # Disabled or failed initialization
+                return 0.5  # Neutral score for disabled feature
         
         # Handle AgentResponse objects
         if hasattr(phase_result, 'is_success'):
@@ -640,6 +713,47 @@ class AgentOrchestrator(BaseAgent):
             if 'enhanced_themes' in integrated_data and validation_report:
                 self._apply_evidence_to_themes(integrated_data['enhanced_themes'], validation_report)
         
+        # Integrate seasonal image results
+        if 'seasonal_image_generation' in workflow_state.phase_results:
+            seasonal_result = workflow_state.phase_results['seasonal_image_generation']
+            
+            # Extract the actual SeasonalImageResult from the agent response
+            if hasattr(seasonal_result, 'data') and seasonal_result.data:
+                # AgentResponse format - extract the SeasonalImageResult
+                seasonal_data = seasonal_result.data
+                
+                integrated_data['seasonal_imagery'] = {
+                    'enabled': True,
+                    'success': getattr(seasonal_data, 'success', False),
+                    'images_generated': getattr(seasonal_data, 'images_generated', {}),
+                    'collage_created': getattr(seasonal_data, 'collage_created', False),
+                    'processing_time': getattr(seasonal_data, 'processing_time', 0.0),
+                    'metadata': getattr(seasonal_data, 'metadata', {}),
+                    'error_messages': getattr(seasonal_data, 'error_messages', [])
+                }
+                
+                # Add image paths for dashboard integration
+                if seasonal_data.images_generated:
+                    integrated_data['seasonal_image_paths'] = {}
+                    for season, image_data in seasonal_data.images_generated.items():
+                        if 'local_path' in image_data:
+                            integrated_data['seasonal_image_paths'][season] = image_data['local_path']
+            
+            elif isinstance(seasonal_result, dict):
+                # Handle dict format
+                integrated_data['seasonal_imagery'] = seasonal_result.get('seasonal_imagery', {})
+        else:
+            # No seasonal imagery generated
+            integrated_data['seasonal_imagery'] = {
+                'enabled': False,
+                'success': False,
+                'images_generated': {},
+                'collage_created': False,
+                'processing_time': 0.0,
+                'metadata': {'disabled': True},
+                'error_messages': []
+            }
+        
         # Integrate quality assessment
         if 'quality_assurance' in workflow_state.phase_results:
             qa_data = workflow_state.phase_results['quality_assurance']
@@ -665,10 +779,11 @@ class AgentOrchestrator(BaseAgent):
         
         # Weight different phases
         phase_weights = {
-            'web_discovery': 0.2,
-            'llm_processing': 0.3,
-            'intelligence_enhancement': 0.25,
-            'evidence_validation': 0.15,
+            'web_discovery': 0.18,
+            'llm_processing': 0.28,
+            'intelligence_enhancement': 0.22,
+            'evidence_validation': 0.14,
+            'seasonal_image_generation': 0.08,
             'quality_assurance': 0.1
         }
         

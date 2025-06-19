@@ -23,6 +23,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from src.focused_llm_generator import FocusedLLMGenerator
 from src.focused_prompt_processor import FocusedPromptProcessor
 
+# Import Citation Enhancement System
+from src.citation_enhancement import CitationEnhancementCoordinator
+
 logger = logging.getLogger(__name__)
 
 # ResourceAllocation and LLMProcessingResult are now imported from data_models
@@ -63,6 +66,9 @@ class LLMOrchestrationAgent(BaseAgent):
         self.llm_generator = None
         self.prompt_processor = None
         
+        # Citation Enhancement System
+        self.citation_coordinator = None
+        
         # Performance tracking
         self.processing_metrics = {
             'total_requests': 0,
@@ -81,6 +87,14 @@ class LLMOrchestrationAgent(BaseAgent):
             
             # Initialize prompt processor
             self.prompt_processor = FocusedPromptProcessor(self.llm_generator, self.config)
+            
+            # Initialize Citation Enhancement Coordinator
+            try:
+                self.citation_coordinator = CitationEnhancementCoordinator(self.config)
+                self.logger.info("Citation Enhancement Coordinator initialized")
+            except Exception as e:
+                self.logger.warning(f"Citation Enhancement initialization failed: {e}")
+                self.citation_coordinator = None
             
             # Register task handlers
             self.register_message_handler("execute_llm_pipeline", self._handle_llm_pipeline_request)
@@ -172,6 +186,16 @@ class LLMOrchestrationAgent(BaseAgent):
             processing_results = await self._execute_adaptive_processing(
                 destination, web_content, processing_strategy, optimal_allocation
             )
+            
+            # Phase 3.5: Citation Enhancement (NEW)
+            if self.citation_coordinator and processing_results.get('affinities'):
+                try:
+                    processing_results = await self._enhance_results_with_citations(
+                        destination, processing_results, web_content
+                    )
+                except Exception as e:
+                    self.logger.warning(f"Citation enhancement failed for {destination}: {e}")
+                    # Continue with original results if citation enhancement fails
             
             # Phase 4: Performance Optimization and Quality Assessment
             optimized_results = await self.performance_optimizer.optimize_results(
@@ -379,6 +403,135 @@ class LLMOrchestrationAgent(BaseAgent):
         
         return enhanced_batch
     
+    async def _enhance_results_with_citations(self, destination: str, 
+                                            processing_results: Dict[str, Any], 
+                                            web_content: Dict[str, Any]) -> Dict[str, Any]:
+        """Enhance processing results with citation-based evidence"""
+        
+        enhanced_results = processing_results.copy()
+        affinities = enhanced_results.get('affinities', [])
+        
+        if not affinities:
+            return enhanced_results
+        
+        self.logger.info(f"🔗 Enhancing {len(affinities)} themes with citations for {destination}")
+        
+        # Prepare web content as discovered evidence
+        discovered_evidence = self._convert_web_content_to_evidence(web_content)
+        
+        # Process each theme for citation enhancement
+        enhanced_affinities = []
+        citation_stats = {
+            'total_themes_processed': 0,
+            'themes_enhanced': 0,
+            'total_citations_found': 0,
+            'total_evidence_added': 0,
+            'structured_citations_used': 0
+        }
+        
+        for affinity in affinities:
+            try:
+                theme_name = affinity.get('theme', 'Unknown Theme')
+                theme_description = affinity.get('rationale', '')
+                
+                # Extract structured citations if available
+                structured_citations = affinity.get('citations', [])
+                if structured_citations:
+                    self.logger.debug(f"Found {len(structured_citations)} structured citations for theme '{theme_name}'")
+                    citation_stats['structured_citations_used'] += len(structured_citations)
+                
+                # Enhance this theme with citations (NEW API)
+                enhancement_result = await self.citation_coordinator.enhance_theme_evidence(
+                    theme_text=theme_description,
+                    theme_name=theme_name,
+                    discovered_evidence=discovered_evidence,
+                    structured_citations=structured_citations  # NEW: Pass structured citations
+                )
+                
+                citation_stats['total_themes_processed'] += 1
+                
+                if enhancement_result.enhancement_success:
+                    # Apply enhanced evidence to the theme
+                    enhanced_affinity = self._apply_enhanced_evidence_to_theme(
+                        affinity, enhancement_result
+                    )
+                    enhanced_affinities.append(enhanced_affinity)
+                    
+                    citation_stats['themes_enhanced'] += 1
+                    citation_stats['total_citations_found'] += enhancement_result.citation_statistics.get('citations_extracted', 0)
+                    citation_stats['total_evidence_added'] += len(enhancement_result.enhanced_evidence)
+                    
+                    self.logger.debug(f"Enhanced theme '{theme_name}' with {len(enhancement_result.enhanced_evidence)} evidence pieces")
+                else:
+                    # Keep original theme if enhancement failed
+                    enhanced_affinities.append(affinity)
+                    self.logger.debug(f"Citation enhancement failed for theme '{theme_name}', keeping original")
+                
+            except Exception as e:
+                self.logger.warning(f"Citation enhancement error for theme '{theme_name}': {e}")
+                enhanced_affinities.append(affinity)  # Keep original on error
+        
+        # Update results with enhanced themes
+        enhanced_results['affinities'] = enhanced_affinities
+        enhanced_results['citation_enhancement_stats'] = citation_stats
+        
+        self.logger.info(f"🔗 Citation enhancement complete: {citation_stats['themes_enhanced']}/{citation_stats['total_themes_processed']} themes enhanced")
+        
+        return enhanced_results
+    
+    def _convert_web_content_to_evidence(self, web_content: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Convert web content to discovered evidence format"""
+        
+        evidence_pieces = []
+        content_list = web_content.get('content', [])
+        
+        for content_item in content_list:
+            if isinstance(content_item, dict):
+                evidence_piece = {
+                    'text_content': content_item.get('content', ''),
+                    'source_url': content_item.get('url', ''),
+                    'source_title': content_item.get('title', ''),
+                    'authority_score': content_item.get('authority_score', 0.5),
+                    'quality_rating': 'medium',  # Default rating
+                    'source_type': 'web',
+                    'confidence_score': content_item.get('relevance_score', 0.5),
+                    'relevance_score': content_item.get('relevance_score', 0.5)
+                }
+                evidence_pieces.append(evidence_piece)
+        
+        return evidence_pieces
+    
+    def _apply_enhanced_evidence_to_theme(self, original_affinity: Dict[str, Any], 
+                                        enhancement_result) -> Dict[str, Any]:
+        """Apply enhanced evidence to a theme affinity"""
+        
+        enhanced_affinity = original_affinity.copy()
+        
+        # Add citation enhancement metadata
+        enhanced_affinity['citation_enhanced'] = True
+        enhanced_affinity['citation_statistics'] = enhancement_result.citation_statistics
+        enhanced_affinity['enhancement_processing_time'] = enhancement_result.processing_time
+        
+        # Add enhanced evidence pieces
+        if enhancement_result.enhanced_evidence:
+            enhanced_affinity['enhanced_evidence'] = enhancement_result.enhanced_evidence
+            
+            # Calculate enhanced quality score based on evidence
+            original_confidence = enhanced_affinity.get('confidence', 0.5)
+            evidence_boost = min(0.2, len(enhancement_result.enhanced_evidence) * 0.05)
+            enhanced_affinity['confidence'] = min(1.0, original_confidence + evidence_boost)
+            
+            # Add evidence source summary
+            evidence_sources = [ev.get('evidence_source', 'unknown') for ev in enhancement_result.enhanced_evidence]
+            source_summary = {
+                'discovered': evidence_sources.count('discovered'),
+                'cited': evidence_sources.count('cited'),
+                'total': len(evidence_sources)
+            }
+            enhanced_affinity['evidence_source_summary'] = source_summary
+        
+        return enhanced_affinity
+    
     def _update_processing_metrics(self, result: LLMProcessingResult):
         """Update agent performance metrics"""
         self.processing_metrics['total_requests'] += 1
@@ -409,6 +562,10 @@ class LLMOrchestrationAgent(BaseAgent):
             if self.llm_generator:
                 await self.llm_generator.cleanup()
                 self.logger.debug("LLM generator cleanup complete")
+            
+            if self.citation_coordinator:
+                await self.citation_coordinator.cleanup()
+                self.logger.debug("Citation Enhancement Coordinator cleanup complete")
         except Exception as e:
             self.logger.error(f"LLM cleanup error: {e}")
     
@@ -475,6 +632,13 @@ class LLMOrchestrationAgent(BaseAgent):
                 'cache_metrics': await self.cache_manager.get_cache_metrics(),
                 'resource_utilization': await self.resource_allocator.get_utilization_stats()
             }
+            
+            # Add citation enhancement metrics if available
+            if self.citation_coordinator:
+                try:
+                    metrics['citation_enhancement_metrics'] = self.citation_coordinator.get_comprehensive_metrics()
+                except Exception as e:
+                    self.logger.warning(f"Failed to get citation enhancement metrics: {e}")
             
             response = AgentMessage(
                 sender_id=self.agent_id,

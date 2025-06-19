@@ -155,9 +155,41 @@ class DashboardServer:
                 def log_message(self, format, *args):
                     # Suppress request logging for cleaner output
                     pass
+                
+                def handle_one_request(self):
+                    """Handle a single HTTP request with proper error handling."""
+                    try:
+                        super().handle_one_request()
+                    except (BrokenPipeError, ConnectionResetError):
+                        # Client disconnected abruptly - this is normal, don't log as error
+                        pass
+                    except Exception as e:
+                        # Log other unexpected errors
+                        logger.debug(f"Request handling error: {e}")
+                
+                def finish(self):
+                    """Finish the request with proper error handling."""
+                    try:
+                        super().finish()
+                    except (BrokenPipeError, ConnectionResetError):
+                        # Client disconnected - this is normal
+                        pass
+            
+            # Custom TCP server with better error handling
+            class RobustTCPServer(socketserver.TCPServer):
+                def handle_error(self, request, client_address):
+                    """Handle errors during request processing."""
+                    exc_type, exc_value, exc_traceback = sys.exc_info()
+                    
+                    # Don't log common network errors
+                    if isinstance(exc_value, (BrokenPipeError, ConnectionResetError)):
+                        return
+                    
+                    # Log other errors at debug level
+                    logger.debug(f"Request error from {client_address}: {exc_value}")
             
             # Create server
-            self.server = socketserver.TCPServer((self.host, port), CustomHandler)
+            self.server = RobustTCPServer((self.host, port), CustomHandler)
             self.server.allow_reuse_address = True
             
             # Start server in separate thread

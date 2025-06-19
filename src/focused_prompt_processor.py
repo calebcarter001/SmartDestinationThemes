@@ -268,8 +268,12 @@ Focus ONLY on cultural aspects like:
 For each cultural theme you identify, provide:
 - Theme name (2-4 words)
 - Brief description (1 sentence)
+- Supporting citations (optional URLs if known)
 
-Return as JSON array: [{{"theme": "name", "description": "brief description"}}]
+Return as JSON array: [{{"theme": "name", "description": "brief description", "citations": ["https://url1.com", "https://url2.com"]}}]
+
+Include citations only if you know specific, relevant URLs that support your analysis.
+If no specific URLs are known, use an empty citations array: "citations": []
 
 Limit: 5-7 cultural themes maximum.
 Be specific to {destination} - avoid generic themes.{web_context}"""
@@ -289,8 +293,12 @@ Focus ONLY on culinary aspects like:
 For each culinary theme you identify, provide:
 - Theme name (2-4 words)
 - Brief description (1 sentence)
+- Supporting citations (optional URLs if known)
 
-Return as JSON array: [{{"theme": "name", "description": "brief description"}}]
+Return as JSON array: [{{"theme": "name", "description": "brief description", "citations": ["https://url1.com", "https://url2.com"]}}]
+
+Include citations only if you know specific, relevant URLs that support your analysis.
+If no specific URLs are known, use an empty citations array: "citations": []
 
 Limit: 4-6 culinary themes maximum.
 Be specific to {destination} - focus on what makes the food scene unique.{web_context}"""
@@ -310,8 +318,12 @@ Focus ONLY on adventure aspects like:
 For each adventure theme you identify, provide:
 - Theme name (2-4 words)
 - Brief description (1 sentence)
+- Supporting citations (optional URLs if known)
 
-Return as JSON array: [{{"theme": "name", "description": "brief description"}}]
+Return as JSON array: [{{"theme": "name", "description": "brief description", "citations": ["https://url1.com", "https://url2.com"]}}]
+
+Include citations only if you know specific, relevant URLs that support your analysis.
+If no specific URLs are known, use an empty citations array: "citations": []
 
 Limit: 4-6 adventure themes maximum.
 Be specific to {destination} - what unique adventures are available there?{web_context}"""
@@ -331,8 +343,12 @@ Focus ONLY on entertainment aspects like:
 For each entertainment theme you identify, provide:
 - Theme name (2-4 words)
 - Brief description (1 sentence)
+- Supporting citations (optional URLs if known)
 
-Return as JSON array: [{{"theme": "name", "description": "brief description"}}]
+Return as JSON array: [{{"theme": "name", "description": "brief description", "citations": ["https://url1.com", "https://url2.com"]}}]
+
+Include citations only if you know specific, relevant URLs that support your analysis.
+If no specific URLs are known, use an empty citations array: "citations": []
 
 Limit: 4-6 entertainment themes maximum.
 Be specific to {destination} - what makes the entertainment scene special?{web_context}"""
@@ -352,8 +368,12 @@ Focus ONLY on luxury aspects like:
 For each luxury theme you identify, provide:
 - Theme name (2-4 words)
 - Brief description (1 sentence)
+- Supporting citations (optional URLs if known)
 
-Return as JSON array: [{{"theme": "name", "description": "brief description"}}]
+Return as JSON array: [{{"theme": "name", "description": "brief description", "citations": ["https://url1.com", "https://url2.com"]}}]
+
+Include citations only if you know specific, relevant URLs that support your analysis.
+If no specific URLs are known, use an empty citations array: "citations": []
 
 Limit: 3-5 luxury themes maximum.
 Be specific to {destination} - what luxury experiences are uniquely available?{web_context}"""
@@ -549,20 +569,65 @@ Use decimal values between 0.0 (poor fit) and 1.0 (perfect fit)."""
         # Try to parse JSON
         try:
             parsed = json.loads(response)
-            return parsed if isinstance(parsed, list) else []
+            if isinstance(parsed, list):
+                # Process each theme to ensure citations field exists
+                processed_themes = []
+                for theme in parsed:
+                    if isinstance(theme, dict) and 'theme' in theme:
+                        # Ensure citations field exists (backward compatibility)
+                        if 'citations' not in theme:
+                            theme['citations'] = []
+                        # Validate citations is a list
+                        elif not isinstance(theme['citations'], list):
+                            theme['citations'] = []
+                        # Clean and validate URLs in citations
+                        else:
+                            theme['citations'] = self._validate_citation_urls(theme['citations'])
+                        processed_themes.append(theme)
+                return processed_themes
+            else:
+                return []
         except json.JSONDecodeError as e:
             # Try to find list in the response text as fallback
             import re
             json_match = re.search(r'\[.*\]', response, re.DOTALL)
             if json_match:
                 try:
-                    return json.loads(json_match.group())
+                    parsed = json.loads(json_match.group())
+                    if isinstance(parsed, list):
+                        # Process themes for backward compatibility
+                        processed_themes = []
+                        for theme in parsed:
+                            if isinstance(theme, dict) and 'theme' in theme:
+                                if 'citations' not in theme:
+                                    theme['citations'] = []
+                                elif not isinstance(theme['citations'], list):
+                                    theme['citations'] = []
+                                else:
+                                    theme['citations'] = self._validate_citation_urls(theme['citations'])
+                                processed_themes.append(theme)
+                        return processed_themes
                 except json.JSONDecodeError:
                     logger.error(f"JSON list parsing failed: {e}. Response: {response[:200]}...")
                     return []
             else:
                 logger.error(f"No JSON list found in response: {response[:200]}...")
                 return []
+                
+    def _validate_citation_urls(self, citations: List[str]) -> List[str]:
+        """Validate and clean citation URLs"""
+        validated_urls = []
+        for citation in citations:
+            if isinstance(citation, str) and citation.strip():
+                url = citation.strip()
+                # Basic URL validation - must start with http or https
+                if url.startswith(('http://', 'https://')):
+                    validated_urls.append(url)
+                elif url.startswith('www.'):
+                    # Add https:// to www. URLs
+                    validated_urls.append(f"https://{url}")
+                # Could add more URL validation logic here
+        return validated_urls
 
     async def _generate_sub_themes(self, destination: str, themes: List[str]) -> Dict[str, List[str]]:
         """Generate sub-themes for each main theme"""

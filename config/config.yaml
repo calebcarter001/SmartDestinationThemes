@@ -410,33 +410,9 @@ development:
   auto_reload: false
   profiling_enabled: false
 
-# Destinations to process (Top 25 Global Travel Destinations)
+# Destinations to process (Testing Citation Enhancement System)
 destinations:
   - "Tokyo, Japan"
-  - "Grand Canyon, Arizona, USA"
-  - "Reykjavik, Iceland"
-  - "Giant's Causeway, Northern Ireland, UK"
-  - "Bryce Canyon, Utah, USA"
-  - "Antelope Canyon, Arizona, USA"
-  - "Reynisfjara Beach, Iceland"
-  - "Yosemite National Park, California, USA"
-  - "Dead Sea, Jordan"
-  - "Ha Long Bay, Vietnam"
-  - "Jeita Grotto, Lebanon"
-  - "Athens, Greece"
-  - "Siem Reap, Cambodia"
-  - "Chichen Itza, Mexico"
-  - "Machu Picchu, Peru"
-  - "Cairo, Egypt"
-  - "Stonehenge, England, UK"
-  - "Rome, Italy"
-  - "Bagan, Myanmar"
-  - "Agra, India"
-  - "Beijing, China"
-  - "London, UK"
-  - "Paris, France"
-  - "Florence, Italy"
-  - "Vienna, Austria"
 
 # =============================================================================
 # AGENT SYSTEM CONFIGURATION
@@ -445,7 +421,7 @@ destinations:
 agents:
   # Master agent system control
   enabled: true   # Agent system is now ready for production!
-  migration_mode: "fallback"  # Try agents first, fallback to legacy if needed
+  migration_mode: "agent_only"  # Use agents only for testing citation enhancement
   
   # Performance comparison and analysis
   enable_comparison: false  # Run both systems in parallel for comparison
@@ -460,7 +436,7 @@ agents:
   
   # Process-specific agent controls
   web_discovery:
-    enabled: false
+    enabled: true  # Enable for citation enhancement testing
     max_sources_per_destination: 12  # Increased for agent intelligence
     timeout_seconds: 45
     enable_content_validation: true
@@ -470,7 +446,7 @@ agents:
     enhanced_fallback: true  # Use enhanced fallback strategies
   
   llm_orchestration:
-    enabled: false
+    enabled: true  # Enable for citation enhancement testing
     adaptive_resource_allocation: true  # Intelligent resource allocation
     connection_pool_management: true
     performance_optimization: true
@@ -480,14 +456,14 @@ agents:
     max_concurrent_requests: 8
   
   intelligence_enhancement:
-    enabled: false
+    enabled: true  # Enable for citation enhancement testing
     adaptive_attribute_processing: true  # Context-aware attribute selection
     dependency_aware_processing: true  # Process attributes based on dependencies
     quality_driven_optimization: true  # Optimize based on quality metrics
     enable_attribute_prioritization: true
   
   evidence_validation:
-    enabled: false
+    enabled: true  # Enable for citation enhancement testing
     cross_source_validation: true  # Validate across multiple sources
     conflict_resolution: true  # Resolve conflicting evidence
     authority_scoring: true  # Weight by source authority
@@ -495,7 +471,7 @@ agents:
     evidence_sufficiency_threshold: 0.7
   
   quality_assurance:
-    enabled: false
+    enabled: true  # Enable for citation enhancement testing
     continuous_monitoring: true  # Monitor quality throughout pipeline
     adaptive_intervention: true  # Automatic quality interventions
     predictive_quality_assessment: true
@@ -542,4 +518,153 @@ agent_migration:
   # Comparison and validation
   cross_validation: false  # Run both systems and compare
   cross_validation_sample_rate: 0.1  # 10% of requests for comparison
+
+# =============================================================================
+# LLM CITATION ENHANCEMENT CONFIGURATION
+# =============================================================================
+
+llm_citation_enhancement:
+  # Master toggle for the citation enhancement system
+  enabled: true
+  
+  # Citation extraction settings
+  citation_extraction:
+    # URL pattern matching settings
+    url_patterns:
+      - "https?://[\\w\\.-]+\\.\\w+[\\w\\-._~!$&'()*+,;=:@/]*"  # Standard URLs
+      - "www\\.[\\w\\.-]+\\.\\w+[\\w\\-._~!$&'()*+,;=:@/]*"     # www.example.com
+      - "[\\w\\.-]+\\.(?:com|org|net|edu|gov|mil|int|co|uk|ca|de|fr|au|in|jp|br|ru|cn|it|nl|es|se|no|dk|fi|pl|be|ch|at|cz|gr|hu|pt|ie|mx|ar|cl|pe|ve|za|eg|ma|ng|ke|tz|gh|ug|mz|zw|bw|zm|mw|sz|ls|na|ao|cd|cg|ga|cm|cf|td|ne|ml|bf|ci|gn|sl|lr|mr|sn|gm|gw|cv|st|gq|dj|so|er|et|sd|ly|tn|dz|il|jo|lb|sy|iq|ir|af|pk|bd|lk|mv|np|bt|mm|th|kh|la|vn|my|sg|id|ph|tw|hk|mo|kr|kp|mn|kz|kg|tj|tm|uz|ge|am|az|tr|cy|mt|sm|va|ad|mc|li|lu|is|fo|gl|ax|sj|bv|cc|cx|nf|hm|aq|tf|io|um|gu|mp|pr|vi|as|fm|mh|pw|nc|pf|wf|ck|nu|to|tv|nr|ki|sb|vu|fj|pg|ws|tk|tk|pn)(?:/[\\w\\-._~!$&'()*+,;=:@]*)*"  # Domain extensions
+    
+    # Citation context settings
+    extract_surrounding_context: true
+    context_window_chars: 200       # Characters before/after URL
+    max_citations_per_response: 50  # Limit for processing efficiency
+    min_url_length: 10              # Filter out very short URLs
+    
+    # Quality filters
+    exclude_patterns:
+      - "localhost"
+      - "127.0.0.1"
+      - "example.com"
+      - "test.com"
+      - "placeholder"
+      - "dummy"
+    
+    # Performance settings
+    extraction_timeout: 5.0         # Seconds to spend on URL extraction
+    parallel_extraction: true       # Extract from multiple LLM responses in parallel
+  
+  # URL validation settings
+  url_validation:
+    # Validation strategy
+    strategy: "parallel_batch"      # parallel_batch, sequential, or selective
+    batch_size: 10                  # URLs to validate in parallel
+    max_concurrent_validations: 5   # Maximum concurrent validation requests
+    
+    # Timeout and retry settings
+    request_timeout: 15.0           # Seconds per URL validation
+    max_retries: 2                  # Retry attempts for failed validations
+    retry_delay: 1.0                # Seconds between retry attempts
+    
+    # Validation criteria
+    require_200_status: false       # Allow redirects (3xx codes)
+    follow_redirects: true          # Follow redirect chains
+    max_redirects: 3                # Maximum redirects to follow
+    validate_content_type: true     # Check if content-type is reasonable
+    min_content_length: 100         # Minimum content length for valid URLs
+    
+    # Success criteria
+    acceptable_status_codes: [200, 201, 202, 301, 302, 303, 307, 308]
+    acceptable_content_types:
+      - "text/html"
+      - "text/plain"
+      - "text/markdown"
+      - "application/xhtml+xml"
+      - "application/xml"
+    
+    # Performance optimization
+    use_head_requests: true         # Use HEAD requests first for speed
+    fallback_to_get: true           # Fallback to GET if HEAD fails
+    connection_pool_size: 20        # HTTP connection pool size
+    
+    # Error handling
+    ignore_ssl_errors: false        # Strict SSL validation
+    user_agent: "Destination-Insights-Discovery/1.0 (Citation-Validator)"
+  
+  # Citation content mining settings
+  content_mining:
+    # Mining strategy
+    strategy: "adaptive"            # adaptive, fast, or thorough
+    
+    # Content extraction settings
+    use_jina_reader: true           # Prefer Jina Reader for content extraction
+    fallback_to_direct: true       # Fallback to direct HTTP if Jina fails
+    
+    # Content processing
+    extract_main_content: true      # Extract main content only
+    remove_navigation: true         # Remove navigation elements
+    remove_ads: true                # Remove advertisement content
+    max_content_length: 10000       # Maximum content length to extract
+    min_content_length: 200         # Minimum content length to be useful
+    
+    # Content quality filters
+    content_quality_threshold: 0.6  # Minimum content quality score
+    relevance_threshold: 0.5        # Minimum relevance to original theme
+    authority_weight: 0.3           # Weight for source authority in scoring
+    
+    # Performance settings
+    mining_timeout: 30.0            # Seconds per content mining operation
+    max_concurrent_mining: 3        # Maximum concurrent mining operations
+    enable_content_caching: true    # Cache extracted content
+    cache_ttl: 3600                 # Cache time-to-live in seconds
+  
+  # Evidence fusion settings
+  evidence_fusion:
+    # Fusion strategy
+    strategy: "intelligent_merge"   # intelligent_merge, prioritize_discovered, or prioritize_cited
+    
+    # Quality weighting
+    discovered_evidence_weight: 0.6 # Weight for web-discovered evidence
+    cited_evidence_weight: 0.4      # Weight for LLM-cited evidence
+    
+    # Deduplication settings
+    enable_deduplication: true      # Remove duplicate evidence
+    similarity_threshold: 0.85      # Threshold for considering evidence duplicate
+    
+    # Evidence limits
+    max_evidence_per_theme: 10      # Maximum evidence pieces per theme
+    max_cited_evidence_ratio: 0.3   # Maximum ratio of cited to total evidence
+    
+    # Quality thresholds
+    min_fused_quality_score: 0.4    # Minimum quality for fused evidence
+    require_source_diversity: true  # Require evidence from diverse sources
+    min_source_types: 2             # Minimum different source types
+    
+    # Authority scoring
+    boost_government_sources: 1.2   # Boost multiplier for government sources
+    boost_academic_sources: 1.1     # Boost multiplier for academic sources
+    boost_official_tourism: 1.3     # Boost multiplier for official tourism sites
+    
+    # Conflict resolution
+    handle_contradictions: true     # Handle contradictory evidence
+    contradiction_resolution: "authority_based"  # authority_based, consensus, or latest
+  
+  # Performance monitoring
+  monitoring:
+    enable_detailed_metrics: true   # Collect detailed performance metrics
+    track_citation_success_rate: true
+    track_fusion_quality_impact: true
+    log_failed_citations: true
+    
+    # Alert thresholds
+    min_citation_success_rate: 0.7  # Alert if citation success rate drops below this
+    max_fusion_processing_time: 60.0  # Alert if fusion takes longer than this
+  
+  # Feature flags for safe rollout
+  feature_flags:
+    enable_citation_extraction: true
+    enable_url_validation: true
+    enable_content_mining: true
+    enable_evidence_fusion: true
+    enable_fallback_to_discovered_only: true  # Fallback if citation system fails
  

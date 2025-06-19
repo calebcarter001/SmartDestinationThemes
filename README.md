@@ -1,8 +1,50 @@
 # 🌍 Destination Insights Discovery
 
-An intelligent travel destination analysis system powered by **multi-agent orchestration** that discovers, analyzes, and validates travel themes using advanced AI, web discovery, and evidence-based validation. Featuring a professional interactive dashboard with comprehensive intelligence analysis.
+**AI-Powered Multi-Agent Travel Intelligence System**
 
-> **🎉 Latest Update**: Complete agentic system overhaul with multi-agent orchestration, evidence validation fixes, back navigation, and 25 top global destinations ready for processing!
+A sophisticated multi-agent system that discovers, analyzes, and curates comprehensive travel insights for destinations worldwide. Powered by advanced LLM orchestration, intelligent web discovery, and **cutting-edge citation enhancement technology**.
+
+## ✨ **Latest Features**
+
+### 🔗 **LLM Citation Enhancement System** *(NEW)*
+- **Structured Citation Processing**: LLMs now provide direct URL citations in their responses
+- **Dual Evidence Pipeline**: Combines web-discovered evidence with LLM-cited sources
+- **Intelligent Evidence Fusion**: Smart merging of citation streams with deduplication and quality scoring
+- **Citation Content Mining**: Automated extraction and analysis of cited source content
+- **Authority Boosting**: Enhanced scoring for government, academic, and tourism sources
+- **Graceful Fallback**: Robust system maintains functionality even when citations aren't available
+
+### 🤖 **Multi-Agent Intelligence System**
+- **5-Agent Orchestration**: Web Discovery, LLM Orchestration, Intelligence Enhancement, Evidence Validation, Quality Assurance
+- **Adaptive Processing**: Context-aware theme discovery and content optimization
+- **Parallel Processing**: Concurrent agent execution for maximum efficiency
+- **Quality-Driven**: Comprehensive validation and scoring at every stage
+
+## 🏗️ **System Architecture**
+
+### **Enhanced Evidence Pipeline**
+```
+🔍 Web Discovery Agent
+├── Authority-filtered source discovery
+├── Multi-query search strategies  
+└── Content quality validation
+
+🧠 LLM Orchestration Agent
+├── Structured citation requests
+├── Theme-specific URL generation
+└── Enhanced JSON response parsing
+
+🔗 Citation Enhancement Coordinator
+├── URL extraction and validation
+├── Citation content mining
+├── Evidence stream fusion
+└── Quality-weighted ranking
+
+📊 Evidence Validation Agent
+├── Cross-source validation
+├── Authority scoring
+└── Comprehensive reporting
+```
 
 ## ✨ Key Features
 

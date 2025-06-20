@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from src.agent_integration_layer import AgentCompatibilityLayer
-from tools.config_loader import ConfigLoader
+from tools.config_loader import load_app_config
 
 # Configure logging
 logging.basicConfig(
@@ -30,7 +30,7 @@ async def test_theme_incremental_processing():
     print("=" * 50)
     
     try:
-        config = ConfigLoader.load_config()
+        config = load_app_config()
         integration_layer = AgentCompatibilityLayer(config)
         await integration_layer.initialize()
         
@@ -60,7 +60,7 @@ async def test_session_consolidation():
     print("=" * 50)
     
     try:
-        config = ConfigLoader.load_config()
+        config = load_app_config()
         integration_layer = AgentCompatibilityLayer(config)
         await integration_layer.initialize()
         
@@ -112,7 +112,7 @@ async def test_caching_system():
     print("=" * 50)
     
     try:
-        config = ConfigLoader.load_config()
+        config = load_app_config()
         integration_layer = AgentCompatibilityLayer(config)
         await integration_layer.initialize()
         
@@ -155,7 +155,7 @@ async def test_export_system():
     print("=" * 50)
     
     try:
-        config = ConfigLoader.load_config()
+        config = load_app_config()
         integration_layer = AgentCompatibilityLayer(config)
         await integration_layer.initialize()
         
@@ -223,7 +223,7 @@ async def test_full_integration():
     print("=" * 50)
     
     try:
-        config = ConfigLoader.load_config()
+        config = load_app_config()
         integration_layer = AgentCompatibilityLayer(config)
         await integration_layer.initialize()
         

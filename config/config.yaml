@@ -1010,4 +1010,74 @@ destination_nuances:
     graceful_degradation: true      # Continue with partial results if some models fail
     min_working_models: 2           # Minimum models that must work to proceed
     fallback_to_single_model: true  # Fallback to single best model if others fail
+
+# =============================================================================
+# SESSION MANAGEMENT AND CONSOLIDATION
+# =============================================================================
+session_management:
+  enable_cross_session_consolidation: true
+  consolidation_strategy: "quality_based"  # latest_wins, quality_based, additive
+  max_sessions_to_consider: 10
+  session_ttl_days: 30
+  consolidated_cache_ttl_hours: 24
+  
+  # Quality thresholds for session data
+  min_quality_for_preservation: 0.7
+  quality_improvement_threshold: 0.05  # 5% improvement needed to replace
+
+# =============================================================================
+# THEME PROCESSING LIFECYCLE
+# =============================================================================
+theme_processing:
+  enable_incremental_updates: true
+  merge_strategy: "quality_based"  # append, replace, quality_based
+  incremental_update_threshold_days: 7
+  min_quality_for_preservation: 0.7
+  quality_improvement_threshold: 0.05
+  similarity_threshold: 0.85
+
+# =============================================================================
+# EXPORT SYSTEM CONFIGURATION
+# =============================================================================
+export_system:
+  enabled: true
+  version: "1.0.0"
+  schema_version: "2024.1"
+  
+  # Export formats
+  supported_formats: ["json", "structured"]
+  default_format: "structured"
+  
+  # Export organization
+  organize_by_destination: true
+  include_processing_history: true
+  include_schema_metadata: true
+  
+  # Image handling
+  copy_images_to_export: true
+  image_formats: ["jpg", "png"]
+  create_image_manifest: true
+  
+  # Quality controls
+  min_quality_for_export: 0.6
+  require_both_themes_and_nuances: false
+  validate_export_integrity: true
+
+# =============================================================================
+# ENHANCED CACHING CONFIGURATION
+# =============================================================================
+enhanced_caching:
+  enable_versioned_cache: true
+  enable_consolidated_cache: true
+  enable_export_cache: true
+  
+  # Version tracking
+  data_versioning: true
+  max_versions_per_destination: 5
+  version_ttl_days: 14
+  
+  # Cache invalidation
+  auto_invalidate_on_new_data: true
+  cache_warming: true
+  background_cache_updates: true
  

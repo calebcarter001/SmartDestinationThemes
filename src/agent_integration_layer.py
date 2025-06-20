@@ -26,6 +26,12 @@ from src.focused_llm_generator import FocusedLLMGenerator
 from src.focused_prompt_processor import FocusedPromptProcessor
 from tools.web_discovery_tools import WebDiscoveryTool
 
+# Import new incremental processing systems
+from src.theme_lifecycle_manager import ThemeLifecycleManager
+from src.session_consolidation_manager import SessionConsolidationManager
+from src.enhanced_caching_system import ConsolidatedDataCache
+from src.export_system import DestinationDataExporter
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -67,6 +73,12 @@ class AgentCompatibilityLayer:
         self.llm_generator = None
         self.prompt_processor = None
         self.web_discovery = None
+        
+        # New incremental processing systems
+        self.theme_lifecycle_manager = ThemeLifecycleManager(config)
+        self.session_consolidator = SessionConsolidationManager(config)
+        self.consolidated_cache = ConsolidatedDataCache(config)
+        self.data_exporter = DestinationDataExporter(config)
         
         # Performance tracking
         self.performance_data = {
@@ -324,6 +336,15 @@ class AgentCompatibilityLayer:
                 
                 for destination in destinations:
                     try:
+                        # Check if incremental update is needed
+                        existing_nuance_data = self._check_existing_nuance_data(destination)
+                        
+                        if existing_nuance_data and not self._should_do_incremental_update(destination):
+                            logger.info(f"🛡️ Preserving existing nuances for {destination} (sufficient quality)")
+                            nuance_results[destination] = existing_nuance_data
+                            successful_destinations += 1
+                            continue
+                        
                         logger.info(f"🎯 Generating nuances for {destination}")
                         task_result = await nuance_agent.execute_task(
                             f"nuance_{destination.replace(' ', '_')}",
@@ -334,9 +355,15 @@ class AgentCompatibilityLayer:
                         )
                         
                         if task_result and task_result.is_success:
-                            nuance_results[destination] = task_result.data
+                            # Merge with existing data if available
+                            if existing_nuance_data:
+                                merged_data = self._merge_with_existing_data(destination, task_result.data)
+                                nuance_results[destination] = merged_data
+                                logger.info(f"✅ Nuances merged with existing data for {destination}")
+                            else:
+                                nuance_results[destination] = task_result.data
+                                logger.info(f"✅ New nuances generated for {destination}")
                             successful_destinations += 1
-                            logger.info(f"✅ Nuances generated for {destination}")
                         else:
                             logger.error(f"❌ Nuance generation failed for {destination}: {task_result.error_message if task_result else 'Unknown error'}")
                             
@@ -487,6 +514,47 @@ class AgentCompatibilityLayer:
             logger.error(f"❌ Staging error: {e}")
         
         return processed_files
+    
+    async def _process_themes_incrementally(self, destinations: List[str], agent_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Process themes with incremental updates using the theme lifecycle manager"""
+        processed_themes = {}
+        
+        for destination in destinations:
+            try:
+                # Check if theme update is needed
+                if not self.theme_lifecycle_manager.should_update_themes(destination):
+                    logger.info(f"🛡️ Preserving existing themes for {destination}")
+                    existing_themes = self.theme_lifecycle_manager._get_existing_themes(destination)
+                    if existing_themes:
+                        processed_themes[destination] = existing_themes
+                    continue
+                
+                # Get new theme data from agent results
+                if destination in agent_results:
+                    new_theme_data = agent_results[destination]
+                    
+                    # Check if we have existing themes to merge
+                    existing_themes = self.theme_lifecycle_manager._get_existing_themes(destination)
+                    
+                    if existing_themes:
+                        # Merge with existing themes
+                        logger.info(f"🔄 Merging themes for {destination}")
+                        merged_themes = self.theme_lifecycle_manager.merge_theme_data(
+                            destination, 
+                            new_theme_data.get('affinities', []), 
+                            existing_themes
+                        )
+                        processed_themes[destination] = merged_themes
+                        logger.info(f"✅ Themes merged for {destination}")
+                    else:
+                        # New theme data
+                        processed_themes[destination] = new_theme_data
+                        logger.info(f"✅ New themes processed for {destination}")
+                
+            except Exception as e:
+                logger.error(f"❌ Theme incremental processing failed for {destination}: {e}")
+        
+        return processed_themes
     
     async def _copy_existing_theme_data_to_session(self, session_dir: str, destinations: List[str]):
         """Copy existing theme data to the new session for dashboard display"""
@@ -810,6 +878,144 @@ class AgentCompatibilityLayer:
             logger.warning(f"Legacy cleanup error: {e}")
         
         logger.info("Integration layer cleanup complete")
+    
+    async def export_destination_data(self, destination: str, export_format: str = None) -> Dict[str, Any]:
+        """Export consolidated destination data"""
+        try:
+            logger.info(f"🚀 Starting export for {destination}")
+            
+            # Step 1: Check cache first
+            cached_data = await self.consolidated_cache.get_consolidated_data(destination)
+            
+            if cached_data:
+                logger.info(f"📦 Using cached consolidated data for {destination}")
+                consolidated_data = cached_data['data']
+            else:
+                logger.info(f"🔄 Consolidating data from sessions for {destination}")
+                
+                # Step 2: Consolidate data from all sessions
+                consolidated = await self.session_consolidator.consolidate_destination_data(destination)
+                
+                # Convert to dict format
+                consolidated_data = {
+                    'destination': consolidated.destination,
+                    'themes': consolidated.themes,
+                    'nuances': consolidated.nuances,
+                    'images': consolidated.images,
+                    'evidence': consolidated.evidence,
+                    'metadata': consolidated.metadata,
+                    'source_sessions': consolidated.source_sessions
+                }
+                
+                # Step 3: Cache the consolidated data
+                await self.consolidated_cache.cache_consolidated_data(destination, consolidated_data)
+            
+            # Step 4: Export the data
+            export_result = await self.data_exporter.export_destination(
+                destination, 
+                consolidated_data, 
+                export_format
+            )
+            
+            logger.info(f"✅ Export complete for {destination}: {export_result['export_path']}")
+            return export_result
+            
+        except Exception as e:
+            logger.error(f"❌ Export failed for {destination}: {e}")
+            raise
+    
+    async def export_all_destinations(self, export_format: str = None) -> Dict[str, Any]:
+        """Export all available destinations"""
+        try:
+            # Discover all destinations with data
+            available_destinations = await self._discover_all_destinations()
+            
+            if not available_destinations:
+                return {
+                    'status': 'no_data',
+                    'message': 'No destination data found for export',
+                    'exported_destinations': []
+                }
+            
+            logger.info(f"🚀 Starting bulk export for {len(available_destinations)} destinations")
+            
+            export_results = {}
+            successful_exports = 0
+            
+            for destination in available_destinations:
+                try:
+                    result = await self.export_destination_data(destination, export_format)
+                    export_results[destination] = result
+                    successful_exports += 1
+                except Exception as e:
+                    logger.error(f"❌ Export failed for {destination}: {e}")
+                    export_results[destination] = {'error': str(e)}
+            
+            return {
+                'status': 'complete',
+                'total_destinations': len(available_destinations),
+                'successful_exports': successful_exports,
+                'export_results': export_results
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Bulk export failed: {e}")
+            raise
+    
+    async def _discover_all_destinations(self) -> List[str]:
+        """Discover all destinations that have data available"""
+        destinations = set()
+        
+        try:
+            # Look through all session directories
+            outputs_dir = Path("outputs")
+            if not outputs_dir.exists():
+                return []
+            
+            for session_dir in outputs_dir.glob("session_*"):
+                if not session_dir.is_dir():
+                    continue
+                
+                json_dir = session_dir / "json"
+                if not json_dir.exists():
+                    continue
+                
+                # Parse destination names from file names
+                for json_file in json_dir.glob("*_enhanced.json"):
+                    dest_name = json_file.stem.replace('_enhanced', '').replace('__', ', ').replace('_', ' ')
+                    destinations.add(dest_name.title())
+                
+                for json_file in json_dir.glob("*_nuances.json"):
+                    dest_name = json_file.stem.replace('_nuances', '').replace('__', ', ').replace('_', ' ')
+                    destinations.add(dest_name.title())
+            
+            return sorted(list(destinations))
+            
+        except Exception as e:
+            logger.error(f"Failed to discover destinations: {e}")
+            return []
+    
+    async def get_consolidation_statistics(self, destination: str = None) -> Dict[str, Any]:
+        """Get consolidation and cache statistics"""
+        try:
+            stats = {
+                'system_statistics': {
+                    'cache_stats': await self.consolidated_cache.get_cache_statistics(),
+                    'export_stats': await self.data_exporter.get_export_statistics()
+                }
+            }
+            
+            if destination:
+                stats['destination_statistics'] = {
+                    'consolidation_stats': await self.session_consolidator.get_consolidation_statistics(destination),
+                    'theme_stats': self.theme_lifecycle_manager.get_theme_statistics(destination)
+                }
+            
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Failed to get statistics: {e}")
+            return {'error': str(e)}
     
     def _convert_nuance_result_to_json_format(self, destination: str, nuance_result: Any) -> Dict[str, Any]:
         """Convert DestinationNuanceResult to proper JSON format for dashboard display"""

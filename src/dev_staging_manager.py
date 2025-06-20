@@ -27,6 +27,9 @@ class DevStagingManager:
         self.dev_dashboard_dir.mkdir(exist_ok=True)
         self.dev_json_dir.mkdir(exist_ok=True)
         
+        # Check if we're in development mode
+        self.is_development_mode = self._is_development_mode()
+        
     def stage_latest_session(self, session_dir: str = None) -> bool:
         """
         Stage the latest session data to development folder.
@@ -107,21 +110,40 @@ class DevStagingManager:
         for file in source_json.glob("*.json"):
             shutil.copy2(file, self.dev_json_dir / file.name)
     
-    def _create_staging_metadata(self, session_dir: str):
+    def _create_staging_metadata(self, session_dir: str, processed_destinations: list = None):
         """Create metadata about the staged session."""
         import json
         from datetime import datetime
+        
+        # Load staging configuration
+        try:
+            import yaml
+            with open("config/config.yaml", 'r') as f:
+                config = yaml.safe_load(f)
+            staging_config = config.get('development', {}).get('staging_mode', {})
+        except:
+            staging_config = {}
         
         metadata = {
             "staged_at": datetime.now().isoformat(),
             "source_session": session_dir,
             "staging_dir": str(self.dev_staging_dir),
-            "dashboard_url": f"http://localhost:8002/",
+            "dashboard_url": f"http://localhost:8000/",  # Updated to match actual server port
             "files_staged": {
                 "dashboard": len(list(self.dev_dashboard_dir.glob("*.html"))),
                 "json": len(list(self.dev_json_dir.glob("*.json")))
             }
         }
+        
+        # Add mode information if configured
+        if staging_config.get('include_mode_in_metadata', True):
+            metadata["staging_mode"] = {
+                "is_development_mode": self.is_development_mode,
+                "mode_name": "development" if self.is_development_mode else "production",
+                "processed_destinations": processed_destinations or [],
+                "selective_staging": self.is_development_mode,
+                "auto_detected": staging_config.get('auto_detect_mode', True)
+            }
         
         with open(self.dev_staging_dir / "staging_metadata.json", 'w') as f:
             json.dump(metadata, f, indent=2)
@@ -215,4 +237,219 @@ class DevStagingManager:
             
         except Exception as e:
             self.logger.error(f"Failed to find latest session directory: {e}")
-            return None 
+            return None
+    
+    def _is_development_mode(self) -> bool:
+        """Check if we're in development mode based on configuration."""
+        try:
+            # Load config to check staging mode
+            import yaml
+            config_path = Path("config/config.yaml")
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                
+                # Get staging mode configuration
+                dev_config = config.get('development', {})
+                staging_config = dev_config.get('staging_mode', {})
+                
+                # Check if auto-detection is enabled
+                if not staging_config.get('auto_detect_mode', True):
+                    # Manual mode - return false (production) by default
+                    self.logger.info("🚀 Manual staging mode - defaulting to production")
+                    return False
+                
+                # Auto-detect based on configured indicators
+                dev_indicators = staging_config.get('dev_mode_indicators', {})
+                processing_mode = config.get('processing_mode', {})
+                
+                # Check limited destinations
+                dest_limit = dev_indicators.get('limited_destinations', 3)
+                limited_destinations = len(config.get('destinations', [])) <= dest_limit
+                
+                # Check nuance-only processing
+                if dev_indicators.get('nuance_only_processing', True):
+                    nuance_only = (
+                        not processing_mode.get('enable_theme_processing', True) and
+                        processing_mode.get('enable_nuance_processing', True)
+                    )
+                else:
+                    nuance_only = False
+                
+                # Check debug keywords in config
+                debug_keywords = dev_indicators.get('debug_keywords', ['debug', 'test', 'development'])
+                config_text = str(config).lower()
+                has_debug_keywords = any(keyword in config_text for keyword in debug_keywords)
+                
+                # Determine mode
+                is_dev = limited_destinations or nuance_only or has_debug_keywords
+                
+                # Log decision with details
+                if staging_config.get('log_staging_decisions', True):
+                    self.logger.info(f"🎯 Staging mode auto-detection:")
+                    self.logger.info(f"   Limited destinations ({dest_limit}): {limited_destinations}")
+                    self.logger.info(f"   Nuance-only processing: {nuance_only}")
+                    self.logger.info(f"   Debug keywords found: {has_debug_keywords}")
+                    
+                    if is_dev:
+                        self.logger.info("🔧 Development mode detected - selective staging enabled")
+                    else:
+                        self.logger.info("🚀 Production mode detected - full staging enabled")
+                
+                return is_dev
+            
+            return False
+        except Exception as e:
+            self.logger.warning(f"Could not determine staging mode: {e}, defaulting to production")
+            return False
+    
+    def stage_session_selective(self, session_dir: str, processed_destinations: list = None) -> bool:
+        """
+        Stage session data with development vs production mode awareness.
+        
+        Args:
+            session_dir: Path to the session directory to stage
+            processed_destinations: List of destinations that were actually processed
+            
+        Returns:
+            bool: True if staging successful, False otherwise
+        """
+        try:
+            session_path = Path(session_dir)
+            if not session_path.exists():
+                self.logger.error(f"Session directory does not exist: {session_dir}")
+                return False
+            
+            # Clear existing staging data
+            self._clear_staging_area()
+            
+            if self.is_development_mode and processed_destinations:
+                # Development mode: Only stage processed destinations
+                self.logger.info(f"🔧 Development staging: {len(processed_destinations)} destination(s)")
+                success = self._stage_selective_destinations(session_path, processed_destinations)
+            else:
+                # Production mode: Stage everything
+                self.logger.info("🚀 Production staging: all destinations")
+                success = self._stage_all_destinations(session_path)
+            
+            if success:
+                # Create staging metadata
+                self._create_staging_metadata(session_dir, processed_destinations)
+                
+                self.logger.info(f"✅ Successfully staged session: {session_dir}")
+                self.logger.info(f"📁 Development dashboard available at: {self.dev_dashboard_dir}")
+            
+            return success
+            
+        except Exception as e:
+            self.logger.error(f"Failed to stage session {session_dir}: {e}")
+            return False
+    
+    def _stage_selective_destinations(self, session_path: Path, destinations: list) -> bool:
+        """Stage only specific destinations (development mode)."""
+        try:
+            session_dashboard = session_path / "dashboard"
+            session_json = session_path / "json"
+            
+            staged_count = 0
+            
+            # Stage specific destination files
+            for destination in destinations:
+                dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
+                
+                # Stage dashboard file
+                if session_dashboard.exists():
+                    dest_html = session_dashboard / f"{dest_filename}.html"
+                    if dest_html.exists():
+                        shutil.copy2(dest_html, self.dev_dashboard_dir / dest_html.name)
+                        staged_count += 1
+                        self.logger.info(f"📄 Staged dashboard: {destination}")
+                
+                # Stage JSON files (themes AND nuances)
+                if session_json.exists():
+                    json_files = [
+                        f"{dest_filename}_enhanced.json",      # Theme data
+                        f"{dest_filename}_evidence.json",      # Theme evidence
+                        f"{dest_filename}_nuances.json",       # Nuance data
+                        f"{dest_filename}_nuances_evidence.json"  # Nuance evidence
+                    ]
+                    
+                    for json_file in json_files:
+                        json_path = session_json / json_file
+                        if json_path.exists():
+                            shutil.copy2(json_path, self.dev_json_dir / json_file)
+                            self.logger.info(f"📊 Staged data: {json_file}")
+            
+            # Copy index.html if it exists (for navigation)
+            index_html = session_dashboard / "index.html"
+            if index_html.exists():
+                shutil.copy2(index_html, self.dev_dashboard_dir / "index.html")
+                self.logger.info("📋 Staged index page")
+            
+            # Also look for and copy theme data from previous sessions if this is nuance-only
+            if self.is_development_mode:
+                self._copy_theme_data_from_previous_sessions(destinations)
+            
+            return staged_count > 0
+            
+        except Exception as e:
+            self.logger.error(f"Selective staging failed: {e}")
+            return False
+    
+    def _stage_all_destinations(self, session_path: Path) -> bool:
+        """Stage all destinations (production mode)."""
+        try:
+            # Copy all dashboard files
+            session_dashboard = session_path / "dashboard"
+            if session_dashboard.exists():
+                self._copy_dashboard_files(session_dashboard)
+                self.logger.info(f"Staged all dashboard files from {session_dashboard}")
+            
+            # Copy all JSON files
+            session_json = session_path / "json"
+            if session_json.exists():
+                self._copy_json_files(session_json)
+                self.logger.info(f"Staged all JSON files from {session_json}")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Full staging failed: {e}")
+            return False
+    
+    def _copy_theme_data_from_previous_sessions(self, destinations: list):
+        """Copy theme data from previous sessions for development mode."""
+        try:
+            # Find the most recent session with theme data
+            import glob
+            existing_sessions = sorted(glob.glob("outputs/session_agent_*"), reverse=True)
+            
+            for existing_session in existing_sessions:
+                existing_json_dir = Path(existing_session) / "json"
+                if not existing_json_dir.exists():
+                    continue
+                    
+                copied_count = 0
+                for destination in destinations:
+                    dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
+                    
+                    # Copy theme files if they don't already exist
+                    theme_files = [
+                        f"{dest_filename}_enhanced.json",
+                        f"{dest_filename}_evidence.json"
+                    ]
+                    
+                    for theme_file in theme_files:
+                        source_file = existing_json_dir / theme_file
+                        dest_file = self.dev_json_dir / theme_file
+                        
+                        if source_file.exists() and not dest_file.exists():
+                            shutil.copy2(source_file, dest_file)
+                            copied_count += 1
+                
+                if copied_count > 0:
+                    self.logger.info(f"🛡️ Copied {copied_count} theme files from {existing_session}")
+                    break
+            
+        except Exception as e:
+            self.logger.warning(f"Could not copy theme data from previous sessions: {e}") 

@@ -12,6 +12,8 @@ from .intelligence_enhancement_agent import IntelligenceEnhancementAgent
 from .evidence_validation_agent import EvidenceValidationAgent
 from .quality_assurance_agent import QualityAssuranceAgent
 from .seasonal_image_agent import SeasonalImageAgent
+from .destination_nuance_agent import DestinationNuanceAgent
+from .data_models import *
 
 __all__ = [
     'BaseAgent',
@@ -24,7 +26,8 @@ __all__ = [
     'IntelligenceEnhancementAgent',
     'EvidenceValidationAgent',
     'QualityAssuranceAgent',
-    'SeasonalImageAgent'
+    'SeasonalImageAgent',
+    'DestinationNuanceAgent'
 ]
 
 __version__ = "1.0.0" 

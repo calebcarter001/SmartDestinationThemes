@@ -1,33 +1,81 @@
 # Example configuration file for Destination Intelligence Discovery
 # Copy this file to config.yaml and update with your settings
 
-# Destinations to process (Top 25 Global Travel Destinations - Complete Library Rebuild)
+# Destinations to process - TESTING: Limited to 1 destination for nuance debugging
 destinations:
-  - "Tokyo, Japan"
-  - "Grand Canyon, Arizona, USA"
-  - "Reykjavik, Iceland"
-  - "Giant's Causeway, Northern Ireland, UK"
-  - "Bryce Canyon, Utah, USA"
-  - "Antelope Canyon, Arizona, USA"
-  - "Reynisfjara Beach, Iceland"
-  - "Yosemite National Park, California, USA"
-  - "Dead Sea, Jordan"
-  - "Ha Long Bay, Vietnam"
-  - "Jeita Grotto, Lebanon"
-  - "Athens, Greece"
-  - "Siem Reap, Cambodia"
-  - "Chichen Itza, Mexico"
-  - "Machu Picchu, Peru"
-  - "Cairo, Egypt"
-  - "Stonehenge, England, UK"
-  - "Rome, Italy"
-  - "Bagan, Myanmar"
-  - "Agra, India"
-  - "Beijing, China"
-  - "London, UK"
-  - "Paris, France"
-  - "Florence, Italy"
-  - "Vienna, Austria"
+  - "Tokyo, Japan"  # Single destination for nuance testing
+  
+# Full destination list (commented out for testing):
+# - "Paris, France"
+# - "Tokyo, Japan"
+# - "New York City, USA"
+# - "Bora Bora, French Polynesia"
+# - "Santorini, Greece"
+# - "Maldives"
+# - "Banff, Canada"
+# - "Amalfi Coast, Italy"
+# - "Kyoto, Japan"
+# - "Machu Picchu, Peru"
+# - "Reykjavik, Iceland"
+# - "Ubud, Bali"
+# - "Serengeti, Tanzania"
+# - "Queenstown, New Zealand"
+# - "Marrakech, Morocco"
+# - "Siem Reap, Cambodia"
+# - "Lisbon, Portugal"
+# - "Edinburgh, Scotland"
+# - "Cape Town, South Africa"
+# - "Tulum, Mexico"
+# - "Goa, India"
+# - "Positano, Italy"
+# - "Lofoten Islands, Norway"
+# - "Whistler, Canada"
+# - "Zermatt, Switzerland"
+
+# =============================================================================
+# PROCESSING MODE CONTROL - DEBUGGING ISOLATION
+# =============================================================================
+
+processing_mode:
+  # Master toggles for different processing types
+  enable_theme_processing: false      # DISABLE theme discovery/generation (themes are working)
+  enable_nuance_processing: true      # ENABLE nuance processing only (debug nuances)
+  enable_seasonal_images: false       # DISABLE image generation (isolate nuance issues)
+  preserve_existing_themes: true      # Don't touch existing theme files across ALL sessions
+  
+  # Fine-grained theme controls
+  theme_controls:
+    skip_theme_discovery: true        # Don't run web discovery for themes  
+    skip_theme_enhancement: true      # Don't run intelligence enhancement for themes
+    skip_theme_evidence: true         # Don't collect new theme evidence
+    preserve_theme_files: true        # Keep existing theme JSON files (*_enhanced.json)
+    preserve_theme_evidence: true     # Keep existing theme evidence files (*_evidence.json)
+    dashboard_show_themes: true       # Dashboard should still display existing theme data
+    
+  # Nuance-specific controls  
+  nuance_controls:
+    force_nuance_regeneration: true   # Force regenerate nuances (clean slate for debugging)
+    nuance_only_mode: true            # Only run nuance processing in workflows
+    clean_nuance_files: true          # Clean ALL nuance files from ALL sessions before processing
+    clean_nuance_evidence: true       # Clean ALL nuance evidence files from ALL sessions
+    
+  # Cleanup behavior controls
+  cleanup_controls:
+    preserve_all_theme_sessions: true     # Preserve themes in ALL sessions (not just latest)
+    clean_nuance_all_sessions: true       # Clean nuance files from ALL sessions
+    patterns_to_preserve:                  # File patterns to NEVER delete
+      - "*_enhanced.json"                  # Theme data files
+      - "*_evidence.json"                  # Theme evidence files (but NOT nuance evidence)
+    patterns_to_clean:                     # File patterns to DELETE during cleanup
+      - "*_nuances.json"                   # Nuance data files  
+      - "*_nuances_evidence.json"          # Nuance evidence files
+      
+  # Debug information
+  debug_info:
+    reason: "Isolating nuance processing for debugging"
+    themes_status: "Working correctly - preserved across all sessions"
+    nuances_status: "Broken - cleaning slate for fresh debugging"
+    images_status: "Disabled to isolate nuance issues"
 
 # Database configuration
 database:
@@ -48,6 +96,7 @@ llm_settings:
   provider: "gemini"  # Use Gemini instead of OpenAI
   gemini_model_name: "gemini-1.5-flash-latest"  # or gemini-2.0-flash
   openai_model_name: "gpt-4o-mini"
+  anthropic_model_name: "claude-3-5-sonnet-latest"
 
 # The enhanced prompt for generating destination affinities with nuances
 affinity_prompt: |
@@ -437,6 +486,34 @@ development:
   dev_staging_port: 8001
   auto_reload: false
   profiling_enabled: false
+  
+  # Development staging mode configuration
+  staging_mode:
+    # Controls how staging works based on development vs production
+    auto_detect_mode: true          # Automatically detect dev vs prod mode
+    
+    # Development mode settings
+    dev_mode_indicators:
+      limited_destinations: 3       # <= 3 destinations = development mode
+      nuance_only_processing: true  # Only nuances enabled = development mode  
+      debug_keywords: ["debug", "test", "development"]  # Keywords in config
+    
+    # Staging behavior per mode
+    development_staging:
+      selective_staging: true       # Only stage processed destinations
+      include_themes_and_nuances: true  # Stage both themes + nuances for processed destinations
+      copy_themes_from_previous: true   # Copy existing themes if missing
+      focus_dashboard: true         # Generate focused dashboard for development
+      
+    production_staging:
+      selective_staging: false      # Stage all destinations
+      include_themes_and_nuances: true  # Stage all available data
+      copy_themes_from_previous: false  # Don't copy from previous sessions
+      focus_dashboard: false        # Generate full multi-destination dashboard
+    
+    # Metadata and logging
+    log_staging_decisions: true     # Log which staging mode was chosen
+    include_mode_in_metadata: true  # Include mode info in staging metadata
 
 
 # =============================================================================
@@ -505,7 +582,7 @@ agents:
 
 seasonal_imagery:
   # Feature control
-  enabled: false  # Enable seasonal image generation for destinations
+  enabled: false  # DISABLED - Image generation disabled for nuance debugging
   
   # DALL-E API settings
   model: "dall-e-3"  # DALL-E model version
@@ -729,4 +806,208 @@ llm_citation_enhancement:
     enable_content_mining: true
     enable_evidence_fusion: true
     enable_fallback_to_discovered_only: true  # Fallback if citation system fails
+
+# =============================================================================
+# DESTINATION NUANCE CONFIGURATION
+# =============================================================================
+
+destination_nuances:
+  # Master toggle for the destination nuance system
+  enabled: true
+  
+  # Target nuance count per destination
+  target_nuances_per_destination: 6  # Reduced for testing
+  min_nuances_per_destination: 4     # Reduced for testing
+  max_nuances_per_destination: 8     # Reduced for testing
+  
+  # Multi-LLM generation settings - TESTING: Limited models for debugging
+  multi_llm_generation:
+    # LLM models to use (Reduced for testing reliability)
+    models:
+      openai:
+        - "gpt-4o-mini"  # Only use working model names
+      gemini:
+        - "gemini-2.0-flash"  # Only use working model names
+      anthropic:
+        - "claude-3-haiku-20240307"  # Only use working model names
+    
+    # Generation strategy - TESTING MODE
+    use_all_available_models: false   # Use limited models for testing
+    require_minimum_models: 1         # Minimum models for testing (reduced)
+    parallel_generation: true         # Generate from multiple models simultaneously
+    timeout_per_model: 20.0          # Reduced timeout for faster failure detection
+    
+    # Prompt configuration
+    prompt_template: |
+      You are an expert travel copywriter. List 8-12 concrete hotel or stay features uniquely associated with {destination}.
+      
+      Constraints:
+      • Each phrase ≤ 4 words
+      • Destination-specific, not generic (exclude Wi-Fi, pool, restaurant, breakfast, etc.)
+      
+      Output: comma-separated phrases only.
+    
+    # Consensus processing
+    consensus_processing:
+      similarity_threshold: 0.7       # Threshold for grouping similar phrases
+      min_consensus_models: 2         # Minimum models that must agree for high confidence
+      phrase_filtering: true          # Filter out generic phrases
+  
+  # Search validation settings (using Brave Search API)
+  search_validation:
+    # Validation strategy
+    validation_service: "brave"      # "brave" or "google" (brave preferred for free tier)
+    parallel_validation: true        # Validate multiple phrases simultaneously
+    batch_size: 5                   # Phrases to validate in parallel batch
+    
+    # Search criteria
+    min_search_hits: 1000           # Minimum search results to consider valid
+    uniqueness_ratio_threshold: 3.0 # (destination_hits / control_hits) threshold
+    control_destination: "Chicago"   # Control destination for uniqueness comparison
+    
+    # Evidence diversity requirements
+    require_evidence_diversity: true
+    min_evidence_sources: 2         # Must appear in at least 2 different source types
+    accepted_evidence_sources:
+      - "wikivoyage"
+      - "wikipedia" 
+      - "tripadvisor"
+      - "lonelyplanet"
+      - "official_tourism"
+      - "government"
+      - "travel_blogs"
+    
+    # Performance settings
+    validation_timeout: 15.0        # Seconds per validation batch
+    max_concurrent_validations: 3   # Maximum concurrent validation batches
+    cache_search_results: true      # Cache search results for 24 hours
+    cache_ttl: 86400               # Cache time-to-live in seconds
+  
+  # Scoring and ranking settings
+  scoring:
+    # Scoring formula components
+    hit_count_weight: 0.4           # Weight for search hit count (log-scaled)
+    uniqueness_weight: 0.4          # Weight for destination uniqueness ratio
+    evidence_diversity_weight: 0.2  # Weight for evidence source diversity
+    
+    # Scoring calculations
+    max_log_hit_score: 6.0         # log10(1M hits) = 6, max score normalization
+    uniqueness_cap: 10.0           # Cap uniqueness ratio at 10x
+    
+    # Selection criteria
+    min_final_score: 0.3           # Minimum score to include in final results
+    score_boost_multipliers:
+      government_sources: 1.2       # Boost for government/official sources
+      academic_sources: 1.1         # Boost for academic sources
+      tourism_authority: 1.3        # Boost for official tourism sources
+  
+  # Quality assurance
+  quality_assurance:
+    # Phrase filtering
+    deny_list:
+      - "wifi"
+      - "internet"
+      - "breakfast"
+      - "parking"
+      - "restaurant"
+      - "hotel"
+      - "room service"
+      - "concierge"
+      - "fitness center"
+      - "business center"
+      - "conference room"
+      - "meeting room"
+      - "laundry"
+      - "dry cleaning"
+      - "air conditioning"
+      - "heating"
+      - "television"
+      - "phone"
+      - "safe"
+      - "minibar"
+      - "balcony"
+      - "view"
+      - "bathroom"
+      - "shower"
+      - "bathtub"
+    
+    # Generic phrase detection
+    generic_phrase_filters:
+      - "luxury.*"
+      - "modern.*"
+      - "comfortable.*"
+      - "convenient.*"
+      - "beautiful.*"
+      - "stunning.*"
+      - "amazing.*"
+      - "incredible.*"
+      - "perfect.*"
+      - "ideal.*"
+    
+    # Quality thresholds
+    min_phrase_length: 8           # Minimum characters per phrase
+    max_phrase_length: 40          # Maximum characters per phrase
+    require_destination_specific: true
+  
+  # Evidence quality management
+  evidence_quality:
+    # Minimum evidence requirements  
+    min_evidence_per_nuance: 2      # Minimum evidence pieces required per nuance
+    target_evidence_per_nuance: 3   # Target evidence pieces per nuance
+    max_evidence_per_nuance: 5      # Maximum evidence pieces per nuance
+    
+    # Evidence validation and deduplication
+    enable_evidence_deduplication: true    # Reject duplicate evidence across sessions
+    evidence_similarity_threshold: 0.85    # Threshold for considering evidence duplicate
+    preserve_existing_evidence: true       # Don't delete existing evidence
+    reuse_existing_evidence: true          # Reuse existing evidence when applicable
+    
+    # Evidence quality scoring
+    simple_quality_algorithm: true         # Use simple algorithm without LLM calls
+    quality_weights:
+      url_validity: 0.4               # Weight for URL accessibility
+      domain_authority: 0.3           # Weight for domain authority (travel sites)
+      search_rank: 0.3                # Weight for search result ranking
+    
+    # Evidence rejection policy
+    reject_nuance_on_insufficient_evidence: true  # Only reject when threshold not met
+    evidence_collection_retries: 2         # Retry evidence collection before rejection
+    alternative_search_terms: true         # Try alternative search terms for evidence
+  
+  # Data lifecycle management
+  data_lifecycle:
+    preserve_existing_data: true           # Never delete existing themes/nuances
+    enable_incremental_updates: true       # Only add new data when needed
+    incremental_update_threshold_days: 7   # Only update if data older than this
+    enable_data_diff: true                 # Compare existing vs new data
+    
+  # File organization
+  file_organization:
+    # Separate files for nuances (matching themes pattern)
+    nuances_file: "nuances.json"
+    nuances_evidence_file: "nuances_evidence.json"
+    
+    # Evidence structure
+    store_search_metadata: true     # Store search hit counts and scores
+    optimize_json_storage: true     # Minify JSON for storage efficiency
+    
+  # Performance and monitoring
+  performance:
+    # Timeout settings
+    total_processing_timeout: 300.0  # 5 minutes total processing time per destination
+    phase_timeouts:
+      generation: 120.0             # 2 minutes for multi-LLM generation
+      validation: 120.0             # 2 minutes for search validation
+      scoring: 60.0                 # 1 minute for scoring and ranking
+    
+    # Monitoring
+    enable_performance_tracking: true
+    log_generation_statistics: true
+    log_validation_statistics: true
+    track_model_performance: true
+    
+    # Error handling
+    graceful_degradation: true      # Continue with partial results if some models fail
+    min_working_models: 2           # Minimum models that must work to proceed
+    fallback_to_single_model: true  # Fallback to single best model if others fail
  

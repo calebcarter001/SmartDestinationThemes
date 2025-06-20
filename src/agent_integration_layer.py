@@ -10,6 +10,7 @@ import logging
 import time
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
+from pathlib import Path
 
 # Import agent system
 import sys
@@ -129,8 +130,33 @@ class AgentCompatibilityLayer:
             raise
     
     async def process_destinations(self, destinations: List[str]) -> ProcessingResult:
-        """Process destinations using the configured migration mode"""
+        """Process destinations using the configured migration mode and processing controls"""
         
+        # Check processing mode configuration
+        processing_mode = self.config.get('processing_mode', {})
+        
+        # Handle nuance-only mode
+        if processing_mode.get('nuance_controls', {}).get('nuance_only_mode', False):
+            logger.info("🎯 Nuance-only processing mode enabled")
+            return await self._process_nuances_only(destinations)
+        
+        # Handle disabled theme processing
+        if not processing_mode.get('enable_theme_processing', True):
+            logger.info("🛡️ Theme processing disabled - preserving existing themes")
+            if processing_mode.get('enable_nuance_processing', True):
+                logger.info("🎯 Running nuance processing only")
+                return await self._process_nuances_only(destinations)
+            else:
+                logger.warning("⚠️ Both theme and nuance processing disabled - no processing will occur")
+                return ProcessingResult(
+                    destinations_processed=len(destinations),
+                    successful_destinations=0,
+                    processing_time=0.0,
+                    system_used="no_processing",
+                    processed_files={}
+                )
+        
+        # Standard processing modes
         if self.migration_mode == 'agent_only':
             return await self._process_agent_only(destinations)
         elif self.migration_mode == 'legacy_only':
@@ -280,6 +306,263 @@ class AgentCompatibilityLayer:
                 logger.error(f"Both systems failed - Agent: {agent_error}, Legacy: {legacy_error}")
                 raise Exception(f"Fallback failed - Agent error: {agent_error}, Legacy error: {legacy_error}")
     
+    async def _process_nuances_only(self, destinations: List[str]) -> ProcessingResult:
+        """Process only destination nuances, preserving existing theme data"""
+        logger.info("🎯 Processing destination nuances only (preserving existing themes)")
+        start_time = time.time()
+        
+        try:
+            # Initialize the destination nuance agent directly if orchestrator not available
+            if not self.orchestrator:
+                from agents.destination_nuance_agent import DestinationNuanceAgent
+                nuance_agent = DestinationNuanceAgent(self.config)
+                await nuance_agent.initialize()
+                
+                # Process each destination for nuances only
+                nuance_results = {}
+                successful_destinations = 0
+                
+                for destination in destinations:
+                    try:
+                        logger.info(f"🎯 Generating nuances for {destination}")
+                        task_result = await nuance_agent.execute_task(
+                            f"nuance_{destination.replace(' ', '_')}",
+                            {
+                                'task_type': 'generate_nuances',
+                                'data': {'destination': destination}
+                            }
+                        )
+                        
+                        if task_result and task_result.is_success:
+                            nuance_results[destination] = task_result.data
+                            successful_destinations += 1
+                            logger.info(f"✅ Nuances generated for {destination}")
+                        else:
+                            logger.error(f"❌ Nuance generation failed for {destination}: {task_result.error_message if task_result else 'Unknown error'}")
+                            
+                    except Exception as e:
+                        logger.error(f"❌ Nuance processing failed for {destination}: {e}")
+                
+                # Create session with nuance files only
+                processed_files = await self._create_nuance_only_session(destinations, nuance_results)
+                
+                processing_time = time.time() - start_time
+                
+                return ProcessingResult(
+                    destinations_processed=len(destinations),
+                    successful_destinations=successful_destinations,
+                    processing_time=processing_time,
+                    system_used="nuance_only",
+                    processed_files=processed_files
+                )
+                
+            else:
+                # Use orchestrator but only for nuance processing
+                logger.info("🤖 Using orchestrator for nuance-only processing")
+                
+                # Execute nuance workflow only
+                nuance_results = {}
+                successful_destinations = 0
+                
+                for destination in destinations:
+                    try:
+                        logger.info(f"🎯 Processing nuances for {destination} via orchestrator")
+                        
+                        # Execute only the nuance task
+                        task_result = await self.orchestrator._execute_agent_task(
+                            'destination_nuance',
+                            'generate_nuances',
+                            {'destination': destination}
+                        )
+                        
+                        if task_result:
+                            nuance_results[destination] = task_result
+                            successful_destinations += 1
+                            logger.info(f"✅ Nuances processed for {destination}")
+                        else:
+                            logger.error(f"❌ Nuance processing failed for {destination}")
+                            
+                    except Exception as e:
+                        logger.error(f"❌ Orchestrator nuance processing failed for {destination}: {e}")
+                
+                # Create session with nuance files only
+                processed_files = await self._create_nuance_only_session(destinations, nuance_results)
+                
+                processing_time = time.time() - start_time
+                
+                return ProcessingResult(
+                    destinations_processed=len(destinations),
+                    successful_destinations=successful_destinations,
+                    processing_time=processing_time,
+                    system_used="nuance_only_orchestrator",
+                    processed_files=processed_files
+                )
+                
+        except Exception as e:
+            processing_time = time.time() - start_time
+            logger.error(f"Nuance-only processing failed: {e}")
+            
+            return ProcessingResult(
+                destinations_processed=len(destinations),
+                successful_destinations=0,
+                processing_time=processing_time,
+                system_used="nuance_only_failed",
+                processed_files={},
+                comparison_data={"error": str(e)}
+            )
+    
+    async def _create_nuance_only_session(self, destinations: List[str], nuance_results: Dict[str, Any]) -> Dict[str, str]:
+        """Create a session directory with only nuance files, preserving existing theme data"""
+        import json
+        import os
+        from datetime import datetime
+        from src.dev_staging_manager import DevStagingManager
+        
+        # Create session directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_dir = f"outputs/session_nuance_{timestamp}"
+        json_dir = os.path.join(session_dir, "json")
+        dashboard_dir = os.path.join(session_dir, "dashboard")
+        
+        os.makedirs(json_dir, exist_ok=True)
+        os.makedirs(dashboard_dir, exist_ok=True)
+        
+        processed_files = {}
+        
+        logger.info(f"🔄 Creating nuance-only session in {session_dir}")
+        
+        for destination in destinations:
+            dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
+            
+            # Only create nuance files
+            if destination in nuance_results:
+                nuances_file_path = os.path.join(json_dir, f"{dest_filename}_nuances.json")
+                nuances_evidence_file_path = os.path.join(json_dir, f"{dest_filename}_nuances_evidence.json")
+                
+                try:
+                    nuance_data = nuance_results[destination]
+                    
+                    # Convert DestinationNuanceResult to proper JSON format
+                    converted_data = self._convert_nuance_result_to_json_format(destination, nuance_data)
+                    
+                    # Check if JSON minification is enabled
+                    file_config = self.config.get('destination_nuances', {}).get('file_organization', {})
+                    optimize_json = file_config.get('optimize_json_storage', True)
+                    
+                    # Save nuances JSON (minified if enabled)
+                    with open(nuances_file_path, 'w', encoding='utf-8') as f:
+                        if optimize_json:
+                            json.dump(converted_data['nuances_data'], f, separators=(',', ':'), ensure_ascii=False)
+                        else:
+                            json.dump(converted_data['nuances_data'], f, indent=2, ensure_ascii=False)
+                    
+                    # Save nuances evidence JSON (minified if enabled)
+                    with open(nuances_evidence_file_path, 'w', encoding='utf-8') as f:
+                        if optimize_json:
+                            json.dump(converted_data['nuances_evidence_data'], f, separators=(',', ':'), ensure_ascii=False)
+                        else:
+                            json.dump(converted_data['nuances_evidence_data'], f, indent=2, ensure_ascii=False)
+                    
+                    processed_files[destination] = nuances_file_path
+                    logger.info(f"✅ Saved nuance files for {destination}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error saving nuance files for {destination}: {e}")
+        
+        # Copy existing theme data to the new session (read-only mode)
+        logger.info("🛡️ Copying existing theme data for dashboard display...")
+        await self._copy_existing_theme_data_to_session(session_dir, destinations)
+        
+        # Generate dashboard that shows both preserved themes and new nuances
+        await self._generate_nuance_debugging_dashboard(session_dir, destinations)
+        
+        # Stage the session with processed destinations
+        try:
+            staging_manager = DevStagingManager()
+            if staging_manager.stage_session_selective(session_dir, destinations):
+                logger.info(f"✅ Nuance session staged for development: {session_dir}")
+            else:
+                logger.warning(f"⚠️ Nuance session staging failed: {session_dir}")
+        except Exception as e:
+            logger.error(f"❌ Staging error: {e}")
+        
+        return processed_files
+    
+    async def _copy_existing_theme_data_to_session(self, session_dir: str, destinations: List[str]):
+        """Copy existing theme data to the new session for dashboard display"""
+        import glob
+        import shutil
+        import os
+        
+        json_dir = os.path.join(session_dir, "json")
+        
+        # Find the most recent session with theme data
+        existing_sessions = sorted(glob.glob("outputs/session_agent_*"), reverse=True)
+        
+        for existing_session in existing_sessions:
+            existing_json_dir = os.path.join(existing_session, "json")
+            if not os.path.exists(existing_json_dir):
+                continue
+                
+            copied_count = 0
+            for destination in destinations:
+                dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
+                
+                # Copy theme files (enhanced.json and evidence.json)
+                enhanced_file = os.path.join(existing_json_dir, f"{dest_filename}_enhanced.json")
+                evidence_file = os.path.join(existing_json_dir, f"{dest_filename}_evidence.json")
+                
+                if os.path.exists(enhanced_file):
+                    shutil.copy2(enhanced_file, json_dir)
+                    copied_count += 1
+                    
+                if os.path.exists(evidence_file):
+                    shutil.copy2(evidence_file, json_dir)
+            
+            if copied_count > 0:
+                logger.info(f"🛡️ Copied {copied_count} theme files from {existing_session}")
+                break
+        else:
+            logger.warning("⚠️ No existing theme data found to copy")
+    
+    async def _generate_nuance_debugging_dashboard(self, session_dir: str, destinations: List[str]):
+        """Generate a dashboard for nuance debugging that shows preserved themes + new nuances"""
+        try:
+            from src.enhanced_viewer_generator import EnhancedViewerGenerator
+            
+            dashboard_dir = os.path.join(session_dir, "dashboard")
+            json_dir = os.path.join(session_dir, "json")
+            
+            viewer_generator = EnhancedViewerGenerator()
+            
+            # Generate pages for destinations that have theme data
+            json_files = []
+            for destination in destinations:
+                dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
+                enhanced_file = os.path.join(json_dir, f"{dest_filename}_enhanced.json")
+                
+                if os.path.exists(enhanced_file):
+                    json_files.append(enhanced_file)
+                    
+                    # Generate individual destination page
+                    viewer_generator.generate_destination_viewer(
+                        json_file=enhanced_file,
+                        output_dir=dashboard_dir
+                    )
+            
+            if json_files:
+                # Generate multi-destination index
+                viewer_generator.generate_multi_destination_viewer(
+                    json_files=json_files,
+                    output_dir=dashboard_dir
+                )
+                logger.info(f"✅ Generated nuance debugging dashboard with {len(json_files)} destinations")
+            else:
+                logger.warning("⚠️ No theme data available for dashboard generation")
+                
+        except Exception as e:
+            logger.error(f"❌ Dashboard generation failed: {e}")
+    
     async def _execute_legacy_pipeline(self, destinations: List[str]) -> Dict[str, str]:
         """Execute the legacy processing pipeline"""
         # Web discovery phase
@@ -349,6 +632,8 @@ class AgentCompatibilityLayer:
                 dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
                 json_file_path = os.path.join(json_dir, f"{dest_filename}_enhanced.json")
                 evidence_file_path = os.path.join(json_dir, f"{dest_filename}_evidence.json")
+                nuances_file_path = os.path.join(json_dir, f"{dest_filename}_nuances.json")
+                nuances_evidence_file_path = os.path.join(json_dir, f"{dest_filename}_nuances_evidence.json")
                 
                 # Convert WorkflowResult to legacy format
                 legacy_data = self._convert_workflow_result_to_legacy_data(destination, workflow_result)
@@ -360,6 +645,18 @@ class AgentCompatibilityLayer:
                 # Save evidence data JSON  
                 with open(evidence_file_path, 'w', encoding='utf-8') as f:
                     json.dump(legacy_data['evidence_data'], f, indent=2, ensure_ascii=False)
+                
+                # Save destination nuances JSON (NEW)
+                if 'nuances_data' in legacy_data and legacy_data['nuances_data']:
+                    with open(nuances_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(legacy_data['nuances_data'], f, indent=2, ensure_ascii=False)
+                    
+                    # Save nuances evidence JSON (NEW)
+                    if 'nuances_evidence_data' in legacy_data:
+                        with open(nuances_evidence_file_path, 'w', encoding='utf-8') as f:
+                            json.dump(legacy_data['nuances_evidence_data'], f, indent=2, ensure_ascii=False)
+                    
+                    logger.info(f"✅ Saved nuance data for {destination}: {nuances_file_path}")
                 
                 processed_files[destination] = json_file_path
                 dashboard_data[destination] = legacy_data
@@ -414,10 +711,11 @@ class AgentCompatibilityLayer:
                 )
                 logger.info(f"✅ Generated dashboard index: {index_file}")
                 
-                # Stage the session for development server
+                # Stage the session for development server with processed destinations
                 staging_manager = DevStagingManager()
                 try:
-                    if staging_manager.stage_latest_session(session_dir):
+                    processed_destinations = list(dashboard_data.keys())
+                    if staging_manager.stage_session_selective(session_dir, processed_destinations):
                         logger.info(f"✅ Dashboard staged for development: {session_dir}")
                     else:
                         logger.warning(f"⚠️ Dashboard staging failed for: {session_dir}")
@@ -513,6 +811,173 @@ class AgentCompatibilityLayer:
         
         logger.info("Integration layer cleanup complete")
     
+    def _convert_nuance_result_to_json_format(self, destination: str, nuance_result: Any) -> Dict[str, Any]:
+        """Convert DestinationNuanceResult to proper JSON format for dashboard display"""
+        from datetime import datetime
+        
+        # Handle the actual data structure: dict with 'result' key containing AgentResponse
+        if isinstance(nuance_result, dict) and 'result' in nuance_result:
+            agent_response = nuance_result['result']  # AgentResponse object
+            nuance_data = agent_response.data  # DestinationNuanceResult object
+        elif hasattr(nuance_result, 'data'):
+            nuance_data = nuance_result.data
+        else:
+            nuance_data = nuance_result
+        
+        # Extract nuance collection and evidence
+        nuance_collection = getattr(nuance_data, 'nuance_collection', None)
+        evidence_list = getattr(nuance_data, 'evidence', [])
+        
+        # Create 3-tier nuances structure
+        nuances_data = {
+            'destination': destination,
+            'destination_id': destination.lower().replace(', ', '_').replace(' ', '_'),
+            'destination_nuances': [],
+            'hotel_expectations': [],
+            'vacation_rental_expectations': [],
+            'quality_score': getattr(nuance_data, 'overall_quality_score', 0.0),
+            'processing_time': getattr(nuance_data, 'processing_time', 0.0),
+            'statistics': getattr(nuance_data, 'statistics', {}),
+            'processing_metadata': {
+                'processing_date': datetime.now().isoformat(),
+                'source_system': 'destination_nuance_agent',
+                'success': True,
+                'enabled': True,
+                'fallback_mode': False
+            }
+        }
+        
+        # Convert nuance collection to proper format
+        if nuance_collection:
+            # Process destination nuances
+            for nuance in nuance_collection.destination_nuances:
+                nuance_info = {
+                    'phrase': nuance.phrase,
+                    'score': nuance.score,
+                    'category': nuance.category,
+                    'confidence': nuance.score,
+                    'source_models': getattr(nuance, 'contributing_models', []),
+                    'search_hits': nuance.search_hits,
+                    'uniqueness_ratio': nuance.uniqueness_ratio,
+                    'evidence_sources': nuance.evidence_sources,
+                    'source_urls': getattr(nuance, 'source_urls', []),
+                    'validation_data': nuance.validation_metadata
+                }
+                nuances_data['destination_nuances'].append(nuance_info)
+            
+            # Process hotel expectations
+            for nuance in nuance_collection.hotel_expectations:
+                nuance_info = {
+                    'phrase': nuance.phrase,
+                    'score': nuance.score,
+                    'category': nuance.category,
+                    'confidence': nuance.score,
+                    'source_models': getattr(nuance, 'contributing_models', []),
+                    'search_hits': nuance.search_hits,
+                    'uniqueness_ratio': nuance.uniqueness_ratio,
+                    'evidence_sources': nuance.evidence_sources,
+                    'source_urls': getattr(nuance, 'source_urls', []),
+                    'validation_data': nuance.validation_metadata
+                }
+                nuances_data['hotel_expectations'].append(nuance_info)
+            
+            # Process vacation rental expectations
+            for nuance in nuance_collection.vacation_rental_expectations:
+                nuance_info = {
+                    'phrase': nuance.phrase,
+                    'score': nuance.score,
+                    'category': nuance.category,
+                    'confidence': nuance.score,
+                    'source_models': getattr(nuance, 'contributing_models', []),
+                    'search_hits': nuance.search_hits,
+                    'uniqueness_ratio': nuance.uniqueness_ratio,
+                    'evidence_sources': nuance.evidence_sources,
+                    'source_urls': getattr(nuance, 'source_urls', []),
+                    'validation_data': nuance.validation_metadata
+                }
+                nuances_data['vacation_rental_expectations'].append(nuance_info)
+        
+        # Update counts and metadata
+        total_nuances = (len(nuances_data['destination_nuances']) + 
+                        len(nuances_data['hotel_expectations']) + 
+                        len(nuances_data['vacation_rental_expectations']))
+        
+        nuances_data['processing_metadata'].update({
+            'nuances_count': total_nuances,
+            'destination_nuances_count': len(nuances_data['destination_nuances']),
+            'hotel_expectations_count': len(nuances_data['hotel_expectations']),
+            'vacation_rental_expectations_count': len(nuances_data['vacation_rental_expectations'])
+        })
+        
+        # Create evidence data with proper URL extraction
+        nuances_evidence_data = []
+        for evidence_item in evidence_list:
+            # Extract real website URLs from search metadata instead of search engine URL
+            real_urls = []
+            search_metadata = getattr(evidence_item, 'search_metadata', {})
+            
+            # Get primary source URL (the main validated website)
+            primary_source = search_metadata.get('primary_source', '')
+            if primary_source and primary_source != 'https://search.brave.com/':
+                real_urls.append(primary_source)
+            
+            # Find corresponding nuance to get all source URLs
+            phrase = evidence_item.phrase
+            category = evidence_item.category
+            
+            # Look for this phrase in the nuance collection to get source_urls
+            all_nuances = []
+            if nuance_collection:
+                all_nuances.extend(nuance_collection.destination_nuances)
+                all_nuances.extend(nuance_collection.hotel_expectations) 
+                all_nuances.extend(nuance_collection.vacation_rental_expectations)
+            
+            for nuance in all_nuances:
+                if nuance.phrase == phrase and nuance.category == category:
+                    source_urls = getattr(nuance, 'source_urls', [])
+                    for url in source_urls:
+                        if url and url != 'https://search.brave.com/' and url not in real_urls:
+                            real_urls.append(url)
+                    break
+            
+            # Fallback to search engine URL only if no real URLs found
+            if not real_urls:
+                real_urls = [evidence_item.source_url] if hasattr(evidence_item, 'source_url') else []
+            
+            evidence_info = {
+                'phrase': evidence_item.phrase,
+                'category': evidence_item.category,
+                'search_hits': getattr(evidence_item, 'search_hits', 0),
+                'uniqueness_ratio': getattr(evidence_item, 'uniqueness_ratio', 1.0),
+                'authority_sources': real_urls,  # Now contains real website URLs
+                'evidence_diversity': evidence_item.authority_score,
+                'content_snippet': evidence_item.content_snippet,
+                'relevance_score': evidence_item.relevance_score,
+                'metadata': evidence_item.search_metadata
+            }
+            nuances_evidence_data.append(evidence_info)
+        
+        # Format evidence data structure
+        evidence_json = {
+            'destination': destination,
+            'evidence': nuances_evidence_data,
+            'metadata': {
+                'generation_timestamp': datetime.now().isoformat(),
+                'total_evidence_pieces': len(nuances_evidence_data),
+                'processing_mode': 'nuance_only',
+                'evidence_by_category': {
+                    'destination': len([e for e in nuances_evidence_data if e['category'] == 'destination']),
+                    'hotel': len([e for e in nuances_evidence_data if e['category'] == 'hotel']),
+                    'vacation_rental': len([e for e in nuances_evidence_data if e['category'] == 'vacation_rental'])
+                }
+            }
+        }
+        
+        return {
+            'nuances_data': nuances_data,
+            'nuances_evidence_data': evidence_json
+        }
+    
     def _convert_workflow_result_to_legacy_data(self, destination: str, workflow_result: WorkflowResult) -> Dict[str, Any]:
         """Convert agent WorkflowResult to legacy dashboard format"""
         from datetime import datetime
@@ -520,13 +985,15 @@ class AgentCompatibilityLayer:
         # Access the final_data from WorkflowResult
         final_data = workflow_result.final_data or {}
         
-
         # Extract enhanced data from Intelligence Enhancement Agent if available
         intelligence_insights = final_data.get('intelligence_insights', {})
         composition_analysis = final_data.get('composition_analysis', {})
         quality_assessment = final_data.get('quality_assessment', {})
         evidence_validation_report = final_data.get('evidence_validation_report', {})
         enhanced_themes = final_data.get('enhanced_themes', [])
+        
+        # Extract destination nuances (NEW)
+        destination_nuances_data = final_data.get('destination_nuances', {})
         
         # Convert datetime objects to ISO strings in evidence validation report
         if evidence_validation_report:
@@ -624,6 +1091,93 @@ class AgentCompatibilityLayer:
             }
             evidence_data.append(evidence_item)
         
+        # Process destination nuances (NEW)
+        nuances_data = {}
+        nuances_evidence_data = []
+        
+        if destination_nuances_data and destination_nuances_data.get('enabled', False):
+            nuances_list = destination_nuances_data.get('nuances', [])
+            evidence_list = destination_nuances_data.get('evidence', [])
+            
+            # Format nuances in the expected structure - CONVERT 3-TIER TO DISPLAY FORMAT
+            formatted_nuances = []
+            for nuance_item in nuances_list:
+                if isinstance(nuance_item, dict):
+                    # Dict format - extract real evidence data
+                    nuance_info = {
+                        'phrase': nuance_item.get('phrase', ''),
+                        'score': nuance_item.get('score', 0.0),
+                        'category': nuance_item.get('category', 'destination'),
+                        'confidence': nuance_item.get('score', 0.8),  # Use score as confidence
+                        'source_models': nuance_item.get('contributing_models', []),
+                        'search_hits': nuance_item.get('search_hits', 0),
+                        'uniqueness_ratio': nuance_item.get('uniqueness_ratio', 1.0),
+                        'evidence_sources': nuance_item.get('evidence_sources', []),
+                        'source_urls': nuance_item.get('source_urls', []),  # REAL URLs from search validation
+                        'validation_data': nuance_item.get('validation_metadata', {})
+                    }
+                elif hasattr(nuance_item, '__dict__'):  # NuancePhrase object
+                    nuance_info = {
+                        'phrase': getattr(nuance_item, 'phrase', ''),
+                        'score': getattr(nuance_item, 'score', 0.0),
+                        'category': getattr(nuance_item, 'category', 'destination'),
+                        'confidence': getattr(nuance_item, 'score', 0.8),
+                        'source_models': getattr(nuance_item, 'contributing_models', []),
+                        'search_hits': getattr(nuance_item, 'search_hits', 0),
+                        'uniqueness_ratio': getattr(nuance_item, 'uniqueness_ratio', 1.0),
+                        'evidence_sources': getattr(nuance_item, 'evidence_sources', []),
+                        'source_urls': getattr(nuance_item, 'source_urls', []),  # REAL URLs
+                        'validation_data': getattr(nuance_item, 'validation_metadata', {})
+                    }
+                else:
+                    continue
+                
+                formatted_nuances.append(nuance_info)
+            
+            # Format nuances evidence - CONVERT TO DISPLAY FORMAT WITH REAL URLS
+            for evidence_item in evidence_list:
+                if isinstance(evidence_item, dict):
+                    evidence_info = {
+                        'phrase': evidence_item.get('phrase', ''),
+                        'search_hits': evidence_item.get('search_hits', 0),
+                        'uniqueness_ratio': evidence_item.get('uniqueness_ratio', 1.0),
+                        'authority_sources': evidence_item.get('source_urls', []),  # Use source_urls as authority sources
+                        'evidence_diversity': evidence_item.get('authority_score', 0.8),  # Use authority score as diversity
+                        'metadata': evidence_item.get('search_metadata', {})
+                    }
+                elif hasattr(evidence_item, '__dict__'):  # NuanceEvidence object
+                    evidence_info = {
+                        'phrase': getattr(evidence_item, 'phrase', ''),
+                        'search_hits': getattr(evidence_item, 'search_hits', 0),
+                        'uniqueness_ratio': getattr(evidence_item, 'uniqueness_ratio', 1.0),
+                        'authority_sources': [getattr(evidence_item, 'source_url', '')],  # Single URL as list
+                        'evidence_diversity': getattr(evidence_item, 'authority_score', 0.8),
+                        'metadata': getattr(evidence_item, 'search_metadata', {})
+                    }
+                else:
+                    continue
+                
+                nuances_evidence_data.append(evidence_info)
+            
+            # Create nuances data structure - SUMMARY WITH REAL STATS
+            nuances_data = {
+                'destination': destination,
+                'destination_id': destination.lower().replace(', ', '_').replace(' ', '_'),
+                'nuances': formatted_nuances,
+                'quality_score': destination_nuances_data.get('quality_score', 0.0),
+                'processing_time': destination_nuances_data.get('processing_time', 0.0),
+                'statistics': destination_nuances_data.get('statistics', {}),
+                'processing_metadata': {
+                    'processing_date': datetime.now().isoformat(),
+                    'source_system': 'destination_nuance_agent',
+                    'nuances_count': len(formatted_nuances),
+                    'evidence_count': len(nuances_evidence_data),
+                    'success': destination_nuances_data.get('success', False),
+                    'enabled': True,
+                    'fallback_mode': not destination_nuances_data.get('statistics', {}).get('search_validation_enabled', True)  # Check if real search was used
+                }
+            }
+        
         # Create legacy enhanced data format
         enhanced_data = {
             'destination': destination,
@@ -634,6 +1188,13 @@ class AgentCompatibilityLayer:
             'composition_analysis': composition_analysis,
             'quality_assessment': quality_assessment,
             'evidence_validation_report': evidence_validation_report,
+            'destination_nuances_summary': {  # NEW: Add nuances summary to enhanced data
+                'enabled': bool(nuances_data),
+                'nuances_count': len(nuances_data.get('nuances', [])) if nuances_data else 0,
+                'quality_score': nuances_data.get('quality_score', 0.0) if nuances_data else 0.0,
+                'processing_time': nuances_data.get('processing_time', 0.0) if nuances_data else 0.0,
+                'success': nuances_data.get('processing_metadata', {}).get('success', False) if nuances_data else False
+            },
             'processing_metadata': {
                 'processing_date': datetime.now().isoformat(),
                 'quality_score': workflow_result.quality_score,
@@ -655,7 +1216,9 @@ class AgentCompatibilityLayer:
         
         return {
             'enhanced_data': enhanced_data,
-            'evidence_data': evidence_data
+            'evidence_data': evidence_data,
+            'nuances_data': nuances_data,
+            'nuances_evidence_data': nuances_evidence_data
         }
     
     def _extract_hidden_gem_boolean(self, theme_info: Dict[str, Any]) -> bool:
@@ -703,4 +1266,99 @@ class AgentCompatibilityLayer:
                                         if isinstance(sub_value, datetime):
                                             item[sub_key] = sub_value.isoformat()
         
-        return serialized_report 
+        return serialized_report
+    
+    def _check_existing_nuance_data(self, destination: str) -> Optional[Dict[str, Any]]:
+        """Check if existing nuance data exists for a destination"""
+        try:
+            # Check for existing data in outputs directories
+            outputs_dir = Path("outputs")
+            if not outputs_dir.exists():
+                return None
+            
+            # Look for the most recent session with nuance data for this destination
+            destination_id = destination.lower().replace(', ', '_').replace(' ', '_')
+            
+            # Look through session directories (most recent first)
+            session_dirs = sorted([d for d in outputs_dir.iterdir() if d.is_dir()], 
+                                 key=lambda x: x.stat().st_mtime, reverse=True)
+            
+            for session_dir in session_dirs:
+                json_dir = session_dir / "json"
+                if not json_dir.exists():
+                    continue
+                
+                nuance_file = json_dir / f"{destination_id}_nuances.json"
+                if nuance_file.exists():
+                    with open(nuance_file, 'r', encoding='utf-8') as f:
+                        existing_data = json.load(f)
+                    
+                    # Check if data is recent enough to preserve
+                    processing_date = existing_data.get('processing_metadata', {}).get('processing_date', '')
+                    if self._is_data_recent_enough(processing_date):
+                        logger.info(f"Found existing nuance data for {destination} from {processing_date}")
+                        return existing_data
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Error checking existing nuance data for {destination}: {e}")
+            return None
+    
+    def _should_preserve_existing_data(self) -> bool:
+        """Check if existing data should be preserved based on configuration"""
+        lifecycle_config = self.config.get('destination_nuances', {}).get('data_lifecycle', {})
+        return lifecycle_config.get('preserve_existing_data', True)
+    
+    def _should_do_incremental_update(self, destination: str) -> bool:
+        """Check if an incremental update should be performed"""
+        lifecycle_config = self.config.get('destination_nuances', {}).get('data_lifecycle', {})
+        
+        if not lifecycle_config.get('enable_incremental_updates', True):
+            return False
+        
+        existing_data = self._check_existing_nuance_data(destination)
+        if not existing_data:
+            return False
+        
+        # Check if data is old enough to warrant update
+        processing_date = existing_data.get('processing_metadata', {}).get('processing_date', '')
+        threshold_days = lifecycle_config.get('incremental_update_threshold_days', 7)
+        
+        return not self._is_data_recent_enough(processing_date, threshold_days)
+    
+    def _is_data_recent_enough(self, processing_date: str, threshold_days: int = 1) -> bool:
+        """Check if data is recent enough based on threshold"""
+        if not processing_date:
+            return False
+        
+        try:
+            from datetime import datetime, timedelta
+            processed_at = datetime.fromisoformat(processing_date.replace('Z', '+00:00'))
+            threshold = datetime.now() - timedelta(days=threshold_days)
+            return processed_at > threshold
+        except Exception:
+            return False
+    
+    def _merge_with_existing_data(self, destination: str, new_data: Any) -> Dict[str, Any]:
+        """Merge new data with existing data for incremental updates"""
+        existing_data = self._check_existing_nuance_data(destination)
+        if not existing_data:
+            return self._convert_nuance_result_to_json_format(destination, new_data)
+        
+        # Convert new data to JSON format
+        new_json_data = self._convert_nuance_result_to_json_format(destination, new_data)
+        
+        # Simple merge strategy: use new data if quality is better, otherwise keep existing
+        new_quality = new_json_data['nuances_data'].get('quality_score', 0.0)
+        existing_quality = existing_data.get('quality_score', 0.0)
+        
+        if new_quality > existing_quality:
+            logger.info(f"Using new data for {destination} (quality: {new_quality:.3f} > {existing_quality:.3f})")
+            return new_json_data
+        else:
+            logger.info(f"Preserving existing data for {destination} (quality: {existing_quality:.3f} >= {new_quality:.3f})")
+            return {
+                'nuances_data': existing_data,
+                'nuances_evidence_data': existing_data  # Simplified for now
+            } 

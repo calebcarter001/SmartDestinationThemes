@@ -260,6 +260,121 @@ class WorkflowResult:
     performance_metrics: Dict[str, Any] = field(default_factory=dict)
 
 # ==========================================
+# DESTINATION NUANCE MODELS (3-TIER SYSTEM)
+# ==========================================
+
+@dataclass
+class NuancePhrase:
+    """Individual nuance phrase with validation and scoring data"""
+    phrase: str
+    category: str  # 'destination', 'hotel', 'vacation_rental'
+    score: float = 0.0
+    search_hits: int = 0
+    uniqueness_ratio: float = 0.0
+    evidence_sources: List[str] = field(default_factory=list)
+    source_urls: List[str] = field(default_factory=list)
+    validation_metadata: Dict[str, Any] = field(default_factory=dict)
+    contributing_models: List[str] = field(default_factory=list)
+    
+    def __post_init__(self):
+        """Validate scores"""
+        self.score = max(0.0, min(1.0, self.score))
+        self.uniqueness_ratio = max(0.0, self.uniqueness_ratio)
+
+@dataclass 
+class DestinationNuanceCollection:
+    """Complete collection of all 3 nuance types"""
+    destination_nuances: List[NuancePhrase] = field(default_factory=list)  # Min 8
+    hotel_expectations: List[NuancePhrase] = field(default_factory=list)   # Min 6
+    vacation_rental_expectations: List[NuancePhrase] = field(default_factory=list)  # Min 6
+    
+    def get_total_count(self) -> int:
+        """Get total count across all categories"""
+        return len(self.destination_nuances) + len(self.hotel_expectations) + len(self.vacation_rental_expectations)
+    
+    def get_category_count(self, category: str) -> int:
+        """Get count for specific category"""
+        if category == 'destination':
+            return len(self.destination_nuances)
+        elif category == 'hotel':
+            return len(self.hotel_expectations)
+        elif category == 'vacation_rental':
+            return len(self.vacation_rental_expectations)
+        return 0
+
+@dataclass
+class NuanceEvidence:
+    """Evidence supporting a nuance phrase"""
+    phrase: str
+    category: str  # 'destination', 'hotel', 'vacation_rental'
+    source_url: str
+    source_type: str  # wikipedia, tripadvisor, government, etc.
+    content_snippet: str
+    relevance_score: float = 0.5
+    authority_score: float = 0.5
+    search_metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Validate scores"""
+        self.relevance_score = max(0.0, min(1.0, self.relevance_score))
+        self.authority_score = max(0.0, min(1.0, self.authority_score))
+
+@dataclass
+class MultiLLMGenerationResult:
+    """Result from multi-LLM nuance generation - now supports 3 categories"""
+    destination: str
+    model_responses: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)  # model_name -> category -> phrases
+    consensus_phrases: Dict[str, List[str]] = field(default_factory=dict)  # category -> phrases
+    all_unique_phrases: Dict[str, List[str]] = field(default_factory=dict)  # category -> phrases
+    generation_statistics: Dict[str, Any] = field(default_factory=dict)
+    model_performance: Dict[str, Any] = field(default_factory=dict)
+    processing_time: float = 0.0
+
+@dataclass
+class SearchValidationResult:
+    """Result from search validation of nuance phrases - now supports 3 categories"""
+    destination: str
+    validated_phrases: DestinationNuanceCollection = field(default_factory=DestinationNuanceCollection)
+    failed_phrases: Dict[str, List[str]] = field(default_factory=dict)  # category -> failed phrases
+    validation_statistics: Dict[str, Any] = field(default_factory=dict)
+    cache_performance: Dict[str, Any] = field(default_factory=dict)
+    processing_time: float = 0.0
+
+@dataclass
+class DestinationNuanceResult:
+    """Complete destination nuance result - ALWAYS use this format"""
+    destination: str
+    nuance_collection: DestinationNuanceCollection
+    evidence: List[NuanceEvidence] = field(default_factory=list)
+    generation_result: Optional[MultiLLMGenerationResult] = None
+    validation_result: Optional[SearchValidationResult] = None
+    quality_scores: Dict[str, float] = field(default_factory=dict)  # category -> quality score
+    processing_time: float = 0.0
+    statistics: Dict[str, Any] = field(default_factory=dict)
+    errors: List[str] = field(default_factory=list)
+    
+    def __post_init__(self):
+        """Calculate quality scores for each category"""
+        if self.nuance_collection.destination_nuances:
+            total_score = sum(nuance.score for nuance in self.nuance_collection.destination_nuances)
+            self.quality_scores['destination'] = total_score / len(self.nuance_collection.destination_nuances)
+            
+        if self.nuance_collection.hotel_expectations:
+            total_score = sum(nuance.score for nuance in self.nuance_collection.hotel_expectations)
+            self.quality_scores['hotel'] = total_score / len(self.nuance_collection.hotel_expectations)
+            
+        if self.nuance_collection.vacation_rental_expectations:
+            total_score = sum(nuance.score for nuance in self.nuance_collection.vacation_rental_expectations)
+            self.quality_scores['vacation_rental'] = total_score / len(self.nuance_collection.vacation_rental_expectations)
+    
+    @property 
+    def overall_quality_score(self) -> float:
+        """Calculate overall quality score across all categories"""
+        if not self.quality_scores:
+            return 0.0
+        return sum(self.quality_scores.values()) / len(self.quality_scores)
+
+# ==========================================
 # DATA CONVERSION UTILITIES
 # ==========================================
 

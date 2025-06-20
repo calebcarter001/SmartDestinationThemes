@@ -18,6 +18,7 @@ from .intelligence_enhancement_agent import IntelligenceEnhancementAgent
 from .evidence_validation_agent import EvidenceValidationAgent
 from .quality_assurance_agent import QualityAssuranceAgent
 from .seasonal_image_agent import SeasonalImageAgent
+from .destination_nuance_agent import DestinationNuanceAgent
 from .data_models import WorkflowResult
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ class AgentOrchestrator(BaseAgent):
             self.agents['evidence_validation'] = EvidenceValidationAgent(self.config)
             self.agents['seasonal_image'] = SeasonalImageAgent(self.config)
             self.agents['quality_assurance'] = QualityAssuranceAgent(self.config)
+            self.agents['destination_nuance'] = DestinationNuanceAgent(self.config)
             
             # Initialize agents and set up communication channels
             for agent_id, agent in self.agents.items():
@@ -200,206 +202,285 @@ class AgentOrchestrator(BaseAgent):
         
         self.active_workflows[workflow_id] = workflow_state
         
+        # Check processing mode configuration
+        processing_mode = self.config.get('processing_mode', {})
+        enable_theme_processing = processing_mode.get('enable_theme_processing', True)
+        enable_nuance_processing = processing_mode.get('enable_nuance_processing', True)
+        enable_seasonal_images = processing_mode.get('enable_seasonal_images', True)
+        
         try:
             self.logger.info(f"🎯 Starting workflow for {destination}")
             
-            # Phase 1: Web Discovery with intelligent strategy
-            self.logger.info(f"📊 Phase 1: Web Discovery for {destination}")
-            workflow_state.current_phase = "web_discovery"
+            # Show processing mode status
+            if not enable_theme_processing:
+                self.logger.info(f"🛡️ Theme processing DISABLED - preserving existing themes for {destination}")
+            if not enable_seasonal_images:
+                self.logger.info(f"🎨 Seasonal images DISABLED - skipping image generation for {destination}")
             
-            discovery_strategy = await self.decision_engine.plan_discovery_strategy(destination)
-            discovery_task_result = await self._execute_agent_task(
-                'web_discovery',
-                'execute_discovery',
-                {
-                    'destination': destination,
-                    'strategy': discovery_strategy,
-                    'requirements': {'quality_threshold': self.quality_threshold}
-                }
-            )
-            
-            # Extract the actual DiscoveryResult from the task result
-            if hasattr(discovery_task_result, 'data') and discovery_task_result.data:
-                # AgentResponse format - use .data property
-                discovery_result = discovery_task_result.data
-            elif hasattr(discovery_task_result, 'result'):
-                # Legacy format - use .result property
-                discovery_result = discovery_task_result.result
-            elif isinstance(discovery_task_result, dict):
-                # Dict format - may contain nested AgentResponse
-                nested_result = discovery_task_result.get('result')
+            # Skip theme processing phases if disabled
+            if enable_theme_processing:
+                # Phase 1: Web Discovery with intelligent strategy
+                self.logger.info(f"📊 Phase 1: Web Discovery for {destination}")
+                workflow_state.current_phase = "web_discovery"
                 
-                # Check if nested result is an AgentResponse
-                if hasattr(nested_result, 'data') and nested_result.data:
-                    discovery_result = nested_result.data
-                else:
-                    discovery_result = nested_result
-            else:
-                discovery_result = discovery_task_result
-            
-            workflow_state.phase_results['web_discovery'] = discovery_result
-            
-            # Quality gate: Check discovery quality
-            discovery_quality = await self._assess_phase_quality('web_discovery', discovery_result)
-            if discovery_quality < 0.5 and workflow_state.retry_count < self.max_workflow_retries:
-                self.logger.warning(f"Discovery quality low ({discovery_quality:.2f}), retrying...")
-                workflow_state.retry_count += 1
-                return await self._execute_destination_workflow(workflow_id, destination)
-            
-            # Phase 2: LLM Processing with adaptive resource allocation
-            self.logger.info(f"🧠 Phase 2: LLM Processing for {destination}")
-            workflow_state.current_phase = "llm_processing"
-            
-            # Convert DiscoveryResult to dict for resource allocation
-            discovery_dict = discovery_result.__dict__ if hasattr(discovery_result, '__dict__') else discovery_result
-            llm_resources = await self.resource_allocator.allocate_llm_resources(
-                discovery_dict, workflow_state.resource_allocation
-            )
-            
-            # Format web content for LLM processing
-            content_list = discovery_result.content if hasattr(discovery_result, 'content') else []
-            
-            # Convert WebContent objects to dictionaries for agents
-            content_dicts = []
-            for content_item in content_list:
-                if hasattr(content_item, '__dict__'):
-                    # WebContent object - convert to dict
-                    content_dict = {
-                        'url': getattr(content_item, 'url', ''),
-                        'title': getattr(content_item, 'title', ''),
-                        'content': getattr(content_item, 'content', ''),
-                        'relevance_score': getattr(content_item, 'relevance_score', 0.5),
-                        'quality_score': getattr(content_item, 'quality_score', 0.5),
-                        'authority_score': getattr(content_item, 'authority_score', 0.5),
-                        'metadata': getattr(content_item, 'metadata', {})
+                discovery_strategy = await self.decision_engine.plan_discovery_strategy(destination)
+                discovery_task_result = await self._execute_agent_task(
+                    'web_discovery',
+                    'execute_discovery',
+                    {
+                        'destination': destination,
+                        'strategy': discovery_strategy,
+                        'requirements': {'quality_threshold': self.quality_threshold}
                     }
-                    content_dicts.append(content_dict)
-                elif isinstance(content_item, dict):
-                    # Already a dict
-                    content_dicts.append(content_item)
-            
-            web_content = {
-                'content': content_dicts
-            }
-            
-            llm_task_result = await self._execute_agent_task(
-                'llm_orchestration',
-                'execute_llm_pipeline',
-                {
-                    'destination': destination,
-                    'web_content': web_content,
-                    'resource_allocation': llm_resources
-                }
-            )
-            
-            # Extract the actual LLMProcessingResult from the task result (same as integration fix)
-            if hasattr(llm_task_result, 'data') and llm_task_result.data:
-                # AgentResponse format - use .data property
-                actual_llm_result = llm_task_result.data
-            elif hasattr(llm_task_result, 'result'):
-                # Legacy format - use .result property
-                actual_llm_result = llm_task_result.result
-            elif isinstance(llm_task_result, dict) and 'result' in llm_task_result:
-                # AgentResponse dictionary format - extract from 'result' key
-                actual_llm_result = llm_task_result['result']
+                )
             else:
-                actual_llm_result = llm_task_result
+                # Skip theme processing but create placeholder data
+                self.logger.info(f"🛡️ Skipping theme processing for {destination} - creating placeholders")
+                discovery_task_result = None
             
-            workflow_state.phase_results['llm_processing'] = actual_llm_result
-            
-            # Extract themes for next phases using the actual LLMProcessingResult
-            if hasattr(actual_llm_result, '__dict__'):
-                # Check if this is an AgentResponse with nested data
-                if hasattr(actual_llm_result, 'data') and actual_llm_result.data:
-                    # Extract from the nested .data field (LLMProcessingResult)
-                    llm_data = actual_llm_result.data
-                    themes = getattr(llm_data, 'themes', [])
-                    affinities = getattr(llm_data, 'affinities', [])
+            # Extract the actual DiscoveryResult from the task result (only if theme processing enabled)
+            if enable_theme_processing and discovery_task_result:
+                if hasattr(discovery_task_result, 'data') and discovery_task_result.data:
+                    # AgentResponse format - use .data property
+                    discovery_result = discovery_task_result.data
+                elif hasattr(discovery_task_result, 'result'):
+                    # Legacy format - use .result property
+                    discovery_result = discovery_task_result.result
+                elif isinstance(discovery_task_result, dict):
+                    # Dict format - may contain nested AgentResponse
+                    nested_result = discovery_task_result.get('result')
+                    
+                    # Check if nested result is an AgentResponse
+                    if hasattr(nested_result, 'data') and nested_result.data:
+                        discovery_result = nested_result.data
+                    else:
+                        discovery_result = nested_result
                 else:
-                    # Object format (direct LLMProcessingResult)
-                    themes = getattr(actual_llm_result, 'themes', [])
-                    affinities = getattr(actual_llm_result, 'affinities', [])
-            elif isinstance(actual_llm_result, dict):
-                # Dictionary format
-                themes = actual_llm_result.get('themes', [])
-                affinities = actual_llm_result.get('affinities', [])
+                    discovery_result = discovery_task_result
+                
+                workflow_state.phase_results['web_discovery'] = discovery_result
+                
+                # Quality gate: Check discovery quality
+                discovery_quality = await self._assess_phase_quality('web_discovery', discovery_result)
+                if discovery_quality < 0.5 and workflow_state.retry_count < self.max_workflow_retries:
+                    self.logger.warning(f"Discovery quality low ({discovery_quality:.2f}), retrying...")
+                    workflow_state.retry_count += 1
+                    return await self._execute_destination_workflow(workflow_id, destination)
             else:
+                # Create placeholder discovery result
+                discovery_result = None
+                workflow_state.phase_results['web_discovery'] = {'status': 'skipped', 'reason': 'theme_processing_disabled'}
+            
+            # Phase 2: LLM Processing with adaptive resource allocation (only if theme processing enabled)
+            if enable_theme_processing:
+                self.logger.info(f"🧠 Phase 2: LLM Processing for {destination}")
+                workflow_state.current_phase = "llm_processing"
+                
+                # Convert DiscoveryResult to dict for resource allocation
+                discovery_dict = discovery_result.__dict__ if hasattr(discovery_result, '__dict__') else discovery_result
+                llm_resources = await self.resource_allocator.allocate_llm_resources(
+                    discovery_dict, workflow_state.resource_allocation
+                )
+                
+                # Format web content for LLM processing
+                content_list = discovery_result.content if hasattr(discovery_result, 'content') else []
+                
+                # Convert WebContent objects to dictionaries for agents
+                content_dicts = []
+                for content_item in content_list:
+                    if hasattr(content_item, '__dict__'):
+                        # WebContent object - convert to dict
+                        content_dict = {
+                            'url': getattr(content_item, 'url', ''),
+                            'title': getattr(content_item, 'title', ''),
+                            'content': getattr(content_item, 'content', ''),
+                            'relevance_score': getattr(content_item, 'relevance_score', 0.5),
+                            'quality_score': getattr(content_item, 'quality_score', 0.5),
+                            'authority_score': getattr(content_item, 'authority_score', 0.5),
+                            'metadata': getattr(content_item, 'metadata', {})
+                        }
+                        content_dicts.append(content_dict)
+                    elif isinstance(content_item, dict):
+                        # Already a dict
+                        content_dicts.append(content_item)
+                
+                web_content = {
+                    'content': content_dicts
+                }
+                
+                llm_task_result = await self._execute_agent_task(
+                    'llm_orchestration',
+                    'execute_llm_pipeline',
+                    {
+                        'destination': destination,
+                        'web_content': web_content,
+                        'resource_allocation': llm_resources
+                    }
+                )
+            else:
+                # Skip LLM processing - create placeholder data
+                llm_task_result = None
+                web_content = {'content': []}  # Empty content for nuance processing
+            
+            # Extract the actual LLMProcessingResult from the task result (only if theme processing enabled)
+            if enable_theme_processing and llm_task_result:
+                if hasattr(llm_task_result, 'data') and llm_task_result.data:
+                    # AgentResponse format - use .data property
+                    actual_llm_result = llm_task_result.data
+                elif hasattr(llm_task_result, 'result'):
+                    # Legacy format - use .result property
+                    actual_llm_result = llm_task_result.result
+                elif isinstance(llm_task_result, dict) and 'result' in llm_task_result:
+                    # AgentResponse dictionary format - extract from 'result' key
+                    actual_llm_result = llm_task_result['result']
+                else:
+                    actual_llm_result = llm_task_result
+                
+                workflow_state.phase_results['llm_processing'] = actual_llm_result
+                
+                # Extract themes for next phases using the actual LLMProcessingResult
+                if hasattr(actual_llm_result, '__dict__'):
+                    # Check if this is an AgentResponse with nested data
+                    if hasattr(actual_llm_result, 'data') and actual_llm_result.data:
+                        # Extract from the nested .data field (LLMProcessingResult)
+                        llm_data = actual_llm_result.data
+                        themes = getattr(llm_data, 'themes', [])
+                        affinities = getattr(llm_data, 'affinities', [])
+                    else:
+                        # Object format (direct LLMProcessingResult)
+                        themes = getattr(actual_llm_result, 'themes', [])
+                        affinities = getattr(actual_llm_result, 'affinities', [])
+                elif isinstance(actual_llm_result, dict):
+                    # Dictionary format
+                    themes = actual_llm_result.get('themes', [])
+                    affinities = actual_llm_result.get('affinities', [])
+                else:
+                    themes = []
+                    affinities = []
+            else:
+                # Skip LLM processing - create placeholder data
+                actual_llm_result = None
+                workflow_state.phase_results['llm_processing'] = {'status': 'skipped', 'reason': 'theme_processing_disabled'}
                 themes = []
                 affinities = []
             
-            # Phase 3: Parallel Evidence Validation and Intelligence Enhancement
-            self.logger.info(f"⚡ Phase 3: Parallel Enhancement for {destination}")
+            # Phase 3: Conditional Parallel Enhancement based on processing mode
+            self.logger.info(f"⚡ Phase 3: Conditional Enhancement for {destination}")
             workflow_state.current_phase = "parallel_enhancement"
             
-            # Execute evidence validation and intelligence enhancement in parallel
-            evidence_task = self._execute_agent_task(
-                'evidence_validation',
-                'validate_comprehensive_evidence',
-                {
-                    'themes': affinities,  # Pass raw affinities for evidence validation
-                    'web_sources': web_content,
-                    'destination': destination
-                }
-            )
+            # Prepare tasks based on processing mode
+            enhancement_tasks = []
+            task_names = []
             
-            enhancement_task = self._execute_agent_task(
-                'intelligence_enhancement',
-                'enhance_themes',
-                {
-                    'themes': affinities,  # Pass raw affinities for enhancement
-                    'destination_context': {'destination': destination},
-                    'evidence_data': web_content,  # Pass web content for evidence validation
-                    'web_sources': web_content  # Pass web sources for comprehensive processing
-                }
-            )
-            
-            evidence_result, enhancement_result = await asyncio.gather(
-                evidence_task, enhancement_task, return_exceptions=True
-            )
-            
-            # Store actual result data directly (now receiving unwrapped data objects)
-            workflow_state.phase_results['evidence_validation'] = evidence_result
-            workflow_state.phase_results['intelligence_enhancement'] = enhancement_result
-            
-            # Phase 3.5: Seasonal Image Generation (Parallel with processing)
-            self.logger.info(f"🎨 Phase 3.5: Seasonal Image Generation for {destination}")
-            workflow_state.current_phase = "seasonal_image_generation"
-            
-            # Determine output directory for images
-            output_dir = None
-            if workflow_state.resource_allocation:
-                output_dir = workflow_state.resource_allocation.get('output_directory')
-            
-            if not output_dir:
-                # Try to extract timestamp from workflow_id for session directory
-                import re
-                timestamp_match = re.search(r'(\d+)$', workflow_id)
-                if timestamp_match:
-                    timestamp = timestamp_match.group(1)
-                    output_dir = f"outputs/session_agent_{timestamp}"
-                else:
-                    # Fallback to current timestamp
-                    import time
-                    current_timestamp = int(time.time())
-                    output_dir = f"outputs/session_agent_{current_timestamp}"
-            
-            # Generate seasonal images
-            seasonal_image_result = await self._execute_agent_task(
-                'seasonal_image',
-                'generate_seasonal_images',
-                {
-                    'destination': destination,
-                    'output_dir': output_dir,
-                    'enhanced_themes': workflow_state.phase_results.get('intelligence_enhancement', {}),
-                    'workflow_context': {
-                        'workflow_id': workflow_id,
+            # Only run theme-related tasks if theme processing is enabled
+            if enable_theme_processing:
+                self.logger.info(f"🧠 Running theme enhancement tasks for {destination}")
+                
+                # Evidence validation task
+                evidence_task = self._execute_agent_task(
+                    'evidence_validation',
+                    'validate_comprehensive_evidence',
+                    {
+                        'themes': affinities,  # Pass raw affinities for evidence validation
+                        'web_sources': web_content,
                         'destination': destination
                     }
-                }
-            )
+                )
+                enhancement_tasks.append(evidence_task)
+                task_names.append('evidence_validation')
+                
+                # Intelligence enhancement task
+                enhancement_task = self._execute_agent_task(
+                    'intelligence_enhancement',
+                    'enhance_themes',
+                    {
+                        'themes': affinities,  # Pass raw affinities for enhancement
+                        'destination_context': {'destination': destination},
+                        'evidence_data': web_content,  # Pass web content for evidence validation
+                        'web_sources': web_content  # Pass web sources for comprehensive processing
+                    }
+                )
+                enhancement_tasks.append(enhancement_task)
+                task_names.append('intelligence_enhancement')
+            else:
+                self.logger.info(f"🛡️ Skipping theme enhancement tasks for {destination} (theme processing disabled)")
             
-            # Store seasonal image results
-            workflow_state.phase_results['seasonal_image_generation'] = seasonal_image_result
+            # Always run nuance generation if enabled
+            if enable_nuance_processing:
+                self.logger.info(f"🎯 Running nuance generation for {destination}")
+                nuance_task = self._execute_agent_task(
+                    'destination_nuance',
+                    'generate_nuances',
+                    {
+                        'destination': destination
+                    }
+                )
+                enhancement_tasks.append(nuance_task)
+                task_names.append('destination_nuances')
+            else:
+                self.logger.info(f"⏭️ Skipping nuance generation for {destination} (nuance processing disabled)")
+            
+            # Execute tasks in parallel (only the enabled ones)
+            if enhancement_tasks:
+                task_results = await asyncio.gather(*enhancement_tasks, return_exceptions=True)
+                
+                # Map results back to their respective phase names
+                for i, task_name in enumerate(task_names):
+                    if i < len(task_results):
+                        workflow_state.phase_results[task_name] = task_results[i]
+                    else:
+                        workflow_state.phase_results[task_name] = Exception("Task not executed")
+            
+            # Add placeholder results for skipped tasks
+            if not enable_theme_processing:
+                workflow_state.phase_results['evidence_validation'] = {'status': 'skipped', 'reason': 'theme_processing_disabled'}
+                workflow_state.phase_results['intelligence_enhancement'] = {'status': 'skipped', 'reason': 'theme_processing_disabled'}
+            
+            if not enable_nuance_processing:
+                workflow_state.phase_results['destination_nuances'] = {'status': 'skipped', 'reason': 'nuance_processing_disabled'}
+            
+            # Phase 3.5: Seasonal Image Generation (only if enabled)
+            if enable_seasonal_images:
+                self.logger.info(f"🎨 Phase 3.5: Seasonal Image Generation for {destination}")
+                workflow_state.current_phase = "seasonal_image_generation"
+                
+                # Determine output directory for images
+                output_dir = None
+                if workflow_state.resource_allocation:
+                    output_dir = workflow_state.resource_allocation.get('output_directory')
+                
+                if not output_dir:
+                    # Try to extract timestamp from workflow_id for session directory
+                    import re
+                    timestamp_match = re.search(r'(\d+)$', workflow_id)
+                    if timestamp_match:
+                        timestamp = timestamp_match.group(1)
+                        output_dir = f"outputs/session_agent_{timestamp}"
+                    else:
+                        # Fallback to current timestamp
+                        current_timestamp = int(time.time())
+                        output_dir = f"outputs/session_agent_{current_timestamp}"
+                
+                # Generate seasonal images
+                seasonal_image_result = await self._execute_agent_task(
+                    'seasonal_image',
+                    'generate_seasonal_images',
+                    {
+                        'destination': destination,
+                        'output_dir': output_dir,
+                        'enhanced_themes': workflow_state.phase_results.get('intelligence_enhancement', {}),
+                        'workflow_context': {
+                            'workflow_id': workflow_id,
+                            'destination': destination
+                        }
+                    }
+                )
+                
+                # Store seasonal image results
+                workflow_state.phase_results['seasonal_image_generation'] = seasonal_image_result
+            else:
+                self.logger.info(f"🎨 Skipping seasonal image generation for {destination} (images disabled)")
+                workflow_state.phase_results['seasonal_image_generation'] = {'status': 'skipped', 'reason': 'seasonal_images_disabled'}
             
             # Phase 4: Quality Assurance and Final Integration
             self.logger.info(f"🔍 Phase 4: Quality Assurance for {destination}")
@@ -754,6 +835,203 @@ class AgentOrchestrator(BaseAgent):
                 'error_messages': []
             }
         
+        # Integrate destination nuances (NEW)
+        if 'destination_nuances' in workflow_state.phase_results:
+            nuance_result = workflow_state.phase_results['destination_nuances']
+            
+            # Extract the actual DestinationNuanceResult from the agent response
+            if hasattr(nuance_result, 'data') and nuance_result.data:
+                # AgentResponse format - extract the DestinationNuanceResult
+                nuance_data = nuance_result.data
+                
+                # Extract nuance_collection from DestinationNuanceResult
+                nuance_collection = getattr(nuance_data, 'nuance_collection', None)
+                evidence_list = getattr(nuance_data, 'evidence', [])
+                
+                if nuance_collection:
+                    # Convert DestinationNuanceCollection to flat list format
+                    all_nuances = []
+                    
+                    # Add destination nuances
+                    for nuance in nuance_collection.destination_nuances:
+                        nuance_dict = {
+                            'phrase': nuance.phrase,
+                            'category': nuance.category,
+                            'score': nuance.score,
+                            'search_hits': nuance.search_hits,
+                            'uniqueness_ratio': nuance.uniqueness_ratio,
+                            'evidence_sources': nuance.evidence_sources,
+                            'source_urls': getattr(nuance, 'source_urls', []),
+                            'validation_metadata': nuance.validation_metadata,
+                            'contributing_models': getattr(nuance, 'contributing_models', [])
+                        }
+                        all_nuances.append(nuance_dict)
+                    
+                    # Add hotel expectations
+                    for nuance in nuance_collection.hotel_expectations:
+                        nuance_dict = {
+                            'phrase': nuance.phrase,
+                            'category': nuance.category,
+                            'score': nuance.score,
+                            'search_hits': nuance.search_hits,
+                            'uniqueness_ratio': nuance.uniqueness_ratio,
+                            'evidence_sources': nuance.evidence_sources,
+                            'source_urls': getattr(nuance, 'source_urls', []),
+                            'validation_metadata': nuance.validation_metadata,
+                            'contributing_models': getattr(nuance, 'contributing_models', [])
+                        }
+                        all_nuances.append(nuance_dict)
+                    
+                    # Add vacation rental expectations
+                    for nuance in nuance_collection.vacation_rental_expectations:
+                        nuance_dict = {
+                            'phrase': nuance.phrase,
+                            'category': nuance.category,
+                            'score': nuance.score,
+                            'search_hits': nuance.search_hits,
+                            'uniqueness_ratio': nuance.uniqueness_ratio,
+                            'evidence_sources': nuance.evidence_sources,
+                            'source_urls': getattr(nuance, 'source_urls', []),
+                            'validation_metadata': nuance.validation_metadata,
+                            'contributing_models': getattr(nuance, 'contributing_models', [])
+                        }
+                        all_nuances.append(nuance_dict)
+                    
+                    # Convert evidence list to dict format
+                    evidence_dicts = []
+                    for evidence in evidence_list:
+                        evidence_dict = {
+                            'phrase': evidence.phrase,
+                            'category': evidence.category,
+                            'source_url': evidence.source_url,
+                            'source_type': evidence.source_type,
+                            'content_snippet': evidence.content_snippet,
+                            'relevance_score': evidence.relevance_score,
+                            'authority_score': evidence.authority_score,
+                            'search_metadata': evidence.search_metadata
+                        }
+                        evidence_dicts.append(evidence_dict)
+                    
+                    integrated_data['destination_nuances'] = {
+                        'enabled': True,
+                        'success': len(all_nuances) > 0,
+                        'nuances': all_nuances,
+                        'evidence': evidence_dicts,
+                        'quality_score': getattr(nuance_data, 'overall_quality_score', 0.0),
+                        'processing_time': getattr(nuance_data, 'processing_time', 0.0),
+                        'statistics': getattr(nuance_data, 'statistics', {}),
+                        'error_messages': getattr(nuance_data, 'errors', [])
+                    }
+                else:
+                    # No nuance collection found
+                    integrated_data['destination_nuances'] = {
+                        'enabled': True,
+                        'success': False,
+                        'nuances': [],
+                        'evidence': [],
+                        'quality_score': 0.0,
+                        'processing_time': getattr(nuance_data, 'processing_time', 0.0),
+                        'statistics': getattr(nuance_data, 'statistics', {}),
+                        'error_messages': getattr(nuance_data, 'errors', []) + ['No nuance collection found']
+                    }
+                
+            elif isinstance(nuance_result, dict):
+                # Handle dict format
+                if 'result' in nuance_result:
+                    nuance_data = nuance_result['result']
+                    if hasattr(nuance_data, 'data'):
+                        nuance_data = nuance_data.data
+                else:
+                    nuance_data = nuance_result
+                
+                # Handle both object and dict formats for nuance_data
+                if hasattr(nuance_data, '__dict__'):
+                    # Object format - extract nuance_collection
+                    nuance_collection = getattr(nuance_data, 'nuance_collection', None)
+                    evidence_list = getattr(nuance_data, 'evidence', [])
+                    
+                    if nuance_collection:
+                        # Convert as above
+                        all_nuances = []
+                        for category_nuances in [nuance_collection.destination_nuances, 
+                                               nuance_collection.hotel_expectations, 
+                                               nuance_collection.vacation_rental_expectations]:
+                            for nuance in category_nuances:
+                                nuance_dict = {
+                                    'phrase': nuance.phrase,
+                                    'category': nuance.category,
+                                    'score': nuance.score,
+                                    'search_hits': nuance.search_hits,
+                                    'uniqueness_ratio': nuance.uniqueness_ratio,
+                                    'evidence_sources': nuance.evidence_sources,
+                                    'source_urls': getattr(nuance, 'source_urls', []),
+                                    'validation_metadata': nuance.validation_metadata,
+                                    'contributing_models': getattr(nuance, 'contributing_models', [])
+                                }
+                                all_nuances.append(nuance_dict)
+                        
+                        integrated_data['destination_nuances'] = {
+                            'enabled': True,
+                            'success': len(all_nuances) > 0,
+                            'nuances': all_nuances,
+                            'evidence': [{'phrase': e.phrase, 'category': e.category, 'source_url': e.source_url, 
+                                        'source_type': e.source_type, 'content_snippet': e.content_snippet,
+                                        'relevance_score': e.relevance_score, 'authority_score': e.authority_score,
+                                        'search_metadata': e.search_metadata} for e in evidence_list],
+                            'quality_score': getattr(nuance_data, 'overall_quality_score', 0.0),
+                            'processing_time': getattr(nuance_data, 'processing_time', 0.0),
+                            'statistics': getattr(nuance_data, 'statistics', {}),
+                            'error_messages': getattr(nuance_data, 'errors', [])
+                        }
+                    else:
+                        # Fallback to old format if no nuance_collection
+                        integrated_data['destination_nuances'] = {
+                            'enabled': True,
+                            'success': len(getattr(nuance_data, 'nuances', [])) > 0,
+                            'nuances': getattr(nuance_data, 'nuances', []),
+                            'evidence': getattr(nuance_data, 'evidence', []),
+                            'quality_score': getattr(nuance_data, 'quality_score', 0.0),
+                            'processing_time': getattr(nuance_data, 'processing_time', 0.0),
+                            'statistics': getattr(nuance_data, 'statistics', {}),
+                            'error_messages': getattr(nuance_data, 'errors', [])
+                        }
+                elif isinstance(nuance_data, dict):
+                    # Dict format - use .get()
+                    integrated_data['destination_nuances'] = {
+                        'enabled': True,
+                        'success': len(nuance_data.get('nuances', [])) > 0,
+                        'nuances': nuance_data.get('nuances', []),
+                        'evidence': nuance_data.get('evidence', []),
+                        'quality_score': nuance_data.get('quality_score', 0.0),
+                        'processing_time': nuance_data.get('processing_time', 0.0),
+                        'statistics': nuance_data.get('statistics', {}),
+                        'error_messages': nuance_data.get('errors', [])
+                    }
+                else:
+                    # Fallback - empty nuance data
+                    integrated_data['destination_nuances'] = {
+                        'enabled': True,
+                        'success': False,
+                        'nuances': [],
+                        'evidence': [],
+                        'quality_score': 0.0,
+                        'processing_time': 0.0,
+                        'statistics': {},
+                        'error_messages': ['Invalid nuance data format']
+                    }
+        else:
+            # No destination nuances generated
+            integrated_data['destination_nuances'] = {
+                'enabled': False,
+                'success': False,
+                'nuances': [],
+                'evidence': [],
+                'quality_score': 0.0,
+                'processing_time': 0.0,
+                'statistics': {},
+                'error_messages': []
+            }
+        
         # Integrate quality assessment
         if 'quality_assurance' in workflow_state.phase_results:
             qa_data = workflow_state.phase_results['quality_assurance']
@@ -779,12 +1057,13 @@ class AgentOrchestrator(BaseAgent):
         
         # Weight different phases
         phase_weights = {
-            'web_discovery': 0.18,
-            'llm_processing': 0.28,
-            'intelligence_enhancement': 0.22,
-            'evidence_validation': 0.14,
-            'seasonal_image_generation': 0.08,
-            'quality_assurance': 0.1
+            'web_discovery': 0.16,
+            'llm_processing': 0.24,
+            'intelligence_enhancement': 0.20,
+            'evidence_validation': 0.12,
+            'destination_nuances': 0.12,  # NEW: Add weight for nuances
+            'seasonal_image_generation': 0.06,
+            'quality_assurance': 0.10
         }
         
         weighted_quality = 0.0

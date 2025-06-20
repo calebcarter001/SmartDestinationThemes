@@ -143,6 +143,65 @@ class EnhancedViewerGenerator:
             except Exception as e:
                 logger.warning(f"Could not load evidence file {evidence_file_ref}: {e}")
         
+        # Load destination nuances data (NEW) - prioritize 3-tier system
+        nuances_data = {}
+        try:
+            import os
+            json_dir = os.path.dirname(getattr(self, '_current_json_file', ''))
+            # Extract base filename (without _enhanced.json) to construct nuances filename
+            base_name = os.path.basename(getattr(self, '_current_json_file', ''))
+            if base_name.endswith('_enhanced.json'):
+                base_name = base_name[:-14]  # Remove '_enhanced.json'
+                
+                # Try 3-tier files first (prioritized)
+                tier_files = [
+                    f"{base_name}_nuances_3tier_updated.json",
+                    f"{base_name}_nuances_3tier.json",
+                    f"{base_name}_nuances.json"  # Legacy fallback
+                ]
+                
+                for tier_file in tier_files:
+                    nuances_file_path = os.path.join(json_dir, tier_file)
+                    if os.path.exists(nuances_file_path):
+                        with open(nuances_file_path, 'r', encoding='utf-8') as f:
+                            import json
+                            nuances_data = json.load(f)
+                            logger.info(f"Loaded nuances data from {nuances_file_path}")
+                            break
+        except Exception as e:
+            logger.warning(f"Could not load nuances file: {e}")
+        
+        # Load destination nuances if separate nuances file exists (NEW)
+        nuances_evidence_data = {}
+        try:
+            import os
+            json_dir = os.path.dirname(getattr(self, '_current_json_file', ''))
+            
+            # Try to find nuances file based on current JSON file name
+            if hasattr(self, '_current_json_file'):
+                base_name = os.path.basename(self._current_json_file)
+                if base_name.endswith('_enhanced.json'):
+                    base_name = base_name[:-14]  # Remove '_enhanced.json'
+                    
+                    # Try 3-tier evidence files first (prioritized)
+                    evidence_files = [
+                        f"{base_name}_nuances_3tier_updated_evidence.json",
+                        f"{base_name}_nuances_3tier_evidence.json",
+                        f"{base_name}_nuances_evidence.json"  # Legacy fallback
+                    ]
+                    
+                    for evidence_file in evidence_files:
+                        nuances_file_path = os.path.join(json_dir, evidence_file)
+                        if os.path.exists(nuances_file_path):
+                            with open(nuances_file_path, 'r', encoding='utf-8') as f:
+                                nuances_evidence_data = json.load(f)
+                                # Store for JavaScript access
+                                self._nuances_evidence_data = nuances_evidence_data
+                                logger.info(f"Loaded nuances evidence from {nuances_file_path}")
+                                break
+        except Exception as e:
+            logger.warning(f"Could not load nuances files: {e}")
+        
         destination_name = data.get('destination', data.get('destination_name', 'Unknown Destination'))
         affinities = data.get('affinities', [])
         
@@ -157,6 +216,13 @@ class EnhancedViewerGenerator:
         composition_analysis = data.get('composition_analysis', {})
         qa_workflow = data.get('qa_workflow', {})
         comprehensive_evidence = data.get('comprehensive_evidence', {})
+        
+        # If no top-level comprehensive evidence, aggregate from themes
+        if not comprehensive_evidence and affinities:
+            comprehensive_evidence = self._aggregate_evidence_from_themes(affinities)
+        
+        # Get destination nuances summary (NEW)
+        nuances_summary = data.get('destination_nuances_summary', {})
         
         # Quality metrics - get from intelligence_insights.quality_assessment
         quality_assessment = intelligence_insights.get('quality_assessment', {})
@@ -174,18 +240,71 @@ class EnhancedViewerGenerator:
         # Generate enhanced theme cards
         themes_html = self._generate_enhanced_themes(affinities)
         
+        # Generate destination nuances display (NEW)
+        nuances_html = self._generate_destination_nuances(nuances_data, nuances_evidence_data, nuances_summary)
+        
         # Generate intelligence insights cards
         insights_html = self._generate_intelligence_insights(intelligence_insights)
+        
+        # Generate nuance intelligence insights (NEW - separate from themes)
+        nuance_insights_html = self._generate_nuance_intelligence_insights(nuances_data, nuances_evidence_data)
         
         # Generate composition analysis
         composition_html = self._generate_composition_analysis(composition_analysis)
         
+        # Generate destination insight analysis for nuances (NEW - separate from themes)
+        nuance_insight_analysis_html = self._generate_nuance_insight_analysis(nuances_data)
+        
         # Generate quality metrics
-        quality_html = self._generate_quality_metrics(quality_assessment)
+        quality_html = self._generate_quality_metrics(quality_assessment, nuances_data)
+        
+        # Generate nuance quality assessment (NEW - separate from themes)
+        nuance_quality_html = self._generate_nuance_quality_assessment(nuances_data)
         
         # Generate comprehensive evidence display
-        evidence_html = self._generate_comprehensive_evidence_display(comprehensive_evidence)
+        # Check if we have nuances evidence data to display instead of theme evidence
+        if nuances_evidence_data:
+            # Handle both list and dict formats for nuances evidence
+            if isinstance(nuances_evidence_data, list):
+                # List format - check if it has content
+                has_evidence = bool(nuances_evidence_data)
+            else:
+                # Dict format - check for evidence key or any values
+                has_evidence = bool('evidence' in nuances_evidence_data or any(nuances_evidence_data.values()))
+            
+            if has_evidence:
+                evidence_html = self._generate_comprehensive_evidence_display(nuances_evidence_data)
+            else:
+                evidence_html = self._generate_comprehensive_evidence_display(comprehensive_evidence)
+        else:
+            evidence_html = self._generate_comprehensive_evidence_display(comprehensive_evidence)
         
+        # Add nuances count and quality to header stats (NEW) - supports 3-tier system
+        nuances_count = 0
+        nuances_quality = 0
+        if nuances_data:
+            # Check for 3-tier system first (from loaded nuances file)
+            if 'destination_nuances' in nuances_data or 'hotel_expectations' in nuances_data or 'vacation_rental_expectations' in nuances_data:
+                nuances_count += len(nuances_data.get('destination_nuances', []))
+                nuances_count += len(nuances_data.get('hotel_expectations', []))
+                nuances_count += len(nuances_data.get('vacation_rental_expectations', []))
+                nuances_quality = nuances_data.get('overall_nuance_quality_score', nuances_data.get('overall_quality_score', 0))
+            # Fall back to legacy format (from separate nuances file)
+            elif 'nuances' in nuances_data:
+                nuances_count = len(nuances_data.get('nuances', []))
+                # Calculate legacy quality score from individual nuance scores
+                nuances_list = nuances_data.get('nuances', [])
+                if nuances_list:
+                    nuances_quality = sum(n.get('score', 0) for n in nuances_list) / len(nuances_list)
+            # Also check enhanced JSON summary
+            elif 'destination_nuances_summary' in data and data['destination_nuances_summary'].get('3_tier_system'):
+                summary = data['destination_nuances_summary']
+                nuances_count = summary.get('total_nuances_count', 0)
+                nuances_quality = summary.get('overall_quality_score', 0)
+        
+        # Generate seasonal image carousel HTML
+        seasonal_carousel_html = self._generate_seasonal_carousel(destination_name)
+
         return f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -207,16 +326,20 @@ class EnhancedViewerGenerator:
                     <i class="fas fa-arrow-left"></i> Back to Dashboard
                 </a>
             </div>
+            
+            <!-- Seasonal Image Carousel -->
+            {seasonal_carousel_html}
+            
             <div class="header-content">
                 <h1 class="destination-title">{destination_name}</h1>
                 <div class="quality-badge quality-{quality_level.lower().replace(' ', '-')}">
-                    {quality_level} Quality ({quality_score:.3f})
+                    Destination Insights: {quality_level} ({quality_score:.3f})
                 </div>
             </div>
             <div class="header-stats">
                 <div class="stat-card">
                     <div class="stat-value">{len(affinities)}</div>
-                    <div class="stat-label">Enhanced Themes</div>
+                    <div class="stat-label">Destination Themes</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value">{hidden_gems_count}</div>
@@ -230,38 +353,91 @@ class EnhancedViewerGenerator:
                     <div class="stat-value">{len(emotions_covered)}</div>
                     <div class="stat-label">Emotion Types</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-value">{nuances_count}</div>
+                    <div class="stat-label">Destination Nuances</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{nuances_quality:.3f}</div>
+                    <div class="stat-label">Nuances Quality</div>
+                </div>
             </div>
         </header>
         
         <!-- Intelligence Insights Section -->
         <section class="intelligence-insights">
             <h2><i class="fas fa-brain"></i> Intelligence Insights</h2>
-            {insights_html}
-        </section>
-        
-        <!-- Enhanced Themes Section -->
-        <section class="enhanced-themes">
-            <h2><i class="fas fa-sparkles"></i> Enhanced Themes ({len(affinities)})</h2>
-            <div class="themes-grid">
-                {themes_html}
+            <div class="insights-tab-content">
+                <div id="theme-insights" class="insights-content active">
+                    {insights_html}
+                </div>
+                <div id="nuance-insights" class="insights-content">
+                    {nuance_insights_html}
+                </div>
             </div>
         </section>
         
-        <!-- Composition Analysis Section -->
-        <section class="composition-analysis">
-            <h2><i class="fas fa-palette"></i> Composition Analysis</h2>
-            {composition_html}
+        <!-- Tabbed Content Section for Themes and Nuances -->
+        <section class="tabbed-content-section">
+            <div class="tab-navigation">
+                <button class="tab-button active" onclick="switchTab('themes')" id="themes-tab">
+                    <i class="fas fa-sparkles"></i> Destination Themes ({len(affinities)})
+                </button>
+                <button class="tab-button" onclick="switchTab('nuances')" id="nuances-tab">
+                    <i class="fas fa-star"></i> Destination Nuances ({nuances_count})
+                </button>
+            </div>
+            
+            <div class="tab-content">
+                <div id="themes-pane" class="tab-pane active">
+                    <div class="themes-container">
+                        <div class="section-description">
+                            <p>These are enhanced destination themes discovered through intelligent analysis. Each theme has been enhanced with depth analysis, authenticity scoring, and comprehensive evidence validation.</p>
+                        </div>
+                        {themes_html}
+                    </div>
+                </div>
+                
+                <div id="nuances-pane" class="tab-pane">
+                    <div class="nuances-container">
+                        <div class="section-description">
+                            <p>Three distinct categories: Destination Nuances (fun experiences), Conventional Lodging Nuances (hotel/motel expectations), and Vacation Rental Nuances.</p>
+                        </div>
+                        {nuances_html}
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Destination Insight Analysis Section -->
+        <section class="destination-insight-analysis">
+            <h2><i class="fas fa-palette"></i> Destination Insight Analysis</h2>
+            <div class="insights-tab-content">
+                <div id="theme-composition" class="insights-content active">
+                    {composition_html}
+                </div>
+                <div id="nuance-analysis" class="insights-content">
+                    {nuance_insight_analysis_html}
+                </div>
+            </div>
         </section>
         
         <!-- Quality Assessment Section -->
         <section class="quality-assessment">
             <h2><i class="fas fa-chart-line"></i> Quality Assessment</h2>
-            {quality_html}
+            <div class="quality-tab-content">
+                <div id="theme-quality" class="quality-content active">
+                    {quality_html}
+                </div>
+                <div id="nuance-quality" class="quality-content">
+                    {nuance_quality_html}
+                </div>
+            </div>
         </section>
         
         <!-- Comprehensive Evidence Section -->
         <section class="comprehensive-evidence">
-            <h2><i class="fas fa-search"></i> Evidence Collection</h2>
+            <h2><i class="fas fa-database"></i> Evidence Collection</h2>
             {evidence_html}
         </section>
         
@@ -289,6 +465,10 @@ class EnhancedViewerGenerator:
         window.evidenceStore = {self._get_evidence_store_json()};
         console.log('Evidence store initialized with', Object.keys(window.evidenceStore).length, 'items');
         
+        // Initialize nuances evidence data for enhanced modal support
+        window.nuancesEvidenceData = {self._get_nuances_evidence_json()};
+        console.log('Nuances evidence data initialized with', Object.keys(window.nuancesEvidenceData).length, 'evidence items');
+        
         {self._get_enhanced_javascript()}
     </script>
 </body>
@@ -296,15 +476,15 @@ class EnhancedViewerGenerator:
         """
     
     def _generate_enhanced_themes(self, affinities: list) -> str:
-        """Generate HTML for enhanced theme cards."""
+        """Generate HTML for enhanced theme cards with proper grid layout."""
         if not affinities:
-            return '<p class="no-data">No enhanced themes available.</p>'
+            return '<p class="no-data">No destination themes available.</p>'
         
         themes_html = ""
         for theme in affinities:
             themes_html += self._generate_single_theme_card(theme)
         
-        return themes_html
+        return f'<div class="themes-grid">{themes_html}</div>'
     
     def _generate_single_theme_card(self, theme: dict) -> str:
         """Generate HTML for a single enhanced theme card."""
@@ -927,60 +1107,51 @@ class EnhancedViewerGenerator:
         return gap_names.get(gap, gap.replace('_', ' ').title())
 
     def _generate_evidence_paperclip(self, theme_name: str, theme_data: dict) -> str:
-        """Generate paperclip icon for evidence modal."""
-        # Get evidence from comprehensive_attribute_evidence which contains the loaded evidence data
-        comprehensive_evidence = theme_data.get('comprehensive_attribute_evidence', {})
-        main_theme_evidence = comprehensive_evidence.get('main_theme', {})
-        evidence_pieces = main_theme_evidence.get('evidence_pieces', [])
+        """Generate evidence paperclip for themes."""
+        evidence_id = f"theme_{self._sanitize_filename(theme_name)}"
         
-        # Collect all evidence types for this theme including new content intelligence attributes
-        all_evidence = {
-            'theme_evidence': evidence_pieces,
+        # Store evidence data for modal
+        if not hasattr(self, '_evidence_store'):
+            self._evidence_store = {}
+        
+        self._evidence_store[evidence_id] = {
+            'theme_evidence': theme_data.get('comprehensive_attribute_evidence', {}).get('theme_evidence', []),
             'nano_themes': theme_data.get('nano_themes', []),
             'price_insights': theme_data.get('price_insights', {}),
             'authenticity_analysis': theme_data.get('authenticity_analysis', {}),
             'hidden_gem_score': theme_data.get('hidden_gem_score', {}),
-            'depth_analysis': theme_data.get('depth_analysis', {}),
-            # New content intelligence attributes
-            'iconic_landmarks': theme_data.get('iconic_landmarks', {}),
-            'practical_travel_intelligence': theme_data.get('practical_travel_intelligence', {}),
-            'neighborhood_insights': theme_data.get('neighborhood_insights', {}),
-            'content_discovery_intelligence': theme_data.get('content_discovery_intelligence', {}),
-            'llm_generated': theme_data.get('llm_generated', True)  # Track if LLM generated
+            'llm_generated': not bool(theme_data.get('comprehensive_attribute_evidence', {}).get('theme_evidence', []))
         }
         
-        # Check if we have any evidence (including content intelligence data)
-        has_evidence = (
-            len(evidence_pieces) > 0 or 
-            len(all_evidence['nano_themes']) > 0 or
-            bool(all_evidence['price_insights']) or
-            bool(all_evidence['authenticity_analysis']) or
-            bool(all_evidence['hidden_gem_score']) or
-            bool(all_evidence['depth_analysis']) or
-            # Check content intelligence attributes
-            bool(all_evidence['iconic_landmarks']) or
-            bool(all_evidence['practical_travel_intelligence']) or
-            bool(all_evidence['neighborhood_insights']) or
-            bool(all_evidence['content_discovery_intelligence'])
-        )
+        return f'<i class="fas fa-paperclip evidence-paperclip" onclick="showThemeEvidenceModal(\'{theme_name}\', \'{evidence_id}\')" title="View evidence for {theme_name}"></i>'
+    
+    def _generate_nuance_evidence_paperclip(self, nuance_phrase: str, nuance_data: dict) -> str:
+        """Generate evidence paperclip for nuances."""
+        evidence_id = f"nuance_{self._sanitize_filename(nuance_phrase)}"
         
-        if not has_evidence:
-            return '<i class="fas fa-paperclip evidence-paperclip no-evidence" title="No evidence available"></i>'
-        
-        # Create unique ID for this evidence using deterministic hash
-        import hashlib
-        evidence_str = f"{theme_name}_theme_evidence_{str(sorted(str(all_evidence)))}"
-        evidence_id = f"{theme_name.replace(' ', '_')}_theme_evidence_{hashlib.md5(evidence_str.encode()).hexdigest()[:8]}"
-        
-        # Store in evidence store instead of embedding in onclick
+        # Store evidence data for modal
         if not hasattr(self, '_evidence_store'):
             self._evidence_store = {}
-        self._evidence_store[evidence_id] = all_evidence
         
-        return f'''<i class="fas fa-paperclip evidence-paperclip" 
-                    onclick="showThemeEvidenceModal('{theme_name}', '{evidence_id}')" 
-                    title="View evidence for {theme_name}"></i>'''
-    
+        # Get validation data and evidence
+        validation_data = nuance_data.get('validation_data', {})
+        evidence_sources = nuance_data.get('evidence_sources', [])
+        
+        self._evidence_store[evidence_id] = {
+            'nuance_phrase': nuance_phrase,
+            'score': nuance_data.get('score', 0),
+            'search_hits': validation_data.get('destination_hits', 0),
+            'uniqueness_ratio': validation_data.get('uniqueness_ratio', 0),
+            'evidence_sources': evidence_sources,
+            'validation_metadata': validation_data,
+            'source_models': nuance_data.get('source_models', []),
+            'category': nuance_data.get('category', ''),
+            'confidence': nuance_data.get('confidence', 0),
+            'nuance_evidence': True  # Flag to indicate this is nuance evidence
+        }
+        
+        return f'<i class="fas fa-paperclip evidence-paperclip" onclick="showNuanceEvidenceModal(\'{nuance_phrase}\', \'{evidence_id}\')" title="View evidence for {nuance_phrase}"></i>'
+
     def _generate_theme_details(self, theme, depth_analysis, contextual_info, micro_climate, cultural_sensitivity, interconnections) -> str:
         """Generate detailed theme information with evidence paperclips for each attribute."""
         details = []
@@ -1208,23 +1379,55 @@ class EnhancedViewerGenerator:
         </div>
         """
     
-    def _generate_quality_metrics(self, quality_assessment: dict) -> str:
-        """Generate quality metrics section."""
+    def _generate_quality_metrics(self, quality_assessment: dict, nuances_data: dict = None) -> str:
+        """Generate combined quality metrics section for both themes and nuances."""
         if not quality_assessment:
             return '<p class="no-data">No quality assessment available.</p>'
         
-        metrics = quality_assessment.get('metrics', {})
-        if not metrics:
-            return '<p class="no-data">No quality metrics available.</p>'
+        # Theme quality metrics
+        theme_metrics = quality_assessment.get('metrics', {})
+        theme_overall_score = quality_assessment.get('overall_score', 0)
         
+        # Nuance quality metrics
+        nuance_overall_score = 0
+        nuance_count = 0
+        if nuances_data:
+            # Check for 3-tier system first
+            if 'destination_nuances' in nuances_data or 'hotel_expectations' in nuances_data or 'vacation_rental_expectations' in nuances_data:
+                nuance_overall_score = nuances_data.get('overall_nuance_quality_score', nuances_data.get('overall_quality_score', 0))
+                nuance_count += len(nuances_data.get('destination_nuances', []))
+                nuance_count += len(nuances_data.get('hotel_expectations', []))
+                nuance_count += len(nuances_data.get('vacation_rental_expectations', []))
+            # Fall back to legacy format
+            elif 'nuances' in nuances_data:
+                nuances_list = nuances_data.get('nuances', [])
+                if nuances_list:
+                    nuance_overall_score = sum(n.get('score', 0) for n in nuances_list) / len(nuances_list)
+                    nuance_count = len(nuances_list)
+        
+        # Calculate combined discovery quality score
+        combined_score = 0
+        if theme_overall_score > 0 and nuance_overall_score > 0:
+            # Weight: 60% theme quality, 40% nuance quality
+            combined_score = (theme_overall_score * 0.6) + (nuance_overall_score * 0.4)
+        elif theme_overall_score > 0:
+            combined_score = theme_overall_score
+        elif nuance_overall_score > 0:
+            combined_score = nuance_overall_score
+        
+        # Generate combined quality overview
+        combined_quality_level = self._get_quality_level(combined_score)
+        combined_color = self._get_confidence_color(combined_score)
+        
+        # Core theme metrics
         core_metrics = ['factual_accuracy', 'thematic_coverage', 'actionability', 'uniqueness', 'source_credibility']
         intelligence_metrics = ['theme_depth', 'authenticity', 'emotional_resonance']
         
-        # Core metrics
+        # Core metrics HTML
         core_html = []
         for metric in core_metrics:
-            if metric in metrics:
-                value = metrics[metric]
+            if metric in theme_metrics:
+                value = theme_metrics[metric]
                 color = self._get_confidence_color(value)
                 name = metric.replace('_', ' ').title()
                 core_html.append(f"""
@@ -1234,12 +1437,12 @@ class EnhancedViewerGenerator:
                 </div>
                 """)
         
-        # Intelligence metrics
+        # Intelligence metrics HTML
         intel_html = []
         icons = {'theme_depth': '📊', 'authenticity': '🏆', 'emotional_resonance': '✨'}
         for metric in intelligence_metrics:
-            if metric in metrics:
-                value = metrics[metric]
+            if metric in theme_metrics:
+                value = theme_metrics[metric]
                 color = self._get_confidence_color(value)
                 name = metric.replace('_', ' ').title()
                 icon = icons.get(metric, '📈')
@@ -1251,6 +1454,31 @@ class EnhancedViewerGenerator:
                 """)
         
         return f"""
+        <div class="combined-quality-overview">
+            <div class="quality-summary-card">
+                <div class="quality-summary-icon">🏆</div>
+                <div class="quality-summary-content">
+                    <h3>Combined Discovery Quality</h3>
+                    <div class="combined-score" style="color: {combined_color}">{combined_score:.3f}</div>
+                    <div class="quality-level-badge quality-{combined_quality_level.lower().replace(' ', '-')}">{combined_quality_level}</div>
+                </div>
+                <div class="quality-breakdown">
+                    <div class="breakdown-item">
+                        <span class="breakdown-label">Theme Quality:</span>
+                        <span class="breakdown-value" style="color: {self._get_confidence_color(theme_overall_score)}">{theme_overall_score:.3f}</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span class="breakdown-label">Nuance Quality:</span>
+                        <span class="breakdown-value" style="color: {self._get_confidence_color(nuance_overall_score)}">{nuance_overall_score:.3f}</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span class="breakdown-label">Total Features:</span>
+                        <span class="breakdown-value">{len(theme_metrics)} themes + {nuance_count} nuances</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <div class="quality-content">
             <div class="metrics-section">
                 <h3>Core Quality Metrics</h3>
@@ -1267,10 +1495,28 @@ class EnhancedViewerGenerator:
         </div>
         """
 
-    def _generate_comprehensive_evidence_display(self, comprehensive_evidence: dict) -> str:
+    def _generate_comprehensive_evidence_display(self, comprehensive_evidence) -> str:
         """Generate comprehensive evidence display showing all evidence types."""
         if not comprehensive_evidence:
             return '<div class="no-data">No comprehensive evidence data available</div>'
+        
+        # Handle list format (nuances evidence as list)
+        if isinstance(comprehensive_evidence, list):
+            # Convert list format to dict format for nuance evidence display
+            nuances_evidence_dict = {'evidence': comprehensive_evidence}
+            return self._generate_nuance_evidence_display(nuances_evidence_dict)
+        
+        # Handle dict format
+        if not isinstance(comprehensive_evidence, dict):
+            return '<div class="no-data">Invalid evidence data format</div>'
+        
+        # Check if this is nuance evidence data (different structure)
+        if 'nuances_evidence' in comprehensive_evidence:
+            return self._generate_nuance_evidence_display(comprehensive_evidence)
+        
+        # Check if this is evidence in list format within a dict
+        if 'evidence' in comprehensive_evidence:
+            return self._generate_nuance_evidence_display(comprehensive_evidence)
         
         evidence_summary = comprehensive_evidence.get('evidence_summary', {})
         total_pieces = evidence_summary.get('total_evidence_pieces', 0)
@@ -1350,6 +1596,315 @@ class EnhancedViewerGenerator:
         </div>
         """
 
+    def _generate_nuance_evidence_display(self, nuances_evidence: dict) -> str:
+        """Generate evidence display specifically for nuances data."""
+        # Handle the actual evidence structure from the JSON file
+        evidence_list = nuances_evidence.get('evidence', [])
+        
+        if not evidence_list:
+            return '<div class="no-data">No nuance evidence data available</div>'
+        
+        # Calculate summary statistics from the actual evidence list
+        total_evidence = len(evidence_list)
+        unique_sources = set()
+        evidence_types = set()
+        
+        for item in evidence_list:
+            # Get unique domains from authority_sources URLs
+            authority_sources = item.get('authority_sources', [])
+            for url in authority_sources:
+                if url and not url.startswith('https://fallback-evidence'):
+                    # Extract domain from URL
+                    try:
+                        from urllib.parse import urlparse
+                        domain = urlparse(url).netloc
+                        if domain:
+                            unique_sources.add(domain)
+                    except:
+                        pass
+            
+            # Detect evidence types from metadata
+            metadata = item.get('metadata', {})
+            if metadata.get('authority_validated', False):
+                evidence_types.add('search_validation')
+            elif metadata.get('evidence_type') == 'fallback_generated':
+                evidence_types.add('fallback_scoring')
+            elif 'search_results_count' in metadata:
+                evidence_types.add('search_validation')
+            else:
+                evidence_types.add('fallback_scoring')
+        
+        # Ensure we have at least one evidence type
+        if not evidence_types:
+            evidence_types.add('search_validation')
+        
+        # Generate summary stats with actual data
+        summary_html = f"""
+        <div class="evidence-overview">
+            <div class="evidence-summary-stats">
+                <div class="evidence-stat">
+                    <div class="stat-value">{total_evidence}</div>
+                    <div class="stat-label">Total Evidence Pieces</div>
+                </div>
+                <div class="evidence-stat">
+                    <div class="stat-value">{len(unique_sources)}</div>
+                    <div class="stat-label">Unique Sources</div>
+                </div>
+                <div class="evidence-stat">
+                    <div class="stat-value">{len(evidence_types)}</div>
+                    <div class="stat-label">Evidence Types</div>
+                </div>
+            </div>
+        </div>
+        """
+        
+        # Generate evidence type cards based on actual data
+        evidence_cards_html = """
+        <div class="evidence-types-grid">
+        """
+        
+        # Group evidence by source type
+        fallback_scoring_items = []
+        search_validation_items = []
+        
+        for item in evidence_list:
+            sources = item.get('evidence_sources', [])
+            if 'fallback_scoring' in sources:
+                fallback_scoring_items.append(item)
+            else:
+                search_validation_items.append(item)
+        
+        # Generate Search Validation Evidence card (if any)
+        if search_validation_items:
+            total_hits = sum(item.get('search_hits', 0) for item in search_validation_items)
+            avg_uniqueness = sum(item.get('uniqueness_ratio', 0) for item in search_validation_items) / len(search_validation_items)
+            
+            evidence_cards_html += f"""
+            <div class="evidence-type-card" style="border-left-color: #28a745">
+                <div class="evidence-type-header">
+                    <div class="evidence-type-title">
+                        <span class="evidence-type-icon">🔍</span>
+                        <span class="evidence-type-name">Search Validation Evidence</span>
+                    </div>
+                    <div class="evidence-type-status">
+                        <span class="status-icon">✅</span>
+                        <span class="evidence-count">{len(search_validation_items)}</span>
+                    </div>
+                </div>
+                
+                <div class="evidence-type-metrics">
+                    <div class="authority-metric">
+                        <span class="metric-label">Avg Uniqueness:</span>
+                        <span class="metric-value">{avg_uniqueness:.1f}x</span>
+                        <div class="authority-bar">
+                            <div class="authority-fill" style="width: {min(avg_uniqueness * 20, 100)}%; background: #28a745"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="evidence-preview">
+                    <div class="evidence-preview-item">
+                        <div class="evidence-preview-text">📊 {total_hits:,} total search hits collected</div>
+                        <div class="evidence-preview-source">🌐 Real search engine validation</div>
+                    </div>
+                </div>
+                
+                <div class="evidence-type-actions">
+                    <button class="view-evidence-btn" onclick="toggleEvidenceType(this, 'search_validation')" style="background: #28a745">
+                        View Search Evidence
+                    </button>
+                </div>
+            </div>
+            """
+        
+        # Generate Fallback Scoring Evidence card (if any)
+        if fallback_scoring_items:
+            total_hits = sum(item.get('search_hits', 0) for item in fallback_scoring_items)
+            avg_uniqueness = sum(item.get('uniqueness_ratio', 0) for item in fallback_scoring_items) / len(fallback_scoring_items)
+            
+            evidence_cards_html += f"""
+            <div class="evidence-type-card" style="border-left-color: #ffc107">
+                <div class="evidence-type-header">
+                    <div class="evidence-type-title">
+                        <span class="evidence-type-icon">📊</span>
+                        <span class="evidence-type-name">Fallback Scoring Evidence</span>
+                    </div>
+                    <div class="evidence-type-status">
+                        <span class="status-icon">⚠️</span>
+                        <span class="evidence-count">{len(fallback_scoring_items)}</span>
+                    </div>
+                </div>
+                
+                <div class="evidence-type-metrics">
+                    <div class="authority-metric">
+                        <span class="metric-label">Avg Uniqueness:</span>
+                        <span class="metric-value">{avg_uniqueness:.1f}x</span>
+                        <div class="authority-bar">
+                            <div class="authority-fill" style="width: {min(avg_uniqueness * 20, 100)}%; background: #ffc107"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="evidence-preview">
+                    <div class="evidence-preview-item">
+                        <div class="evidence-preview-text">🔄 {total_hits:,} estimated search hits</div>
+                        <div class="evidence-preview-source">⚡ Fallback validation mode (was using wrong API key)</div>
+                    </div>
+                </div>
+                
+                <div class="evidence-type-actions">
+                    <button class="view-evidence-btn" onclick="toggleEvidenceType(this, 'fallback_scoring')" style="background: #ffc107">
+                        View Fallback Evidence
+                    </button>
+                </div>
+            </div>
+            """
+        
+        # Generate Nuance Details card
+        evidence_cards_html += f"""
+        <div class="evidence-type-card" style="border-left-color: #667eea">
+            <div class="evidence-type-header">
+                <div class="evidence-type-title">
+                    <span class="evidence-type-icon">🎯</span>
+                    <span class="evidence-type-name">Nuance Details</span>
+                </div>
+                <div class="evidence-type-status">
+                    <span class="status-icon">📋</span>
+                    <span class="evidence-count">{total_evidence}</span>
+                </div>
+            </div>
+            
+            <div class="evidence-type-metrics">
+                <div class="authority-metric">
+                    <span class="metric-label">Coverage:</span>
+                    <span class="metric-value">{min(total_evidence / 8.0, 1.0):.1%}</span>
+                    <div class="authority-bar">
+                        <div class="authority-fill" style="width: {min(total_evidence / 8.0 * 100, 100)}%; background: #667eea"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="evidence-preview">
+        """
+        
+        # Add top 3 nuances as preview
+        for i, item in enumerate(evidence_list[:3]):
+            phrase = item.get('phrase', 'Unknown')
+            # Get search hits from metadata or use relevance_score as indicator
+            metadata = item.get('metadata', {})
+            hits = metadata.get('search_results_count', 0)
+            if hits == 0:
+                # If no search hits, show relevance score as percentage
+                relevance = item.get('relevance_score', 0)
+                display_text = f"{relevance:.1%} relevance"
+            else:
+                display_text = f"{hits:,} hits"
+            
+            evidence_cards_html += f"""
+                <div class="evidence-preview-item">
+                    <div class="evidence-preview-text">"{phrase}"</div>
+                    <div class="evidence-preview-source">🔍 {display_text}</div>
+                </div>
+            """
+        
+        evidence_cards_html += f"""
+            </div>
+            
+            <div class="evidence-type-actions">
+                <button class="view-evidence-btn" onclick="toggleEvidenceType(this, 'nuance_details')" style="background: #667eea">
+                    View All Nuances
+                </button>
+            </div>
+        </div>
+        """
+        
+        evidence_cards_html += """
+        </div>
+        """
+        
+        return summary_html + evidence_cards_html
+
+    def _generate_nuance_evidence_type_card(self, title: str, icon: str, nuances_evidence: dict, color: str) -> str:
+        """Generate a card for nuance evidence types."""
+        evidence_count = 0
+        authority_scores = []
+        evidence_preview = ""
+        
+        # Aggregate data from all nuances
+        for nuance_phrase, evidence_data in nuances_evidence.items():
+            if isinstance(evidence_data, dict):
+                pieces = evidence_data.get('evidence_pieces', [])
+                evidence_count += len(pieces)
+                
+                for piece in pieces:
+                    if isinstance(piece, dict):
+                        authority_scores.append(piece.get('authority_score', 0))
+        
+        avg_authority = sum(authority_scores) / len(authority_scores) if authority_scores else 0
+        
+        # Generate preview based on card type
+        if title == 'Nuance Validation Evidence':
+            validated_count = sum(1 for _, data in nuances_evidence.items() 
+                                if isinstance(data, dict) and data.get('validation_status') == 'validated')
+            evidence_preview = f"""
+            <div class="evidence-preview-item">
+                <div class="evidence-preview-text">✅ {validated_count} nuances successfully validated</div>
+                <div class="evidence-preview-source">🔍 Search validation enabled</div>
+            </div>
+            """
+        elif title == 'Search Validation Results':
+            total_hits = sum(data.get('search_hits', 0) for data in nuances_evidence.values() 
+                           if isinstance(data, dict))
+            evidence_preview = f"""
+            <div class="evidence-preview-item">
+                <div class="evidence-preview-text">📊 {total_hits:,} total search hits collected</div>
+                <div class="evidence-preview-source">🌐 Multiple search engines</div>
+            </div>
+            """
+        elif title == 'Source Authority Analysis':
+            high_authority = sum(1 for score in authority_scores if score >= 0.7)
+            evidence_preview = f"""
+            <div class="evidence-preview-item">
+                <div class="evidence-preview-text">🏛️ {high_authority} high-authority sources</div>
+                <div class="evidence-preview-source">⭐ Avg authority: {avg_authority:.2f}</div>
+            </div>
+            """
+        
+        status_icon = "✅" if evidence_count > 0 else "❓"
+        
+        return f"""
+        <div class="evidence-type-card" style="border-left-color: {color}">
+            <div class="evidence-type-header">
+                <div class="evidence-type-title">
+                    <span class="evidence-type-icon">{icon}</span>
+                    <span class="evidence-type-name">{title}</span>
+                </div>
+                <div class="evidence-type-status">
+                    <span class="status-icon">{status_icon}</span>
+                    <span class="evidence-count">{evidence_count}</span>
+                </div>
+            </div>
+            
+            <div class="evidence-type-metrics">
+                <div class="authority-metric">
+                    <span class="metric-label">Authority:</span>
+                    <span class="metric-value">{avg_authority:.2f}</span>
+                    <div class="authority-bar">
+                        <div class="authority-fill" style="width: {avg_authority*100}%; background: {color}"></div>
+                    </div>
+                </div>
+            </div>
+            
+            {f'<div class="evidence-preview">{evidence_preview}</div>' if evidence_preview else '<div class="no-evidence-preview">No evidence available</div>'}
+            
+            <div class="evidence-type-actions">
+                <button class="view-evidence-btn" onclick="toggleEvidenceType(this, \'{title.lower().replace(' ', '_')}\')" style="background: {color}">
+                    View All Evidence
+                </button>
+            </div>
+        </div>
+        """
+
     def _generate_evidence_type_card(self, title: str, icon: str, evidence_data: dict, color: str) -> str:
         """Generate a card for a specific evidence type."""
         evidence_count = evidence_data.get('total_evidence_count', 0)
@@ -1404,7 +1959,7 @@ class EnhancedViewerGenerator:
             {f'<div class="evidence-preview">{evidence_preview}</div>' if evidence_preview else '<div class="no-evidence-preview">No evidence available</div>'}
             
             <div class="evidence-type-actions">
-                <button class="view-evidence-btn" onclick="toggleEvidenceType(this, '{title.lower().replace(' ', '_')}')" style="background: {color}">
+                <button class="view-evidence-btn" onclick="toggleEvidenceType(this, \'{title.lower().replace(' ', '_')}\')" style="background: {color}">
                     View All Evidence
                 </button>
             </div>
@@ -1484,7 +2039,7 @@ class EnhancedViewerGenerator:
             {f'<div class="evidence-preview">{preview_html}</div>' if preview_html else '<div class="no-evidence-preview">No data extracted</div>'}
             
             <div class="evidence-type-actions">
-                <button class="view-evidence-btn" onclick="toggleContentIntelligence(this, '{title.lower().replace(' ', '_')}')" style="background: {color}">
+                <button class="view-evidence-btn" onclick="toggleContentIntelligence(this, \'{title.lower().replace(' ', '_')}\')" style="background: {color}">
                     View Intelligence Data
                 </button>
             </div>
@@ -2670,9 +3225,791 @@ class EnhancedViewerGenerator:
             .destination-title { font-size: 2rem; }
             .header-content { flex-direction: column; gap: 15px; }
             .header-stats { justify-content: center; }
-            .themes-grid { grid-template-columns: 1fr; }
+            .themes-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
             .composition-content { grid-template-columns: 1fr; }
             .quality-content { grid-template-columns: 1fr; }
+        }
+        
+        /* Destination Nuances Styles */
+        .destination-nuances {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Destination Nuances Layout */
+        .nuances-container-3tier {
+            padding: 20px;
+        }
+        
+        .nuances-summary {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .nuances-summary h2 {
+            margin: 0 0 20px 0;
+            color: #333;
+            font-size: 1.8rem;
+        }
+        
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+        }
+        
+        .summary-stats .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-number {
+            display: block;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            display: block;
+            font-size: 0.85rem;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        /* Main Destination Section (full width) */
+        .main-destination-section {
+            margin-bottom: 30px;
+        }
+        
+        .main-destination-section .section-header {
+            margin-bottom: 25px;
+        }
+        
+        .main-destination-section h2 {
+            color: #333;
+            font-size: 1.6rem;
+            margin: 0 0 10px 0;
+        }
+        
+        /* Side-by-side Accommodation Sections */
+        .accommodation-sections {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .accommodation-section {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+        
+        .accommodation-section h3 {
+            color: #333;
+            font-size: 1.4rem;
+            margin: 0 0 10px 0;
+        }
+        
+        .accommodation-section .section-description {
+            background: rgba(102, 126, 234, 0.05);
+            border-left: 4px solid #667eea;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        /* Feature Cards for all categories */
+        .features-grid {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .destination-grid {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+        
+        .hotel-grid, .vacation-rental-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .feature-card {
+            background: linear-gradient(135deg, #fff, #f8f9fa);
+            border-radius: 12px;
+            padding: 18px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15);
+        }
+        
+        .feature-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .feature-rank {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+        
+        .feature-phrase {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+        }
+        
+        .evidence-btn {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .evidence-btn:hover {
+            background: rgba(102, 126, 234, 0.2);
+            transform: translateY(-1px);
+        }
+        
+        .feature-metrics {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .feature-score {
+            font-size: 0.85rem;
+        }
+        
+        .score-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .score-value {
+            font-weight: 600;
+            margin: 0 5px;
+        }
+        
+        .score-level {
+            color: #888;
+            font-style: italic;
+        }
+        
+        .feature-category {
+            font-size: 0.85rem;
+        }
+        
+        .category-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .category-value {
+            color: #667eea;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+        
+        .feature-sources, .feature-validation {
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-top: 8px;
+        }
+        
+        .feature-sources {
+            background: rgba(102, 126, 234, 0.05);
+            border-left: 3px solid #667eea;
+        }
+        
+        .feature-validation {
+            background: rgba(40, 167, 69, 0.05);
+            border-left: 3px solid #28a745;
+        }
+        
+        .feature-sources small, .feature-validation small {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .accommodation-sections {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .destination-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .summary-stats {
+                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            }
+        }
+        
+        .nuances-container {
+            max-width: 100%;
+        }
+        
+        .section-description {
+            background: rgba(102, 126, 234, 0.05);
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        
+        .section-description p {
+            margin: 0;
+            color: #555;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        .nuances-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .nuances-stats .stat-item {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s ease;
+        }
+        
+        .nuances-stats .stat-item:hover {
+            transform: translateY(-2px);
+        }
+        
+        .nuances-stats .stat-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #333;
+            display: block;
+        }
+        
+        .nuances-stats .stat-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+            display: block;
+        }
+        
+        .nuances-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .nuance-card {
+            background: linear-gradient(135deg, #fff, #f8f9fa);
+            border-radius: 15px;
+            padding: 20px;
+            border-left: 5px solid #667eea;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .nuance-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+        }
+        
+        .nuance-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .nuance-rank {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+        
+        .nuance-content {
+            flex: 1;
+        }
+        
+        .nuance-phrase {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 8px 0;
+            line-height: 1.3;
+        }
+        
+        .nuance-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .nuance-category {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .nuance-score {
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .nuance-sources {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .nuance-sources small {
+            color: #666;
+            font-size: 0.8rem;
+        }
+        
+        .nuance-validation {
+            margin-top: 8px;
+            padding: 6px 10px;
+            background: rgba(40, 167, 69, 0.05);
+            border-radius: 8px;
+            border-left: 3px solid #28a745;
+        }
+        
+        .nuance-validation small {
+            color: #28a745;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .nuances-metadata {
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .processing-status {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .processing-details {
+            color: #666;
+        }
+        
+        .processing-details small {
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        /* Tabbed Interface Styles */
+        .tabbed-content-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .tab-navigation {
+            display: flex;
+            background: rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+            padding: 8px;
+            gap: 8px;
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 16px 24px;
+            background: transparent;
+            border: 2px solid transparent;
+            color: #667eea;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 12px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .tab-button:hover {
+            background: rgba(102, 126, 234, 0.05);
+            border-color: rgba(102, 126, 234, 0.2);
+            transform: translateY(-1px);
+        }
+        
+        .tab-button.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .tab-button.active:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+        }
+        
+        .tab-content {
+            padding: 30px;
+        }
+        
+        .tab-pane {
+            display: none;
+        }
+        
+        .tab-pane.active {
+            display: block;
+            animation: slideIn 0.4s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        /* Seasonal Carousel Styles */
+        .seasonal-carousel {
+            margin: 20px 0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #fff;
+        }
+
+        .carousel-container {
+            position: relative;
+            height: 300px;
+            overflow: hidden;
+        }
+
+        .carousel-slides {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .carousel-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .carousel-item.active {
+            opacity: 1;
+        }
+
+        .carousel-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .carousel-caption {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .season-icon {
+            font-size: 18px;
+        }
+
+        .season-name {
+            font-size: 14px;
+        }
+
+        .carousel-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 8px 12px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+        }
+
+        .carousel-btn {
+            background: none;
+            border: none;
+            color: #333;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+
+        .carousel-btn:hover {
+            background: rgba(0,0,0,0.1);
+            transform: scale(1.1);
+        }
+
+        .carousel-indicators {
+            display: flex;
+            gap: 4px;
+            margin: 0 8px;
+        }
+
+        .carousel-indicator {
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            opacity: 0.6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+        }
+
+        .carousel-indicator:hover {
+            opacity: 0.8;
+            transform: scale(1.1);
+        }
+
+        .carousel-indicator.active {
+            opacity: 1;
+            background: rgba(0,0,0,0.1);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .carousel-container {
+                height: 250px;
+            }
+            
+            .carousel-caption {
+                bottom: 15px;
+                left: 15px;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            
+            .carousel-controls {
+                bottom: 15px;
+                right: 15px;
+                padding: 6px 8px;
+            }
+            
+            .carousel-btn {
+                width: 28px;
+                height: 28px;
+                font-size: 14px;
+            }
+            
+            .carousel-indicator {
+                width: 24px;
+                height: 24px;
+                font-size: 14px;
+            }
+        }
+        
+        /* Combined Quality Overview Styles */
+        .combined-quality-overview {
+            margin-bottom: 30px;
+        }
+        
+        .quality-summary-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+            padding: 25px;
+            border-left: 5px solid #667eea;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .quality-summary-icon {
+            font-size: 2.5rem;
+            opacity: 0.8;
+        }
+        
+        .quality-summary-content {
+            flex: 1;
+        }
+        
+        .quality-summary-content h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 1.2rem;
+        }
+        
+        .combined-score {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .quality-level-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .quality-breakdown {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 200px;
+        }
+        
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+        
+        .breakdown-label {
+            color: #666;
+        }
+        
+        .breakdown-value {
+            font-weight: 600;
+        }
+        
+        /* Nuance Description Styles */
+        .nuance-description {
+            margin: 15px 0;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .description-preview {
+            color: #555;
+            line-height: 1.5;
+            font-size: 0.9rem;
+        }
+        
+        .description-full {
+            color: #555;
+            line-height: 1.5;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+        
+        .expand-btn {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-top: 8px;
+            text-decoration: underline;
+            padding: 0;
+        }
+        
+        .expand-btn:hover {
+            color: #764ba2;
+        }
+        
+        /* Smaller quality score styles */
+        .score-value-small {
+            font-size: 0.9rem;
+            font-weight: 600;
         }
         """
     
@@ -2713,6 +4050,35 @@ class EnhancedViewerGenerator:
                 content.style.display = 'none';
                 icon.textContent = '▼';
                 element.classList.remove('active');
+            }
+        }
+        
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Remove active class from all tabs and panes
+            document.querySelectorAll('.tab-button').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+            
+            // Add active class to selected tab and pane
+            document.getElementById(tabName + '-tab').classList.add('active');
+            document.getElementById(tabName + '-pane').classList.add('active');
+            
+            // Also switch intelligence insights, destination insight analysis, and quality assessment
+            const insightsSections = document.querySelectorAll('.insights-content, .quality-content');
+            insightsSections.forEach(section => section.classList.remove('active'));
+            
+            if (tabName === 'themes') {
+                // Show theme-related insights
+                const themeInsights = document.getElementById('theme-insights');
+                const themeComposition = document.getElementById('theme-composition');
+                if (themeInsights) themeInsights.classList.add('active');
+                if (themeComposition) themeComposition.classList.add('active');
+            } else if (tabName === 'nuances') {
+                // Show nuance-related insights
+                const nuanceInsights = document.getElementById('nuance-insights');
+                const nuanceAnalysis = document.getElementById('nuance-analysis');
+                if (nuanceInsights) nuanceInsights.classList.add('active');
+                if (nuanceAnalysis) nuanceAnalysis.classList.add('active');
             }
         }
         
@@ -3094,15 +4460,60 @@ class EnhancedViewerGenerator:
                 modalContent += '</div>';
             }
             
-            // LLM Generated indicator
-            if (evidenceData.llm_generated) {
-                modalContent += '<div class="evidence-section">';
-                modalContent += '<div class="evidence-item">';
-                modalContent += '<div class="llm-generated-tag">LLM Generated</div>';
-                modalContent += '<p>This theme insight was generated by our AI system and may not have external web evidence.</p>';
-                modalContent += '</div>';
-                modalContent += '</div>';
+            // Show comprehensive evidence methodology for themes
+            const themeEvidenceSources = evidenceData.evidence_sources || [];
+            const themeSourceModels = evidenceData.source_models || [];
+            const isThemeSearchValidated = themeEvidenceSources.includes('search_validation');
+            const isThemeFallbackValidated = themeEvidenceSources.includes('fallback_validation');
+            
+            modalContent += '<div class="evidence-section">';
+            modalContent += '<h3>🔬 Evidence Methodology</h3>';
+            modalContent += '<div class="evidence-item">';
+            
+            if (isThemeSearchValidated && themeSourceModels.length > 0) {
+                modalContent += '<div class="evidence-type-tag">LLM + Search Validation</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated by ${themeSourceModels.join(', ')}</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Web search confirmed this theme exists in real travel content</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated theme validated through search_validation</p>`;
+            } else if (isThemeSearchValidated) {
+                modalContent += '<div class="evidence-type-tag">Search Validation</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated (source models not recorded)</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Web search confirmed this theme exists in real travel content</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated theme validated through search_validation</p>`;
+            } else if (isThemeFallbackValidated && themeSourceModels.length > 0) {
+                modalContent += '<div class="evidence-type-tag">LLM + Confidence Scoring</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated by ${themeSourceModels.join(', ')}</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Confidence-based scoring (no web search results found)</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated theme with fallback_validation</p>`;
+            } else if (isThemeFallbackValidated) {
+                modalContent += '<div class="evidence-type-tag">Confidence Scoring</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated (source models not recorded)</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Confidence-based scoring (no web search results found)</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated theme with fallback_validation</p>`;
+            } else if (themeSourceModels.length > 0) {
+                modalContent += '<div class="evidence-type-tag">LLM Generation</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated by ${themeSourceModels.join(', ')}</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> No validation method recorded</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated theme (validation method unknown)</p>`;
+            } else if (themeEvidenceSources.length > 0) {
+                modalContent += '<div class="evidence-type-tag">Recorded Methodology</div>';
+                modalContent += `<p><strong>Content Generation:</strong> Source not recorded</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> ${themeEvidenceSources.join(', ')}</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> Evidence methodology: ${themeEvidenceSources.join(', ')}</p>`;
+            } else if (evidenceData.llm_generated) {
+                modalContent += '<div class="evidence-type-tag">LLM Generation</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated (models not specified)</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> No validation method recorded</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated theme (validation method unknown)</p>`;
+            } else {
+                modalContent += '<div class="evidence-type-tag">Unknown Methodology</div>';
+                modalContent += `<p><strong>Content Generation:</strong> Method not recorded</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Method not recorded</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> Methodology information incomplete</p>`;
             }
+            
+            modalContent += '</div>';
+            modalContent += '</div>';
             
             if (!modalContent) {
                 modalContent = '<p>No evidence data available for this theme.</p>';
@@ -3111,6 +4522,238 @@ class EnhancedViewerGenerator:
             modalBody.innerHTML = modalContent;
             modal.style.display = 'block';
         }
+        
+        // Nuance evidence modal
+        function showNuanceEvidenceModal(nuancePhrase, evidenceId) {
+            console.log('Nuance modal called with:', {nuancePhrase, evidenceId});
+            
+            const modal = document.getElementById('evidenceModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            if (!modal || !modalTitle || !modalBody) {
+                console.error('Modal elements not found');
+                return;
+            }
+            
+            modalTitle.textContent = `Evidence for: ${nuancePhrase}`;
+            
+            // Get evidence data from global store
+            const evidenceData = window.evidenceStore && window.evidenceStore[evidenceId];
+            if (!evidenceData) {
+                console.error('Evidence not found for ID:', evidenceId);
+                console.log('Available evidence IDs:', Object.keys(window.evidenceStore || {}));
+                modalBody.innerHTML = '<div class="alert alert-warning">Evidence data not available for this nuance.</div>';
+                modal.style.display = 'block';
+                return;
+            }
+            
+            console.log('Nuance evidence data found:', evidenceData);
+            
+            // Generate modal content for nuance evidence
+            let modalContent = '';
+            
+            // Show nuance details
+            modalContent += '<div class="evidence-section">';
+            modalContent += '<h3>🎯 Nuance Details</h3>';
+            modalContent += '<div class="evidence-item">';
+            modalContent += '<div class="evidence-type-tag">Destination Feature</div>';
+            modalContent += `<p><strong>Phrase:</strong> "${evidenceData.nuance_phrase}"</p>`;
+            modalContent += `<p><strong>Category:</strong> ${evidenceData.category || 'general'}</p>`;
+            modalContent += `<p><strong>Quality Score:</strong> ${(evidenceData.score || 0).toFixed(3)}</p>`;
+            modalContent += `<p><strong>Confidence:</strong> ${(evidenceData.confidence || 0).toFixed(2)}</p>`;
+            modalContent += '</div>';
+            modalContent += '</div>';
+            
+            // Show validation data based on actual validation method
+            const evidenceSources = evidenceData.evidence_sources || [];
+            const validationData = evidenceData.validation_metadata || {};
+            const isSearchValidated = evidenceSources.includes('search_validation') && validationData.authority_validated !== false;
+            const isFallbackValidated = evidenceSources.includes('fallback_validation') || validationData.validation_method === 'fallback_confidence';
+            
+            if (isSearchValidated) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🔍 Web Validation Results</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="evidence-type-tag">Search Confirmation</div>';
+                modalContent += `<p><strong>Search Hits:</strong> ${evidenceData.search_hits.toLocaleString()}</p>`;
+                modalContent += `<p><strong>Uniqueness Ratio:</strong> ${(evidenceData.uniqueness_ratio || 0).toFixed(2)}x</p>`;
+                modalContent += '<p><strong>Validation Result:</strong> Web search confirmed this LLM-generated nuance appears in real travel content</p>';
+                modalContent += '</div>';
+                modalContent += '</div>';
+            } else if (isFallbackValidated) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>⚠️ Confidence-Based Validation</h3>';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="llm-generated-tag">Fallback Scoring</div>';
+                modalContent += `<p><strong>Confidence Score:</strong> ${(validationData.confidence_score || evidenceData.confidence || 0).toFixed(3)}</p>`;
+                modalContent += `<p><strong>Validation Result:</strong> This LLM-generated nuance was scored using confidence-based methods when web search found no results</p>`;
+                const fallbackReason = validationData.search_fallback_reason || 'unknown';
+                const reasonText = fallbackReason === 'no_search_results_found' ? 'No web search results found for this specific phrase' : 
+                                 fallbackReason === 'rate_limit_or_api_issue' ? 'Search API rate limits or issues' : fallbackReason;
+                modalContent += `<p><strong>Reason:</strong> ${reasonText}</p>`;
+                modalContent += '</div>';
+                modalContent += '</div>';
+            } else {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<div class="evidence-item">';
+                modalContent += '<div class="llm-generated-tag">Unknown Validation</div>';
+                modalContent += '<p>Validation method could not be determined for this nuance.</p>';
+                modalContent += '</div>';
+                modalContent += '</div>';
+            }
+            
+            // Show source URLs from evidence store or nuances evidence data
+            let sourceUrls = [];
+            
+            // First try to get URLs from the evidence store
+            if (evidenceData.source_urls && evidenceData.source_urls.length > 0) {
+                sourceUrls = evidenceData.source_urls;
+            }
+            
+            // Also check the nuances evidence data for authority sources
+            if (window.nuancesEvidenceData && window.nuancesEvidenceData[evidenceData.nuance_phrase]) {
+                const nuanceEvidence = window.nuancesEvidenceData[evidenceData.nuance_phrase];
+                if (nuanceEvidence.authority_sources && nuanceEvidence.authority_sources.length > 0) {
+                    // Combine with existing URLs, avoiding duplicates
+                    nuanceEvidence.authority_sources.forEach(url => {
+                        if (url && !sourceUrls.includes(url)) {
+                            sourceUrls.push(url);
+                        }
+                    });
+                }
+            }
+            
+            if (sourceUrls.length > 0) {
+                modalContent += '<div class="evidence-section">';
+                modalContent += '<h3>🌐 Validation URLs</h3>';
+                modalContent += '<p style="font-size: 0.9em; color: #666; margin-bottom: 15px;"><em>Web sources that confirm this LLM-generated nuance exists in real travel content:</em></p>';
+                
+                sourceUrls.forEach((url, index) => {
+                    // Skip fallback URLs that are just placeholders
+                    if (url && !url.includes('fallback-evidence') && url !== 'https://search.brave.com/') {
+                        modalContent += '<div class="evidence-item">';
+                        modalContent += '<div class="evidence-type-tag">Validation Source</div>';
+                        modalContent += `<p><strong>Validation URL ${index + 1}:</strong></p>`;
+                        modalContent += `<p><a href="${url}" target="_blank" style="color: #007bff; text-decoration: underline; word-break: break-all;">${url}</a></p>`;
+                        modalContent += '</div>';
+                    }
+                });
+                
+                modalContent += '</div>';
+            }
+            
+                        // Show comprehensive evidence methodology
+            const methodologyEvidenceSources = evidenceData.evidence_sources || [];
+            const sourceModels = evidenceData.source_models || [];
+            const isMethodologySearchValidated = methodologyEvidenceSources.includes('search_validation');
+            const isMethodologyFallbackValidated = methodologyEvidenceSources.includes('fallback_validation');
+            
+            modalContent += '<div class="evidence-section">';
+            modalContent += '<h3>🔬 Evidence Methodology</h3>';
+            modalContent += '<div class="evidence-item">';
+            
+            if (isMethodologySearchValidated && sourceModels.length > 0) {
+                modalContent += '<div class="evidence-type-tag">LLM + Search Validation</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated by ${sourceModels.join(', ')}</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Web search confirmed this nuance exists in real travel content</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated content validated through search_validation</p>`;
+            } else if (isMethodologySearchValidated) {
+                modalContent += '<div class="evidence-type-tag">Search Validation</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated (source models not recorded)</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Web search confirmed this nuance exists in real travel content</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated content validated through search_validation</p>`;
+            } else if (isMethodologyFallbackValidated && sourceModels.length > 0) {
+                modalContent += '<div class="evidence-type-tag">LLM + Confidence Scoring</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated by ${sourceModels.join(', ')}</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Confidence-based scoring (no web search results found)</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated content with fallback_validation</p>`;
+            } else if (isMethodologyFallbackValidated) {
+                modalContent += '<div class="evidence-type-tag">Confidence Scoring</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated (source models not recorded)</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Confidence-based scoring (no web search results found)</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated content with fallback_validation</p>`;
+            } else if (sourceModels.length > 0) {
+                modalContent += '<div class="evidence-type-tag">LLM Generation</div>';
+                modalContent += `<p><strong>Content Generation:</strong> LLM-generated by ${sourceModels.join(', ')}</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> No validation method recorded</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> LLM Generated content (validation method unknown)</p>`;
+            } else if (methodologyEvidenceSources.length > 0) {
+                modalContent += '<div class="evidence-type-tag">Recorded Methodology</div>';
+                modalContent += `<p><strong>Content Generation:</strong> Source not recorded</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> ${methodologyEvidenceSources.join(', ')}</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> Evidence methodology: ${methodologyEvidenceSources.join(', ')}</p>`;
+            } else {
+                modalContent += '<div class="evidence-type-tag">Unknown Methodology</div>';
+                modalContent += `<p><strong>Content Generation:</strong> Method not recorded</p>`;
+                modalContent += `<p><strong>Validation Method:</strong> Method not recorded</p>`;
+                modalContent += `<p><strong>Evidence Type:</strong> Methodology information incomplete</p>`;
+            }
+            
+            modalContent += '</div>';
+            modalContent += '</div>';
+            
+            if (!modalContent) {
+                modalContent = '<p>No evidence data available for this nuance.</p>';
+            }
+            
+            modalBody.innerHTML = modalContent;
+            modal.style.display = 'block';
+        }
+
+        // Seasonal Carousel Functions
+        let currentSeasonIndex = 0;
+        const totalSeasons = 4;
+
+        function changeSeasonalImage(direction) {
+            currentSeasonIndex += direction;
+            
+            if (currentSeasonIndex >= totalSeasons) {
+                currentSeasonIndex = 0;
+            } else if (currentSeasonIndex < 0) {
+                currentSeasonIndex = totalSeasons - 1;
+            }
+            
+            showSeasonalImage(currentSeasonIndex);
+        }
+
+        function showSeasonalImage(index) {
+            currentSeasonIndex = index;
+            
+            // Update carousel items
+            const carouselItems = document.querySelectorAll('.carousel-item');
+            const indicators = document.querySelectorAll('.carousel-indicator');
+            
+            carouselItems.forEach((item, i) => {
+                if (i === index) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+            
+            indicators.forEach((indicator, i) => {
+                if (i === index) {
+                    indicator.classList.add('active');
+                } else {
+                    indicator.classList.remove('active');
+                }
+            });
+        }
+
+        // Auto-advance carousel every 5 seconds
+        setInterval(() => {
+            changeSeasonalImage(1);
+        }, 5000);
+
+        // Keyboard navigation for carousel
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                changeSeasonalImage(-1);
+            } else if (e.key === 'ArrowRight') {
+                changeSeasonalImage(1);
+            }
+        });
     </script>
 </body>
 </html>
@@ -3153,3 +4796,1352 @@ class EnhancedViewerGenerator:
         except Exception as e:
             logger.warning(f"Error serializing evidence store: {e}")
             return '{}'
+    
+    def _get_nuances_evidence_json(self) -> str:
+        """Get nuances evidence data as JSON string for JavaScript."""
+        if not hasattr(self, '_nuances_evidence_data') or not self._nuances_evidence_data:
+            return '{}'
+        
+        import json
+        try:
+            # Convert evidence list to phrase-keyed dictionary for easy lookup
+            evidence_dict = {}
+            evidence_list = self._nuances_evidence_data.get('evidence', [])
+            for evidence_item in evidence_list:
+                phrase = evidence_item.get('phrase', '')
+                if phrase:
+                    evidence_dict[phrase] = evidence_item
+            
+            return json.dumps(evidence_dict, default=str)
+        except Exception as e:
+            logger.warning(f"Error serializing nuances evidence data: {e}")
+            return '{}'
+    
+    def _generate_destination_nuances(self, nuances_data: dict, nuances_evidence_data: dict = None, nuances_summary: dict = None) -> str:
+        """Generate HTML for destination nuances display - now supports 3-tier system."""
+        # Check for 3-tier format in enhanced data
+        has_destination_nuances = 'destination_nuances' in nuances_data
+        has_hotel_expectations = 'hotel_expectations' in nuances_data  
+        has_vacation_rental = 'vacation_rental_expectations' in nuances_data
+        
+        if has_destination_nuances or has_hotel_expectations or has_vacation_rental:
+            return self._generate_3_tier_nuances_display(nuances_data, nuances_evidence_data)
+        else:
+            # Check for legacy nuances format
+            legacy_nuances = nuances_data.get('nuances', [])
+            if legacy_nuances:
+                return self._generate_legacy_nuances_display(nuances_data, nuances_evidence_data)
+            else:
+                return '''
+                <p class="no-data">No destination insights available.</p>
+                <p class="suggestion">Run the 3-tier nuance generation to get destination nuances, hotel expectations, and vacation rental expectations.</p>
+                '''
+    
+    def _generate_3_tier_nuances_display(self, nuances_data: dict, nuances_evidence_data: dict = None) -> str:
+        """Generate display for 3-tier nuance system with proper layout."""
+        
+        # Generate summary statistics first
+        destination_nuances = nuances_data.get('destination_nuances', [])
+        hotel_expectations = nuances_data.get('hotel_expectations', [])
+        vacation_rental_expectations = nuances_data.get('vacation_rental_expectations', [])
+        
+        total_insights = len(destination_nuances) + len(hotel_expectations) + len(vacation_rental_expectations)
+        quality_scores = nuances_data.get('nuance_quality_scores', {})
+        
+        # Calculate overall quality score from actual data structure
+        overall_score = nuances_data.get('quality_score', 0)
+        if overall_score == 0:
+            # Try alternative field names for backward compatibility
+            overall_score = nuances_data.get('overall_quality_score', 0)
+            if overall_score == 0:
+                # Try statistics section
+                statistics = nuances_data.get('statistics', {})
+                overall_score = statistics.get('overall_quality_score', 0)
+                if overall_score == 0:
+                    # Calculate from individual nuance scores as fallback
+                    all_nuances = destination_nuances + hotel_expectations + vacation_rental_expectations
+                    if all_nuances:
+                        scores = [n.get('score', 0) for n in all_nuances]
+                        overall_score = sum(scores) / len(scores) if scores else 0
+        
+        summary_html = f'''
+        <div class="nuances-summary">
+            <h2>🧠 3-Tier Destination Insights</h2>
+            <div class="summary-stats">
+                <div class="stat-card">
+                    <span class="stat-number">{total_insights}</span>
+                    <span class="stat-label">Total Insights</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">{len(destination_nuances)}</span>
+                    <span class="stat-label">Destination Nuances</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">{len(hotel_expectations)}</span>
+                    <span class="stat-label">Conventional Lodging</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">{len(vacation_rental_expectations)}</span>
+                    <span class="stat-label">Vacation Rentals</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">{overall_score:.3f}</span>
+                    <span class="stat-label">Overall Quality</span>
+                </div>
+            </div>
+        </div>
+        '''
+        
+        # Main Destination Nuances Section (full width)
+        destination_section = ""
+        if destination_nuances:
+            destination_section = f'''
+            <div class="main-destination-section">
+                <div class="section-header">
+                    <h2>🎯 Destination Nuances</h2>
+                    <p class="section-description">Fun experiences, activities, entertainment, and unique aspects that make this destination special for travelers.</p>
+                </div>
+                <div class="features-grid destination-grid">
+                    {self._generate_nuance_feature_cards(destination_nuances, "destination")}
+                </div>
+            </div>
+            '''
+        
+        # Side-by-side Accommodation Sections
+        accommodation_sections = ""
+        if hotel_expectations or vacation_rental_expectations:
+            hotel_section = ""
+            if hotel_expectations:
+                hotel_section = f'''
+                <div class="accommodation-section hotel-section">
+                    <div class="section-header">
+                        <h3>🏨 Conventional Lodging Nuances</h3>
+                        <p class="section-description">What travelers expect from hotels, motels, and conventional accommodations in this destination.</p>
+                    </div>
+                    <div class="features-grid hotel-grid">
+                        {self._generate_nuance_feature_cards(hotel_expectations, "hotel")}
+                    </div>
+                </div>
+                '''
+            
+            vacation_rental_section = ""
+            if vacation_rental_expectations:
+                vacation_rental_section = f'''
+                <div class="accommodation-section vacation-rental-section">
+                    <div class="section-header">
+                        <h3>🏡 Vacation Rental Nuances</h3>
+                        <p class="section-description">What travelers expect to see and experience in vacation rentals in this destination.</p>
+                    </div>
+                    <div class="features-grid vacation-rental-grid">
+                        {self._generate_nuance_feature_cards(vacation_rental_expectations, "vacation_rental")}
+                    </div>
+                </div>
+                '''
+            
+            accommodation_sections = f'''
+            <div class="accommodation-sections">
+                {hotel_section}
+                {vacation_rental_section}
+            </div>
+            '''
+        
+        return f'''
+        <div class="nuances-container-3tier">
+            {summary_html}
+            {destination_section}
+            {accommodation_sections}
+        </div>
+        '''
+    
+    def _generate_nuance_feature_cards(self, nuances_list: list, category: str) -> str:
+        """Generate feature cards for a list of nuances."""
+        feature_cards = []
+        
+        for i, nuance in enumerate(nuances_list, 1):
+            phrase = nuance.get('phrase', 'Unknown Feature')
+            score = nuance.get('score', 0)
+            confidence = nuance.get('confidence', 0.8)
+            source_models = nuance.get('source_models', [])
+            validation_data = nuance.get('validation_data', {})
+            
+            # Generate description for the nuance
+            description = self._generate_nuance_description(phrase, category)
+            
+            # Categorize destination nuances by lodging focus
+            if category == "destination":
+                nuance_category = self._categorize_destination_nuance(phrase)
+            else:
+                nuance_category = category.replace('_', ' ').title()
+            
+            # Get quality color and level
+            quality_color = self._get_confidence_color(score)
+            quality_level = self._get_quality_level(score)
+            
+            # Create evidence button with proper evidence ID
+            evidence_id = f"nuance_{self._sanitize_filename(phrase)}"
+            
+            # Store evidence data for modal (ensure it's in the evidence store)
+            if not hasattr(self, '_evidence_store'):
+                self._evidence_store = {}
+            
+            # Store the evidence data if not already stored
+            if evidence_id not in self._evidence_store:
+                validation_data = nuance.get('validation_data', {})
+                evidence_sources = nuance.get('evidence_sources', [])
+                
+                self._evidence_store[evidence_id] = {
+                    'nuance_phrase': phrase,
+                    'score': nuance.get('score', 0),
+                    'search_hits': validation_data.get('search_hits', nuance.get('search_hits', 0)),
+                    'uniqueness_ratio': validation_data.get('uniqueness_ratio', nuance.get('uniqueness_ratio', 0)),
+                    'evidence_sources': evidence_sources,
+                    'validation_metadata': validation_data,
+                    'source_models': nuance.get('source_models', []),
+                    'category': nuance.get('category', category),
+                    'confidence': nuance.get('confidence', 0),
+                    'source_urls': nuance.get('source_urls', []),
+                    'nuance_evidence': True  # Flag to indicate this is nuance evidence
+                }
+            
+            evidence_button = f'''
+            <button class="evidence-btn" onclick="showNuanceEvidenceModal('{phrase}', '{evidence_id}')">
+                📎 Evidence
+            </button>
+            '''
+            
+            # Create expandable description
+            description_html = f'''
+            <div class="nuance-description">
+                <div class="description-preview">{description[:120]}{'...' if len(description) > 120 else ''}</div>
+                {f'<div class="description-full" style="display: none;">{description}</div>' if len(description) > 120 else ''}
+                {f'<button class="expand-btn" onclick="toggleDescription(this)">Read more</button>' if len(description) > 120 else ''}
+            </div>
+            '''
+            
+            # Create source models display
+            models_html = ""
+            if source_models:
+                models_html = f'<div class="feature-sources"><small>Generated by: {", ".join(source_models[:3])}</small></div>'
+            
+            # Create validation display
+            validation_html = ""
+            if validation_data:
+                search_hits = validation_data.get('search_hits', 0)
+                uniqueness = validation_data.get('uniqueness_ratio', 0)
+                if search_hits > 0:
+                    validation_html = f'<div class="feature-validation"><small>🔍 {search_hits:,} hits • 📊 {uniqueness:.2f}x unique</small></div>'
+            
+            feature_card = f'''
+            <div class="feature-card {category}-card">
+                <div class="feature-header">
+                    <div class="feature-rank">#{i}</div>
+                    <div class="feature-phrase">"{phrase}"</div>
+                    {evidence_button}
+                </div>
+                {description_html}
+                <div class="feature-metrics">
+                    <div class="feature-score">
+                        <span class="score-label">Quality:</span>
+                        <span class="score-value-small" style="color: {quality_color}">{score:.3f}</span>
+                        <span class="score-level">({quality_level})</span>
+                    </div>
+                    <div class="feature-category">
+                        <span class="category-label">Category:</span>
+                        <span class="category-value">{nuance_category}</span>
+                    </div>
+                </div>
+                {models_html}
+                {validation_html}
+            </div>
+            '''
+            
+            feature_cards.append(feature_card)
+        
+        return "".join(feature_cards)
+    
+    def _generate_nuance_description(self, phrase: str, category: str) -> str:
+        """Generate a descriptive explanation for a nuance phrase."""
+        phrase_lower = phrase.lower()
+        
+        # Common description patterns based on category and phrase content
+        if category == "destination":
+            if "shrine" in phrase_lower or "temple" in phrase_lower:
+                return f"Understanding proper {phrase} helps travelers respectfully participate in Japan's spiritual traditions and avoid cultural missteps during religious site visits."
+            elif "etiquette" in phrase_lower:
+                return f"Mastering {phrase} is essential for travelers to blend in with local customs and show respect for Japanese social norms."
+            elif "experience" in phrase_lower or "tradition" in phrase_lower:
+                return f"Participating in {phrase} offers travelers authentic cultural immersion and deeper connection to local heritage."
+            elif "protocol" in phrase_lower or "importance" in phrase_lower:
+                return f"Following {phrase} ensures travelers navigate social situations appropriately and gain local acceptance."
+            elif "efficiency" in phrase_lower or "system" in phrase_lower:
+                return f"Appreciating {phrase} helps travelers understand and utilize Japan's advanced infrastructure effectively."
+            elif "preparedness" in phrase_lower or "safety" in phrase_lower:
+                return f"Being aware of {phrase} keeps travelers informed about local safety considerations and emergency procedures."
+            else:
+                return f"Understanding {phrase} enhances the travel experience by providing insight into unique aspects of Japanese culture and daily life."
+        
+        elif category == "hotel":
+            if "tech" in phrase_lower or "automated" in phrase_lower:
+                return f"Hotels featuring {phrase} showcase Japan's technological advancement and provide guests with innovative convenience features."
+            elif "traditional" in phrase_lower or "ceremony" in phrase_lower:
+                return f"Hotels offering {phrase} allow guests to experience authentic Japanese culture without leaving their accommodation."
+            elif "dining" in phrase_lower or "restaurant" in phrase_lower:
+                return f"Hotels with {phrase} provide guests access to high-quality culinary experiences reflecting local food culture."
+            elif "staff" in phrase_lower or "service" in phrase_lower:
+                return f"Hotels emphasizing {phrase} ensure international guests receive appropriate support and communication assistance."
+            elif "room" in phrase_lower or "accommodation" in phrase_lower:
+                return f"Hotels providing {phrase} offer guests authentic Japanese living experiences and cultural immersion."
+            else:
+                return f"Hotels featuring {phrase} cater to travelers seeking distinctive accommodations that reflect local character and preferences."
+        
+        elif category == "vacation_rental":
+            if "kitchen" in phrase_lower or "cooking" in phrase_lower:
+                return f"Vacation rentals with {phrase} enable guests to prepare local ingredients and experience Japanese home cooking culture."
+            elif "traditional" in phrase_lower or "authentic" in phrase_lower:
+                return f"Vacation rentals offering {phrase} provide immersive living experiences in genuine Japanese residential settings."
+            elif "space" in phrase_lower or "room" in phrase_lower:
+                return f"Vacation rentals featuring {phrase} give guests insight into Japanese residential design and lifestyle preferences."
+            elif "amenity" in phrase_lower or "feature" in phrase_lower:
+                return f"Vacation rentals including {phrase} offer practical conveniences that enhance the local living experience."
+            else:
+                return f"Vacation rentals with {phrase} provide authentic residential experiences that hotels typically cannot offer."
+        
+        else:
+            return f"This feature represents an important aspect of the local travel experience that visitors should be aware of when planning their stay."
+    
+    def _generate_legacy_nuances_display(self, nuances_data: dict, nuances_evidence_data: dict = None) -> str:
+        """Generate display for legacy single-category nuance format."""
+        if not nuances_data or not nuances_data.get('nuances'):
+            return '<p class="no-data">No destination hotel features available.</p>'
+        
+        nuances_list = nuances_data.get('nuances', [])
+        
+        # Generate hotel features grid
+        hotel_features_html = self._generate_hotel_features_grid(nuances_list)
+        
+        # Generate intelligence insights
+        intelligence_insights_html = self._generate_nuance_intelligence_insights(nuances_data, nuances_evidence_data)
+        
+        return f'''
+        <div class="nuances-container">
+            <div class="section-header">
+                <h2>🏨 Hotel Features (Legacy)</h2>
+                <p class="section-description">Legacy single-category hotel features. Upgrade to 3-tier system for full insights.</p>
+            </div>
+            {hotel_features_html}
+            
+            <div class="section-header">
+                <h2>🧠 Discovery Intelligence</h2>
+                <p class="section-description">Analytics and insights from the hotel feature discovery process.</p>
+            </div>
+            {intelligence_insights_html}
+        </div>
+        '''
+
+    def _generate_hotel_features_grid(self, nuances_list: list) -> str:
+        """Generate a grid of hotel feature cards."""
+        feature_cards = []
+        
+        for i, nuance in enumerate(nuances_list, 1):
+            phrase = nuance.get('phrase', 'Unknown Feature')
+            score = nuance.get('score', 0)
+            category = nuance.get('category', 'general')
+            confidence = nuance.get('confidence', 0.8)
+            source_models = nuance.get('source_models', [])
+            validation_data = nuance.get('validation_data', {})
+            
+            # Get quality color and level
+            quality_color = self._get_confidence_color(score)
+            quality_level = self._get_quality_level(score)
+            
+            # Create evidence button
+            evidence_button = f'''
+            <button class="evidence-btn" onclick="showNuanceEvidenceModal('{phrase}', {i})">
+                📎 Evidence
+            </button>
+            ''' if nuances_list else ''
+            
+            # Create source models display
+            models_html = ""
+            if source_models:
+                models_html = f'<div class="feature-sources"><small>Generated by: {", ".join(source_models[:3])}</small></div>'
+            
+            # Create validation display
+            validation_html = ""
+            if validation_data:
+                search_hits = validation_data.get('search_hits', 0)
+                uniqueness = validation_data.get('uniqueness_ratio', 0)
+                if search_hits > 0:
+                    validation_html = f'<div class="feature-validation"><small>🔍 {search_hits:,} hits • 📊 {uniqueness:.2f}x unique</small></div>'
+            
+            feature_card = f'''
+            <div class="feature-card">
+                <div class="feature-header">
+                    <div class="feature-rank">#{i}</div>
+                    <div class="feature-phrase">"{phrase}"</div>
+                    {evidence_button}
+                </div>
+                <div class="feature-metrics">
+                    <div class="feature-score">
+                        <span class="score-label">Quality Score:</span>
+                        <span class="score-value" style="color: {quality_color}">{score:.3f}</span>
+                        <span class="score-level">({quality_level})</span>
+                    </div>
+                    <div class="feature-category">
+                        <span class="category-label">Category:</span>
+                        <span class="category-value">{category.title()}</span>
+                    </div>
+                </div>
+                {models_html}
+                {validation_html}
+            </div>
+            '''
+            
+            feature_cards.append(feature_card)
+        
+        return f'<div class="features-grid">{"".join(feature_cards)}</div>'
+
+    def _generate_nuance_intelligence_insights(self, nuances_data: dict, nuances_evidence_data: dict = None) -> str:
+        """Generate HTML for nuance intelligence insights - supports both 3-tier and legacy formats."""
+        # Check for 3-tier system first
+        if 'destination_nuances' in nuances_data or 'hotel_expectations' in nuances_data or 'vacation_rental_expectations' in nuances_data:
+            return self._generate_3_tier_intelligence_insights(nuances_data, nuances_evidence_data)
+        elif 'nuances' in nuances_data:
+            return self._generate_legacy_intelligence_insights(nuances_data, nuances_evidence_data)
+        else:
+            return '<p class="no-data">No nuances data available for intelligence insights.</p>'
+
+    def _generate_3_tier_intelligence_insights(self, nuances_data: dict, nuances_evidence_data: dict = None) -> str:
+        """Generate intelligence insights for 3-tier nuance system."""
+        destination_nuances = nuances_data.get('destination_nuances', [])
+        hotel_expectations = nuances_data.get('hotel_expectations', [])
+        vacation_rental_expectations = nuances_data.get('vacation_rental_expectations', [])
+        
+        # Get overall quality scores from actual data structure
+        quality_scores = nuances_data.get('quality_scores', {})
+        overall_quality = nuances_data.get('quality_score', 0)
+        if overall_quality == 0:
+            # Try alternative field names
+            overall_quality = nuances_data.get('overall_quality_score', 0)
+            if overall_quality == 0:
+                statistics = nuances_data.get('statistics', {})
+                overall_quality = statistics.get('overall_quality_score', 0)
+        
+        # Calculate aggregate statistics
+        all_nuances = destination_nuances + hotel_expectations + vacation_rental_expectations
+        total_nuances = len(all_nuances)
+        
+        if total_nuances == 0:
+            return '<p class="no-data">No nuances available for intelligence insights.</p>'
+        
+        # Calculate quality distribution
+        quality_distribution = {'excellent': 0, 'good': 0, 'needs_improvement': 0}
+        for nuance in all_nuances:
+            score = nuance.get('score', 0)
+            if score >= 0.8:
+                quality_distribution['excellent'] += 1
+            elif score >= 0.6:
+                quality_distribution['good'] += 1
+            else:
+                quality_distribution['needs_improvement'] += 1
+        
+        insights_cards = []
+        
+        # 3-Tier System Overview
+        insights_cards.append(f"""
+        <div class="insight-card tier-overview">
+            <div class="insight-icon">🎯</div>
+            <div class="insight-content">
+                <h3>3-Tier System Coverage</h3>
+                <div class="insight-value">{total_nuances} insights</div>
+                <p>Comprehensive destination intelligence</p>
+            </div>
+            <div class="tier-breakdown">
+                <small><strong>Destination:</strong> {len(destination_nuances)} | <strong>Hotels:</strong> {len(hotel_expectations)} | <strong>Rentals:</strong> {len(vacation_rental_expectations)}</small>
+            </div>
+        </div>
+        """)
+        
+        # Overall Quality Score
+        quality_level = self._get_quality_level(overall_quality)
+        quality_color = self._get_confidence_color(overall_quality)
+        insights_cards.append(f"""
+        <div class="insight-card quality-overview">
+            <div class="insight-icon">📊</div>
+            <div class="insight-content">
+                <h3>Overall Quality Score</h3>
+                <div class="insight-value" style="color: {quality_color}">{overall_quality:.3f}</div>
+                <p>{quality_level} nuance quality</p>
+            </div>
+            <div class="quality-breakdown">
+                <small><strong>Excellent:</strong> {quality_distribution['excellent']} | <strong>Good:</strong> {quality_distribution['good']} | <strong>Needs Work:</strong> {quality_distribution['needs_improvement']}</small>
+            </div>
+        </div>
+        """)
+        
+        # Tier Quality Comparison
+        tier_qualities = []
+        if destination_nuances:
+            dest_avg = sum(n.get('score', 0) for n in destination_nuances) / len(destination_nuances)
+            tier_qualities.append(f"Destination: {dest_avg:.3f}")
+        if hotel_expectations:
+            hotel_avg = sum(n.get('score', 0) for n in hotel_expectations) / len(hotel_expectations)
+            tier_qualities.append(f"Hotels: {hotel_avg:.3f}")
+        if vacation_rental_expectations:
+            rental_avg = sum(n.get('score', 0) for n in vacation_rental_expectations) / len(vacation_rental_expectations)
+            tier_qualities.append(f"Rentals: {rental_avg:.3f}")
+        
+        insights_cards.append(f"""
+        <div class="insight-card tier-quality">
+            <div class="insight-icon">⚖️</div>
+            <div class="insight-content">
+                <h3>Tier Quality Balance</h3>
+                <div class="insight-value">{len(tier_qualities)}/3 tiers</div>
+                <p>Quality across accommodation types</p>
+            </div>
+            <div class="tier-details">
+                <small>{' | '.join(tier_qualities)}</small>
+            </div>
+        </div>
+        """)
+        
+        return f'<div class="insights-grid">{"".join(insights_cards)}</div>'
+
+    def _generate_legacy_intelligence_insights(self, nuances_data: dict, nuances_evidence_data: dict = None) -> str:
+        """Generate intelligence insights for legacy nuance format."""
+        nuances_list = nuances_data.get('nuances', [])
+        statistics = nuances_data.get('statistics', {})
+        
+        # Calculate hotel feature statistics
+        total_features = len(nuances_list)
+        avg_score = sum(n.get('score', 0) for n in nuances_list) / total_features if total_features > 0 else 0
+        feature_categories = {}
+        
+        for nuance in nuances_list:
+            category = nuance.get('category', 'general')
+            feature_categories[category] = feature_categories.get(category, 0) + 1
+        
+        # Quality distribution
+        quality_distribution = {'excellent': 0, 'good': 0, 'needs_improvement': 0}
+        for nuance in nuances_list:
+            score = nuance.get('score', 0)
+            if score >= 0.8:
+                quality_distribution['excellent'] += 1
+            elif score >= 0.6:
+                quality_distribution['good'] += 1
+            else:
+                quality_distribution['needs_improvement'] += 1
+        
+        insights_cards = []
+        
+        # Hotel Features Discovery Stats
+        insights_cards.append(f"""
+        <div class="insight-card hotel-features">
+            <div class="insight-icon">🏨</div>
+            <div class="insight-content">
+                <h3>Hotel Features Discovered</h3>
+                <div class="insight-value">{total_features} features</div>
+                <p>Destination-specific hotel amenities and services</p>
+            </div>
+            <div class="feature-breakdown">
+                <small><strong>Categories:</strong> {', '.join(feature_categories.keys())}</small>
+            </div>
+        </div>
+        """)
+        
+        # Average Quality Score
+        quality_level = self._get_quality_level(avg_score)
+        quality_color = self._get_confidence_color(avg_score)
+        insights_cards.append(f"""
+        <div class="insight-card quality-overview">
+            <div class="insight-icon">📊</div>
+            <div class="insight-content">
+                <h3>Feature Quality Score</h3>
+                <div class="insight-value" style="color: {quality_color}">{avg_score:.3f}</div>
+                <p>{quality_level} hotel feature quality</p>
+            </div>
+            <div class="quality-breakdown">
+                <small><strong>Excellent:</strong> {quality_distribution['excellent']} | <strong>Good:</strong> {quality_distribution['good']} | <strong>Needs Work:</strong> {quality_distribution['needs_improvement']}</small>
+            </div>
+        </div>
+        """)
+        
+        # Feature Uniqueness (if we have search validation data)
+        if statistics.get('search_validation_enabled', False):
+            validation_rate = statistics.get('validation_success_rate', 0) * 100
+            insights_cards.append(f"""
+            <div class="insight-card validation-stats">
+                <div class="insight-icon">🔍</div>
+                <div class="insight-content">
+                    <h3>Feature Validation</h3>
+                    <div class="insight-value">{validation_rate:.1f}%</div>
+                    <p>Search-validated hotel features</p>
+                </div>
+                <div class="validation-breakdown">
+                    <small><strong>Validated:</strong> {statistics.get('phrases_validated', 0)} | <strong>Failed:</strong> {statistics.get('phrases_failed', 0)}</small>
+                </div>
+            </div>
+            """)
+        else:
+            insights_cards.append(f"""
+            <div class="insight-card fallback-mode">
+                <div class="insight-icon">⚡</div>
+                <div class="insight-content">
+                    <h3>Generation Mode</h3>
+                    <div class="insight-value">Fallback</div>
+                    <p>Multi-LLM consensus scoring</p>
+                </div>
+                <div class="mode-info">
+                    <small><strong>Models Used:</strong> {statistics.get('phrases_attempted', 0)} attempted</small>
+                </div>
+            </div>
+            """)
+        
+        return f'<div class="insights-grid">{"".join(insights_cards)}</div>'
+
+    def _generate_nuance_insight_analysis(self, nuances_data: dict) -> str:
+        """Generate HTML for nuance insight analysis - supports both 3-tier and legacy formats."""
+        # Check for 3-tier system first
+        if 'destination_nuances' in nuances_data or 'hotel_expectations' in nuances_data or 'vacation_rental_expectations' in nuances_data:
+            return self._generate_3_tier_insight_analysis(nuances_data)
+        elif 'nuances' in nuances_data:
+            return self._generate_legacy_insight_analysis(nuances_data)
+        else:
+            return '<p class="no-data">No nuances data available for insight analysis.</p>'
+
+    def _generate_3_tier_insight_analysis(self, nuances_data: dict) -> str:
+        """Generate insight analysis for 3-tier nuance system."""
+        destination_nuances = nuances_data.get('destination_nuances', [])
+        hotel_expectations = nuances_data.get('hotel_expectations', [])
+        vacation_rental_expectations = nuances_data.get('vacation_rental_expectations', [])
+        
+        # Analyze all nuances together
+        all_nuances = destination_nuances + hotel_expectations + vacation_rental_expectations
+        total_nuances = len(all_nuances)
+        
+        if total_nuances == 0:
+            return '<p class="no-data">No nuances available for insight analysis.</p>'
+        
+        # Categorize by lodging focus across all tiers
+        lodging_categories = {'🏨 Lodging': 0, '🍽️ Food & Dining': 0, '🎯 Activities': 0, '⚙️ Amenities': 0, '✨ Experience': 0}
+        price_segments = {'budget': 0, 'mid_range': 0, 'luxury': 0}
+        
+        for nuance in all_nuances:
+            phrase = nuance.get('phrase', '')
+            score = nuance.get('score', 0)
+            
+            # Categorize by lodging focus
+            category = self._categorize_destination_nuance(phrase)
+            if category in lodging_categories:
+                lodging_categories[category] += 1
+            
+            # Estimate price segment based on keywords
+            phrase_lower = phrase.lower()
+            if any(word in phrase_lower for word in ['luxury', 'premium', 'exclusive', 'private', 'high-end']):
+                price_segments['luxury'] += 1
+            elif any(word in phrase_lower for word in ['budget', 'basic', 'simple', 'affordable']):
+                price_segments['budget'] += 1
+            else:
+                price_segments['mid_range'] += 1
+        
+        # Calculate tier balance
+        tier_balance = {
+            'destination': len(destination_nuances),
+            'hotel': len(hotel_expectations),
+            'vacation_rental': len(vacation_rental_expectations)
+        }
+        
+        # Calculate quality metrics
+        avg_score = sum(n.get('score', 0) for n in all_nuances) / total_nuances if total_nuances > 0 else 0
+        
+        analysis_cards = []
+        
+        # Lodging Category Distribution
+        active_categories = len([k for k, v in lodging_categories.items() if v > 0])
+        analysis_cards.append(f"""
+        <div class="analysis-card category-distribution">
+            <div class="analysis-icon">🏨</div>
+            <div class="analysis-content">
+                <h3>Lodging Category Coverage</h3>
+                <div class="analysis-value">{active_categories}/5 categories</div>
+                <p>Breadth of lodging-focused insights</p>
+            </div>
+            <div class="distribution-breakdown">
+                {chr(10).join([f'<div class="breakdown-item"><span class="category-label">{cat}:</span><span class="category-count">{count}</span></div>' for cat, count in lodging_categories.items() if count > 0])}
+            </div>
+        </div>
+        """)
+        
+        # 3-Tier Balance Analysis
+        max_tier = max(tier_balance.values()) if tier_balance.values() else 0
+        min_tier = min(tier_balance.values()) if tier_balance.values() else 0
+        balance_ratio = (min_tier / max_tier * 100) if max_tier > 0 else 0
+        
+        analysis_cards.append(f"""
+        <div class="analysis-card tier-balance">
+            <div class="analysis-icon">⚖️</div>
+            <div class="analysis-content">
+                <h3>3-Tier Balance</h3>
+                <div class="analysis-value">{balance_ratio:.0f}% balanced</div>
+                <p>Distribution across accommodation types</p>
+            </div>
+            <div class="tier-breakdown">
+                <div class="tier-item">
+                    <span class="tier-label">Destination Nuances:</span>
+                    <span class="tier-count">{tier_balance['destination']} insights</span>
+                </div>
+                <div class="tier-item">
+                    <span class="tier-label">Hotel Expectations:</span>
+                    <span class="tier-count">{tier_balance['hotel']} features</span>
+                </div>
+                <div class="tier-item">
+                    <span class="tier-label">Rental Expectations:</span>
+                    <span class="tier-count">{tier_balance['vacation_rental']} features</span>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        # Price Segment Analysis
+        luxury_percentage = (price_segments['luxury'] / total_nuances * 100) if total_nuances > 0 else 0
+        analysis_cards.append(f"""
+        <div class="analysis-card price-analysis">
+            <div class="analysis-icon">💰</div>
+            <div class="analysis-content">
+                <h3>Price Segment Analysis</h3>
+                <div class="analysis-value">{luxury_percentage:.0f}% luxury</div>
+                <p>Market positioning insights</p>
+            </div>
+            <div class="price-breakdown">
+                <div class="price-segment">
+                    <span class="segment-label">Luxury:</span>
+                    <span class="segment-count">{price_segments['luxury']} features</span>
+                    <div class="segment-bar">
+                        <div class="segment-fill luxury" style="width: {(price_segments['luxury'] / total_nuances * 100) if total_nuances > 0 else 0}%; background: #dc3545;"></div>
+                    </div>
+                </div>
+                <div class="price-segment">
+                    <span class="segment-label">Mid-Range:</span>
+                    <span class="segment-count">{price_segments['mid_range']} features</span>
+                    <div class="segment-bar">
+                        <div class="segment-fill mid-range" style="width: {(price_segments['mid_range'] / total_nuances * 100) if total_nuances > 0 else 0}%; background: #ffc107;"></div>
+                    </div>
+                </div>
+                <div class="price-segment">
+                    <span class="segment-label">Budget:</span>
+                    <span class="segment-count">{price_segments['budget']} features</span>
+                    <div class="segment-bar">
+                        <div class="segment-fill budget" style="width: {(price_segments['budget'] / total_nuances * 100) if total_nuances > 0 else 0}%; background: #28a745;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        return f'<div class="analysis-grid">{"".join(analysis_cards)}</div>'
+
+    def _generate_legacy_insight_analysis(self, nuances_data: dict) -> str:
+        """Generate insight analysis for legacy nuance format."""
+        nuances_list = nuances_data.get('nuances', [])
+        
+        # Analyze hotel feature patterns
+        feature_categories = {}
+        price_segments = {'budget': 0, 'mid_range': 0, 'luxury': 0}
+        service_types = {'amenities': 0, 'services': 0, 'accommodations': 0, 'dining': 0}
+        
+        for nuance in nuances_list:
+            phrase = nuance.get('phrase', '')
+            category = nuance.get('category', 'general')
+            score = nuance.get('score', 0)
+            
+            # Categorize features
+            feature_categories[category] = feature_categories.get(category, 0) + 1
+            
+            # Analyze service types based on keywords
+            phrase_lower = phrase.lower()
+            if any(word in phrase_lower for word in ['pool', 'spa', 'gym', 'wifi', 'parking']):
+                service_types['amenities'] += 1
+            elif any(word in phrase_lower for word in ['concierge', 'service', 'valet', 'butler']):
+                service_types['services'] += 1
+            elif any(word in phrase_lower for word in ['room', 'suite', 'accommodation', 'lodging']):
+                service_types['accommodations'] += 1
+            elif any(word in phrase_lower for word in ['dining', 'restaurant', 'bar', 'breakfast']):
+                service_types['dining'] += 1
+            
+            # Estimate price segment based on keywords
+            if any(word in phrase_lower for word in ['luxury', 'premium', 'exclusive', 'private']):
+                price_segments['luxury'] += 1
+            elif any(word in phrase_lower for word in ['budget', 'basic', 'simple']):
+                price_segments['budget'] += 1
+            else:
+                price_segments['mid_range'] += 1
+        
+        # Calculate coverage metrics
+        total_features = len(nuances_list)
+        service_coverage = len([k for k, v in service_types.items() if v > 0])
+        avg_score = sum(n.get('score', 0) for n in nuances_list) / total_features if total_features > 0 else 0
+        
+        analysis_cards = []
+        
+        # Hotel Feature Distribution
+        analysis_cards.append(f"""
+        <div class="analysis-card feature-distribution">
+            <div class="analysis-icon">🏨</div>
+            <div class="analysis-content">
+                <h3>Hotel Feature Distribution</h3>
+                <div class="analysis-value">{service_coverage}/4 service types</div>
+                <p>Coverage of hotel service categories</p>
+            </div>
+            <div class="distribution-breakdown">
+                <div class="breakdown-item">
+                    <span class="category-label">Amenities:</span>
+                    <span class="category-count">{service_types['amenities']}</span>
+                </div>
+                <div class="breakdown-item">
+                    <span class="category-label">Services:</span>
+                    <span class="category-count">{service_types['services']}</span>
+                </div>
+                <div class="breakdown-item">
+                    <span class="category-label">Accommodations:</span>
+                    <span class="category-count">{service_types['accommodations']}</span>
+                </div>
+                <div class="breakdown-item">
+                    <span class="category-label">Dining:</span>
+                    <span class="category-count">{service_types['dining']}</span>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        # Price Segment Analysis
+        luxury_percentage = (price_segments['luxury'] / total_features * 100) if total_features > 0 else 0
+        analysis_cards.append(f"""
+        <div class="analysis-card price-analysis">
+            <div class="analysis-icon">💰</div>
+            <div class="analysis-content">
+                <h3>Price Segment Analysis</h3>
+                <div class="analysis-value">{luxury_percentage:.0f}% luxury</div>
+                <p>Hotel market positioning insights</p>
+            </div>
+            <div class="price-breakdown">
+                <div class="price-segment">
+                    <span class="segment-label">Luxury:</span>
+                    <span class="segment-count">{price_segments['luxury']} features</span>
+                    <div class="segment-bar">
+                        <div class="segment-fill luxury" style="width: {(price_segments['luxury'] / total_features * 100) if total_features > 0 else 0}%; background: #dc3545;"></div>
+                    </div>
+                </div>
+                <div class="price-segment">
+                    <span class="segment-label">Mid-Range:</span>
+                    <span class="segment-count">{price_segments['mid_range']} features</span>
+                    <div class="segment-bar">
+                        <div class="segment-fill mid-range" style="width: {(price_segments['mid_range'] / total_features * 100) if total_features > 0 else 0}%; background: #ffc107;"></div>
+                    </div>
+                </div>
+                <div class="price-segment">
+                    <span class="segment-label">Budget:</span>
+                    <span class="segment-count">{price_segments['budget']} features</span>
+                    <div class="segment-bar">
+                        <div class="segment-fill budget" style="width: {(price_segments['budget'] / total_features * 100) if total_features > 0 else 0}%; background: #28a745;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        # Feature Quality Overview
+        excellent_count = sum(1 for n in nuances_list if n.get('score', 0) >= 0.8)
+        quality_percentage = (excellent_count / total_features * 100) if total_features > 0 else 0
+        analysis_cards.append(f"""
+        <div class="analysis-card quality-analysis">
+            <div class="analysis-icon">⭐</div>
+            <div class="analysis-content">
+                <h3>Feature Quality Overview</h3>
+                <div class="analysis-value">{quality_percentage:.0f}% excellent</div>
+                <p>High-quality hotel feature ratio</p>
+            </div>
+            <div class="quality-metrics">
+                <div class="metric-item">
+                    <span class="metric-label">Average Score:</span>
+                    <span class="metric-value" style="color: {self._get_confidence_color(avg_score)}">{avg_score:.3f}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Quality Level:</span>
+                    <span class="metric-value">{self._get_quality_level(avg_score)}</span>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        return f'<div class="analysis-grid">{"".join(analysis_cards)}</div>'
+
+    def _generate_nuance_quality_assessment(self, nuances_data: dict) -> str:
+        """Generate HTML for nuance quality assessment - supports both 3-tier and legacy formats."""
+        # Check for 3-tier system first
+        if 'destination_nuances' in nuances_data or 'hotel_expectations' in nuances_data or 'vacation_rental_expectations' in nuances_data:
+            return self._generate_3_tier_quality_assessment(nuances_data)
+        elif 'nuances' in nuances_data:
+            return self._generate_legacy_quality_assessment(nuances_data)
+        else:
+            return '<p class="no-data">No nuances data available for quality assessment.</p>'
+
+    def _generate_3_tier_quality_assessment(self, nuances_data: dict) -> str:
+        """Generate quality assessment for 3-tier nuance system."""
+        destination_nuances = nuances_data.get('destination_nuances', [])
+        hotel_expectations = nuances_data.get('hotel_expectations', [])
+        vacation_rental_expectations = nuances_data.get('vacation_rental_expectations', [])
+        
+        # Get overall quality scores from actual data structure
+        quality_scores = nuances_data.get('quality_scores', {})
+        overall_quality = nuances_data.get('quality_score', 0)
+        if overall_quality == 0:
+            # Try alternative field names
+            overall_quality = nuances_data.get('overall_quality_score', 0)  
+            if overall_quality == 0:
+                statistics = nuances_data.get('statistics', {})
+                overall_quality = statistics.get('overall_quality_score', 0)
+        
+        # Calculate aggregate statistics
+        all_nuances = destination_nuances + hotel_expectations + vacation_rental_expectations
+        total_nuances = len(all_nuances)
+        
+        if total_nuances == 0:
+            return '<p class="no-data">No nuances available for quality assessment.</p>'
+        
+        # Calculate quality distribution across all tiers
+        scores = [n.get('score', 0) for n in all_nuances]
+        avg_score = sum(scores) / total_nuances if total_nuances > 0 else 0
+        min_score = min(scores) if scores else 0
+        max_score = max(scores) if scores else 0
+        
+        # Quality level distribution
+        quality_levels = {'excellent': 0, 'good': 0, 'acceptable': 0, 'needs_improvement': 0}
+        for score in scores:
+            if score >= 0.85:
+                quality_levels['excellent'] += 1
+            elif score >= 0.75:
+                quality_levels['good'] += 1
+            elif score >= 0.65:
+                quality_levels['acceptable'] += 1
+            else:
+                quality_levels['needs_improvement'] += 1
+        
+        assessment_cards = []
+        
+        # Overall 3-Tier Quality Score
+        overall_quality_level = self._get_quality_level(overall_quality)
+        assessment_cards.append(f"""
+        <div class="assessment-card overall-quality">
+            <div class="assessment-icon">🏆</div>
+            <div class="assessment-content">
+                <h3>Overall 3-Tier Quality</h3>
+                <div class="assessment-value" style="color: {self._get_confidence_color(overall_quality)}">{overall_quality:.3f}</div>
+                <p>{overall_quality_level} quality level</p>
+            </div>
+            <div class="quality-details">
+                <div class="score-range">
+                    <span class="range-label">Score Range:</span>
+                    <span class="range-value">{min_score:.3f} - {max_score:.3f}</span>
+                </div>
+                <div class="quality-trend">
+                    <span class="trend-label">Consistency:</span>
+                    <span class="trend-value">{'High' if (max_score - min_score) < 0.2 else 'Medium' if (max_score - min_score) < 0.4 else 'Low'}</span>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        # Tier-by-Tier Quality Breakdown
+        tier_breakdown = []
+        if destination_nuances:
+            dest_avg = sum(n.get('score', 0) for n in destination_nuances) / len(destination_nuances)
+            tier_breakdown.append(f"Destination: {dest_avg:.3f}")
+        if hotel_expectations:
+            hotel_avg = sum(n.get('score', 0) for n in hotel_expectations) / len(hotel_expectations)
+            tier_breakdown.append(f"Hotels: {hotel_avg:.3f}")
+        if vacation_rental_expectations:
+            rental_avg = sum(n.get('score', 0) for n in vacation_rental_expectations) / len(vacation_rental_expectations)
+            tier_breakdown.append(f"Rentals: {rental_avg:.3f}")
+        
+        assessment_cards.append(f"""
+        <div class="assessment-card tier-breakdown">
+            <div class="assessment-icon">📊</div>
+            <div class="assessment-content">
+                <h3>Tier Quality Breakdown</h3>
+                <div class="assessment-value">{len([t for t in [destination_nuances, hotel_expectations, vacation_rental_expectations] if t])}/3 tiers</div>
+                <p>Quality across accommodation types</p>
+            </div>
+            <div class="tier-details">
+                {'<br>'.join(tier_breakdown)}
+            </div>
+        </div>
+        """)
+        
+        # Quality Distribution Chart
+        excellent_percentage = (quality_levels['excellent'] / total_nuances * 100) if total_nuances > 0 else 0
+        assessment_cards.append(f"""
+        <div class="assessment-card quality-distribution">
+            <div class="assessment-icon">📈</div>
+            <div class="assessment-content">
+                <h3>Quality Distribution</h3>
+                <div class="assessment-value">{excellent_percentage:.0f}% excellent</div>
+                <p>Nuance quality breakdown</p>
+            </div>
+            <div class="distribution-chart">
+                <div class="quality-bar excellent">
+                    <span class="bar-label">Excellent:</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: {(quality_levels['excellent'] / total_nuances * 100) if total_nuances > 0 else 0}%; background: #28a745;"></div>
+                        <span class="bar-count">{quality_levels['excellent']}</span>
+                    </div>
+                </div>
+                <div class="quality-bar good">
+                    <span class="bar-label">Good:</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: {(quality_levels['good'] / total_nuances * 100) if total_nuances > 0 else 0}%; background: #28a745;"></div>
+                        <span class="bar-count">{quality_levels['good']}</span>
+                    </div>
+                </div>
+                <div class="quality-bar acceptable">
+                    <span class="bar-label">Acceptable:</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: {(quality_levels['acceptable'] / total_nuances * 100) if total_nuances > 0 else 0}%; background: #ffc107;"></div>
+                        <span class="bar-count">{quality_levels['acceptable']}</span>
+                    </div>
+                </div>
+                <div class="quality-bar needs-improvement">
+                    <span class="bar-label">Needs Work:</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: {(quality_levels['needs_improvement'] / total_nuances * 100) if total_nuances > 0 else 0}%; background: #dc3545;"></div>
+                        <span class="bar-count">{quality_levels['needs_improvement']}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        # Coverage Assessment
+        coverage_score = len([t for t in [destination_nuances, hotel_expectations, vacation_rental_expectations] if t]) / 3 * 100
+        assessment_cards.append(f"""
+        <div class="assessment-card coverage-assessment">
+            <div class="assessment-icon">🎯</div>
+            <div class="assessment-content">
+                <h3>System Coverage</h3>
+                <div class="assessment-value">{coverage_score:.0f}%</div>
+                <p>3-tier system completeness</p>
+            </div>
+            <div class="coverage-details">
+                <div class="coverage-item">
+                    <span class="coverage-label">Destination Nuances:</span>
+                    <span class="coverage-value">{len(destination_nuances)} insights</span>
+                </div>
+                <div class="coverage-item">
+                    <span class="coverage-label">Hotel Expectations:</span>
+                    <span class="coverage-value">{len(hotel_expectations)} features</span>
+                </div>
+                <div class="coverage-item">
+                    <span class="coverage-label">Rental Expectations:</span>
+                    <span class="coverage-value">{len(vacation_rental_expectations)} features</span>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        return f'<div class="assessment-grid">{"".join(assessment_cards)}</div>'
+
+    def _generate_legacy_quality_assessment(self, nuances_data: dict) -> str:
+        """Generate quality assessment for legacy nuance format."""
+        nuances_list = nuances_data.get('nuances', [])
+        statistics = nuances_data.get('statistics', {})
+        
+        # Calculate hotel feature quality metrics
+        total_features = len(nuances_list)
+        scores = [n.get('score', 0) for n in nuances_list]
+        avg_score = sum(scores) / total_features if total_features > 0 else 0
+        min_score = min(scores) if scores else 0
+        max_score = max(scores) if scores else 0
+        
+        # Quality distribution
+        quality_levels = {'excellent': 0, 'good': 0, 'acceptable': 0, 'needs_improvement': 0}
+        for score in scores:
+            if score >= 0.85:
+                quality_levels['excellent'] += 1
+            elif score >= 0.75:
+                quality_levels['good'] += 1
+            elif score >= 0.65:
+                quality_levels['acceptable'] += 1
+            else:
+                quality_levels['needs_improvement'] += 1
+        
+        # Feature completeness assessment
+        feature_categories = set(n.get('category', 'general') for n in nuances_list)
+        completeness_score = min(1.0, len(feature_categories) / 4)  # Assuming 4 main categories
+        
+        # Validation quality
+        validation_enabled = statistics.get('search_validation_enabled', False)
+        validation_rate = statistics.get('validation_success_rate', 0) if validation_enabled else 0
+        
+        assessment_cards = []
+        
+        # Overall Quality Score
+        overall_quality_level = self._get_quality_level(avg_score)
+        assessment_cards.append(f"""
+        <div class="assessment-card overall-quality">
+            <div class="assessment-icon">🏆</div>
+            <div class="assessment-content">
+                <h3>Overall Hotel Feature Quality</h3>
+                <div class="assessment-value" style="color: {self._get_confidence_color(avg_score)}">{avg_score:.3f}</div>
+                <p>{overall_quality_level} quality level</p>
+            </div>
+            <div class="quality-details">
+                <div class="score-range">
+                    <span class="range-label">Score Range:</span>
+                    <span class="range-value">{min_score:.3f} - {max_score:.3f}</span>
+                </div>
+                <div class="quality-trend">
+                    <span class="trend-label">Consistency:</span>
+                    <span class="trend-value">{'High' if (max_score - min_score) < 0.2 else 'Medium' if (max_score - min_score) < 0.4 else 'Low'}</span>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        # Quality Distribution
+        excellent_percentage = (quality_levels['excellent'] / total_features * 100) if total_features > 0 else 0
+        assessment_cards.append(f"""
+        <div class="assessment-card quality-distribution">
+            <div class="assessment-icon">📊</div>
+            <div class="assessment-content">
+                <h3>Quality Distribution</h3>
+                <div class="assessment-value">{excellent_percentage:.0f}% excellent</div>
+                <p>Hotel feature quality breakdown</p>
+            </div>
+            <div class="distribution-chart">
+                <div class="quality-bar excellent">
+                    <span class="bar-label">Excellent:</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: {(quality_levels['excellent'] / total_features * 100) if total_features > 0 else 0}%; background: #28a745;"></div>
+                        <span class="bar-count">{quality_levels['excellent']}</span>
+                    </div>
+                </div>
+                <div class="quality-bar good">
+                    <span class="bar-label">Good:</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: {(quality_levels['good'] / total_features * 100) if total_features > 0 else 0}%; background: #28a745;"></div>
+                        <span class="bar-count">{quality_levels['good']}</span>
+                    </div>
+                </div>
+                <div class="quality-bar acceptable">
+                    <span class="bar-label">Acceptable:</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: {(quality_levels['acceptable'] / total_features * 100) if total_features > 0 else 0}%; background: #ffc107;"></div>
+                        <span class="bar-count">{quality_levels['acceptable']}</span>
+                    </div>
+                </div>
+                <div class="quality-bar needs-improvement">
+                    <span class="bar-label">Needs Work:</span>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: {(quality_levels['needs_improvement'] / total_features * 100) if total_features > 0 else 0}%; background: #dc3545;"></div>
+                        <span class="bar-count">{quality_levels['needs_improvement']}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        # Feature Coverage Assessment
+        coverage_percentage = completeness_score * 100
+        assessment_cards.append(f"""
+        <div class="assessment-card feature-coverage">
+            <div class="assessment-icon">🎯</div>
+            <div class="assessment-content">
+                <h3>Feature Coverage</h3>
+                <div class="assessment-value">{coverage_percentage:.0f}%</div>
+                <p>Hotel service category coverage</p>
+            </div>
+            <div class="coverage-details">
+                <div class="coverage-item">
+                    <span class="coverage-label">Categories Covered:</span>
+                    <span class="coverage-value">{len(feature_categories)}/4</span>
+                </div>
+                <div class="coverage-item">
+                    <span class="coverage-label">Total Features:</span>
+                    <span class="coverage-value">{total_features}</span>
+                </div>
+                <div class="coverage-recommendation">
+                    <small>{'✅ Good coverage' if coverage_percentage >= 75 else '⚠️ Consider more categories' if coverage_percentage >= 50 else '❌ Needs more coverage'}</small>
+                </div>
+            </div>
+        </div>
+        """)
+        
+        # Validation Quality (if applicable)
+        if validation_enabled:
+            validation_percentage = validation_rate * 100
+            assessment_cards.append(f"""
+            <div class="assessment-card validation-quality">
+                <div class="assessment-icon">🔍</div>
+                <div class="assessment-content">
+                    <h3>Validation Quality</h3>
+                    <div class="assessment-value">{validation_percentage:.0f}%</div>
+                    <p>Search-validated features</p>
+                </div>
+                <div class="validation-details">
+                    <div class="validation-item">
+                        <span class="validation-label">Validated:</span>
+                        <span class="validation-value">{statistics.get('phrases_validated', 0)}</span>
+                    </div>
+                    <div class="validation-item">
+                        <span class="validation-label">Failed:</span>
+                        <span class="validation-value">{statistics.get('phrases_failed', 0)}</span>
+                    </div>
+                </div>
+            </div>
+            """)
+        else:
+            assessment_cards.append(f"""
+            <div class="assessment-card fallback-quality">
+                <div class="assessment-icon">⚡</div>
+                <div class="assessment-content">
+                    <h3>Assessment Mode</h3>
+                    <div class="assessment-value">Consensus</div>
+                    <p>Multi-LLM generated scores</p>
+                </div>
+                <div class="mode-details">
+                    <div class="mode-item">
+                        <span class="mode-label">Models Used:</span>
+                        <span class="mode-value">{len(set().union(*[n.get('source_models', []) for n in nuances_list]))}</span>
+                    </div>
+                    <div class="mode-item">
+                        <span class="mode-label">Quality:</span>
+                        <span class="mode-value">{'High confidence' if avg_score >= 0.7 else 'Medium confidence' if avg_score >= 0.5 else 'Low confidence'}</span>
+                    </div>
+                </div>
+            </div>
+            """)
+        
+        return f'<div class="assessment-grid">{"".join(assessment_cards)}</div>'
+
+    def _aggregate_evidence_from_themes(self, affinities: list) -> dict:
+        """Aggregate evidence from themes for comprehensive evidence display."""
+        aggregated_evidence = {}
+        for theme in affinities:
+            theme_name = theme.get('theme', 'Unknown Theme')
+            theme_data = theme.get('comprehensive_attribute_evidence', {})
+            for evidence_type, evidence_data in theme_data.items():
+                if evidence_type not in aggregated_evidence:
+                    aggregated_evidence[evidence_type] = []
+                aggregated_evidence[evidence_type].extend(evidence_data)
+        return aggregated_evidence
+
+    def _generate_seasonal_carousel(self, destination_name: str) -> str:
+        """Generate seasonal image carousel HTML."""
+        import os
+        
+        # Convert destination name to file format
+        dest_filename = destination_name.lower().replace(', ', '_').replace(' ', '_').replace(',', '')
+        
+        # Check for seasonal images
+        images_base_path = "images"  # Fixed: removed duplicate images/ folder
+        image_dir = f"{images_base_path}/{dest_filename}"
+        
+        # Define seasons and their display info
+        seasons = [
+            {"name": "spring", "display": "Spring", "icon": "🌸"},
+            {"name": "summer", "display": "Summer", "icon": "☀️"},
+            {"name": "autumn", "display": "Autumn", "icon": "🍂"},
+            {"name": "winter", "display": "Winter", "icon": "❄️"}
+        ]
+        
+        # Check if images exist (we'll assume they do since we generated them)
+        carousel_items = []
+        for i, season in enumerate(seasons):
+            image_path = f"{image_dir}/{season['name']}.jpg"
+            active_class = "active" if i == 0 else ""
+            
+            carousel_items.append(f"""
+            <div class="carousel-item {active_class}">
+                <img src="{image_path}" alt="{destination_name} in {season['display']}" 
+                     onerror="this.style.display='none'">
+                <div class="carousel-caption">
+                    <span class="season-icon">{season['icon']}</span>
+                    <span class="season-name">{season['display']}</span>
+                </div>
+            </div>
+            """)
+        
+        # Generate carousel indicators
+        indicators = []
+        for i, season in enumerate(seasons):
+            active_class = "active" if i == 0 else ""
+            indicators.append(f"""
+            <button class="carousel-indicator {active_class}" 
+                    onclick="showSeasonalImage({i})"
+                    title="{season['display']}">
+                {season['icon']}
+            </button>
+            """)
+        
+        return f"""
+        <div class="seasonal-carousel">
+            <div class="carousel-container">
+                <div class="carousel-slides">
+                    {''.join(carousel_items)}
+                </div>
+                <div class="carousel-controls">
+                    <button class="carousel-btn prev" onclick="changeSeasonalImage(-1)">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="carousel-indicators">
+                        {''.join(indicators)}
+                    </div>
+                    <button class="carousel-btn next" onclick="changeSeasonalImage(1)">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        """
+    
+    def _categorize_destination_nuance(self, phrase: str) -> str:
+        """Categorize destination nuances by lodging focus."""
+        phrase_lower = phrase.lower()
+        
+        # Lodging & Accommodation
+        if any(word in phrase_lower for word in [
+            'room', 'suite', 'lodge', 'stay', 'accommodation', 'hotel', 'resort', 'inn', 
+            'villa', 'cabin', 'chalet', 'bungalow', 'ryokan', 'riad', 'pension', 'guesthouse',
+            'view', 'balcony', 'terrace', 'window', 'bathroom', 'toilet', 'shower', 'bath',
+            'bed', 'sleeping', 'tatami', 'futon', 'check-in', 'checkout'
+        ]):
+            return "🏨 Lodging"
+        
+        # Food & Dining
+        elif any(word in phrase_lower for word in [
+            'food', 'dining', 'restaurant', 'cuisine', 'meal', 'breakfast', 'lunch', 'dinner',
+            'tea', 'coffee', 'drink', 'bar', 'cafe', 'kitchen', 'cooking', 'chef', 'menu',
+            'taste', 'flavor', 'recipe', 'market', 'street food', 'local dish', 'specialty'
+        ]):
+            return "🍽️ Food & Dining"
+        
+        # Activities & Experiences  
+        elif any(word in phrase_lower for word in [
+            'activity', 'experience', 'tour', 'visit', 'explore', 'adventure', 'excursion',
+            'ceremony', 'festival', 'show', 'performance', 'museum', 'temple', 'shrine',
+            'park', 'garden', 'hiking', 'walking', 'cycling', 'sport', 'game', 'lesson',
+            'class', 'workshop', 'cultural', 'tradition', 'custom', 'ritual', 'celebration'
+        ]):
+            return "🎯 Activities"
+        
+        # Amenities & Services
+        elif any(word in phrase_lower for word in [
+            'service', 'amenity', 'facility', 'spa', 'wellness', 'massage', 'gym', 'fitness',
+            'pool', 'beach', 'wifi', 'internet', 'transport', 'taxi', 'train', 'subway',
+            'station', 'airport', 'parking', 'concierge', 'staff', 'guide', 'assistance',
+            'help', 'support', 'convenience', 'access', 'proximity', 'location'
+        ]):
+            return "⚙️ Amenities"
+        
+        # Default to Experience for cultural/unique aspects
+        else:
+            return "✨ Experience"

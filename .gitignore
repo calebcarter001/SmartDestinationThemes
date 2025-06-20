@@ -253,3 +253,6 @@ htmlcov/
 local_config.yaml
 test_data/
 experiments/ 
+# Generated output directories
+dev_staging/
+outputs/

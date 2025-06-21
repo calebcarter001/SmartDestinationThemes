@@ -8,6 +8,7 @@ import os
 import shutil
 import glob
 import yaml
+import argparse
 from pathlib import Path
 
 def load_config():
@@ -125,10 +126,138 @@ def clean_directory_selective(dir_path, description, skip_if_preserve=False):
     else:
         print(f"✅ {description}: directory doesn't exist (clean)")
 
+def complete_cleanup():
+    """Complete cleanup - remove everything for fresh start"""
+    cleanup_targets = [
+        ("outputs", "All session data and outputs"),
+        ("cache", "File-based cache"),
+        ("dev_staging", "Development staging"),
+        ("logs", "Application logs"),
+        ("exports", "Export data"),
+        ("chroma_db", "ChromaDB vector database"),
+        (".pytest_cache", "Pytest cache"),
+    ]
+    
+    total_cleaned = 0
+    
+    print("🗂️  Removing directories and files...")
+    print("-" * 50)
+    
+    for dir_path, description in cleanup_targets:
+        if os.path.exists(dir_path):
+            try:
+                if os.path.isfile(dir_path):
+                    file_size = os.path.getsize(dir_path) / (1024*1024)  # MB
+                    os.remove(dir_path)
+                    print(f"✅ Removed file: {description} ({file_size:.1f}MB)")
+                    total_cleaned += 1
+                else:
+                    # Count items before removal
+                    item_count = sum(len(files) + len(dirs) for _, dirs, files in os.walk(dir_path))
+                    dir_size = sum(os.path.getsize(os.path.join(dirpath, filename))
+                                 for dirpath, dirnames, filenames in os.walk(dir_path)
+                                 for filename in filenames) / (1024*1024)  # MB
+                    
+                    shutil.rmtree(dir_path)
+                    print(f"✅ Removed directory: {description} ({item_count} items, {dir_size:.1f}MB)")
+                    total_cleaned += item_count
+            except Exception as e:
+                print(f"⚠️  Error removing {description}: {e}")
+        else:
+            print(f"✅ {description}: already clean")
+    
+    # Remove database files
+    print("\n💾 Removing database files...")
+    print("-" * 50)
+    
+    db_files = [
+        "enhanced_destination_intelligence.db",
+        "test_enhanced_destination_intelligence.db",
+        "comprehensive_database_report.json",
+    ]
+    
+    for db_file in db_files:
+        if os.path.exists(db_file):
+            try:
+                file_size = os.path.getsize(db_file) / (1024*1024)  # MB
+                os.remove(db_file)
+                print(f"✅ Removed database: {db_file} ({file_size:.1f}MB)")
+                total_cleaned += 1
+            except Exception as e:
+                print(f"⚠️  Error removing {db_file}: {e}")
+    
+    # Remove Python cache and system files
+    print("\n🐍 Removing Python cache and system files...")
+    print("-" * 50)
+    
+    cache_files = []
+    
+    # Find all cache directories and files
+    for root, dirs, files in os.walk('.'):
+        if 'venv' in root:  # Skip virtual environment
+            continue
+            
+        if '__pycache__' in dirs:
+            cache_files.append(os.path.join(root, '__pycache__'))
+        
+        for file in files:
+            if file.endswith(('.pyc', '.pyo', '.DS_Store')):
+                cache_files.append(os.path.join(root, file))
+    
+    # Also find coverage and other files
+    cache_files.extend(glob.glob('.coverage'))
+    cache_files.extend(glob.glob('**/*.prof', recursive=True))
+    cache_files.extend(glob.glob('dynamic_viewer_*.html'))
+    
+    cache_cleaned = 0
+    for cache_item in cache_files:
+        try:
+            if os.path.isfile(cache_item):
+                os.remove(cache_item)
+            elif os.path.isdir(cache_item):
+                shutil.rmtree(cache_item)
+            cache_cleaned += 1
+        except Exception as e:
+            print(f"⚠️  Error removing {cache_item}: {e}")
+    
+    if cache_cleaned > 0:
+        print(f"✅ Removed {cache_cleaned} cache/system files")
+        total_cleaned += cache_cleaned
+    else:
+        print("✅ No cache files to clean")
+    
+    print("\n" + "=" * 60)
+    print("🎉 COMPLETE cleanup finished!")
+    print(f"📊 Total items cleaned: {total_cleaned}")
+    print("\n🚀 System is now completely clean and ready for fresh start!")
+    print("   Run: python main.py")
+
 def main():
-    """Run selective cleanup based on configuration"""
-    print("🧹 Starting selective cleanup for debugging...")
-    print("=" * 60)
+    """Run cleanup based on configuration and command line arguments"""
+    parser = argparse.ArgumentParser(description="Cleanup script for SmartDestinationThemes")
+    parser.add_argument('--complete', action='store_true', 
+                       help='Complete cleanup - remove everything for fresh start')
+    parser.add_argument('--force', action='store_true',
+                       help='Force cleanup without confirmation prompts')
+    args = parser.parse_args()
+    
+    if args.complete:
+        print("🧹 Starting COMPLETE cleanup for fresh start...")
+        print("⚠️  This will remove ALL data, themes, nuances, images, and cache!")
+        print("=" * 60)
+        
+        if not args.force:
+            confirm = input("Are you sure you want to proceed? (yes/no): ")
+            if confirm.lower() != 'yes':
+                print("❌ Cleanup cancelled")
+                return
+        
+        # Complete cleanup mode
+        complete_cleanup()
+        return
+    else:
+        print("🧹 Starting selective cleanup for debugging...")
+        print("=" * 60)
     
     # Load configuration and processing mode
     config = load_config()

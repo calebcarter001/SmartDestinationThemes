@@ -147,6 +147,11 @@ class AgentCompatibilityLayer:
         # Check processing mode configuration
         processing_mode = self.config.get('processing_mode', {})
         
+        # Handle theme-only mode
+        if processing_mode.get('theme_controls', {}).get('theme_only_mode', False):
+            logger.info("🎨 Theme-only processing mode enabled")
+            return await self._process_themes_only(destinations)
+        
         # Handle nuance-only mode
         if processing_mode.get('nuance_controls', {}).get('nuance_only_mode', False):
             logger.info("🎯 Nuance-only processing mode enabled")
@@ -167,6 +172,13 @@ class AgentCompatibilityLayer:
                     system_used="no_processing",
                     processed_files={}
                 )
+        
+        # Handle disabled nuance processing (theme-only mode without explicit flag)
+        if not processing_mode.get('enable_nuance_processing', True):
+            logger.info("🛡️ Nuance processing disabled - preserving existing nuances")
+            if processing_mode.get('enable_theme_processing', True):
+                logger.info("🎨 Running theme processing only")
+                return await self._process_themes_only(destinations)
         
         # Standard processing modes
         if self.migration_mode == 'agent_only':
@@ -438,8 +450,101 @@ class AgentCompatibilityLayer:
                 comparison_data={"error": str(e)}
             )
     
-    async def _create_nuance_only_session(self, destinations: List[str], nuance_results: Dict[str, Any]) -> Dict[str, str]:
-        """Create a session directory with only nuance files, preserving existing theme data"""
+    async def _process_themes_only(self, destinations: List[str]) -> ProcessingResult:
+        """Process only destination themes, preserving existing nuance data"""
+        logger.info("🎨 Processing destination themes only (preserving existing nuances)")
+        start_time = time.time()
+        
+        try:
+            # Use orchestrator for comprehensive theme processing
+            if self.orchestrator:
+                logger.info("🤖 Using orchestrator for theme-only processing")
+                
+                # Execute theme-focused workflow
+                theme_results = {}
+                successful_destinations = 0
+                
+                for destination in destinations:
+                    try:
+                        logger.info(f"🎨 Processing themes for {destination} via orchestrator")
+                        
+                        # Check if incremental update is needed
+                        existing_theme_data = self.theme_lifecycle_manager._get_existing_themes(destination)
+                        
+                        if existing_theme_data and not self.theme_lifecycle_manager.should_update_themes(destination):
+                            logger.info(f"🛡️ Preserving existing themes for {destination} (sufficient quality)")
+                            theme_results[destination] = existing_theme_data
+                            successful_destinations += 1
+                            continue
+                        
+                        # Execute full agent workflow but only save theme data
+                        workflow_result = await self.orchestrator.execute_workflow([destination])
+                        
+                        if destination in workflow_result and workflow_result[destination].success:
+                            # Convert and process theme data
+                            theme_data = self._convert_workflow_result_to_legacy_data(destination, workflow_result[destination])
+                            
+                            # Apply incremental processing if we have existing themes
+                            if existing_theme_data:
+                                merged_themes = self.theme_lifecycle_manager.merge_theme_data(
+                                    destination,
+                                    theme_data.get('affinities', []),
+                                    existing_theme_data
+                                )
+                                theme_results[destination] = merged_themes
+                                logger.info(f"✅ Themes merged with existing data for {destination}")
+                            else:
+                                theme_results[destination] = theme_data
+                                logger.info(f"✅ New themes generated for {destination}")
+                            
+                            successful_destinations += 1
+                        else:
+                            logger.error(f"❌ Theme generation failed for {destination}")
+                            
+                    except Exception as e:
+                        logger.error(f"❌ Theme processing failed for {destination}: {e}")
+                
+                # Create session with theme files only
+                processed_files = await self._create_theme_only_session(destinations, theme_results)
+                
+                processing_time = time.time() - start_time
+                
+                return ProcessingResult(
+                    destinations_processed=len(destinations),
+                    successful_destinations=successful_destinations,
+                    processing_time=processing_time,
+                    system_used="theme_only_orchestrator",
+                    processed_files=processed_files
+                )
+                
+            else:
+                logger.error("❌ No orchestrator available for theme processing")
+                processing_time = time.time() - start_time
+                
+                return ProcessingResult(
+                    destinations_processed=len(destinations),
+                    successful_destinations=0,
+                    processing_time=processing_time,
+                    system_used="theme_only_failed",
+                    processed_files={},
+                    comparison_data={"error": "No orchestrator available"}
+                )
+                
+        except Exception as e:
+            processing_time = time.time() - start_time
+            logger.error(f"Theme-only processing failed: {e}")
+            
+            return ProcessingResult(
+                destinations_processed=len(destinations),
+                successful_destinations=0,
+                processing_time=processing_time,
+                system_used="theme_only_failed",
+                processed_files={},
+                comparison_data={"error": str(e)}
+            )
+    
+    async def _create_theme_only_session(self, destinations: List[str], theme_results: Dict[str, Any]) -> Dict[str, str]:
+        """Create a session directory with only theme files, preserving existing nuance data"""
         import json
         import os
         from datetime import datetime
@@ -447,7 +552,7 @@ class AgentCompatibilityLayer:
         
         # Create session directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        session_dir = f"outputs/session_nuance_{timestamp}"
+        session_dir = f"outputs/session_theme_{timestamp}"
         json_dir = os.path.join(session_dir, "json")
         dashboard_dir = os.path.join(session_dir, "dashboard")
         
@@ -456,116 +561,63 @@ class AgentCompatibilityLayer:
         
         processed_files = {}
         
-        logger.info(f"🔄 Creating nuance-only session in {session_dir}")
+        logger.info(f"🔄 Creating theme-only session in {session_dir}")
         
         for destination in destinations:
             dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
             
-            # Only create nuance files
-            if destination in nuance_results:
-                nuances_file_path = os.path.join(json_dir, f"{dest_filename}_nuances.json")
-                nuances_evidence_file_path = os.path.join(json_dir, f"{dest_filename}_nuances_evidence.json")
+            # Only create theme files
+            if destination in theme_results:
+                enhanced_file_path = os.path.join(json_dir, f"{dest_filename}_enhanced.json")
+                evidence_file_path = os.path.join(json_dir, f"{dest_filename}_evidence.json")
                 
                 try:
-                    nuance_data = nuance_results[destination]
+                    theme_data = theme_results[destination]
                     
-                    # Convert DestinationNuanceResult to proper JSON format
-                    converted_data = self._convert_nuance_result_to_json_format(destination, nuance_data)
+                    # Save enhanced themes JSON
+                    with open(enhanced_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(theme_data, f, indent=2, ensure_ascii=False)
                     
-                    # Check if JSON minification is enabled
-                    file_config = self.config.get('destination_nuances', {}).get('file_organization', {})
-                    optimize_json = file_config.get('optimize_json_storage', True)
+                    # Create or copy evidence file (may be empty if no evidence collected)
+                    evidence_data = theme_data.get('evidence', [])
+                    with open(evidence_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(evidence_data, f, indent=2, ensure_ascii=False)
                     
-                    # Save nuances JSON (minified if enabled)
-                    with open(nuances_file_path, 'w', encoding='utf-8') as f:
-                        if optimize_json:
-                            json.dump(converted_data['nuances_data'], f, separators=(',', ':'), ensure_ascii=False)
-                        else:
-                            json.dump(converted_data['nuances_data'], f, indent=2, ensure_ascii=False)
-                    
-                    # Save nuances evidence JSON (minified if enabled)
-                    with open(nuances_evidence_file_path, 'w', encoding='utf-8') as f:
-                        if optimize_json:
-                            json.dump(converted_data['nuances_evidence_data'], f, separators=(',', ':'), ensure_ascii=False)
-                        else:
-                            json.dump(converted_data['nuances_evidence_data'], f, indent=2, ensure_ascii=False)
-                    
-                    processed_files[destination] = nuances_file_path
-                    logger.info(f"✅ Saved nuance files for {destination}")
+                    processed_files[destination] = enhanced_file_path
+                    logger.info(f"✅ Saved theme files for {destination}")
                     
                 except Exception as e:
-                    logger.error(f"❌ Error saving nuance files for {destination}: {e}")
+                    logger.error(f"❌ Error saving theme files for {destination}: {e}")
         
-        # Copy existing theme data to the new session (read-only mode)
-        logger.info("🛡️ Copying existing theme data for dashboard display...")
-        await self._copy_existing_theme_data_to_session(session_dir, destinations)
+        # Copy existing nuance data to the new session (read-only mode)
+        logger.info("🛡️ Copying existing nuance data for dashboard display...")
+        await self._copy_existing_nuance_data_to_session(session_dir, destinations)
         
-        # Generate dashboard that shows both preserved themes and new nuances
-        await self._generate_nuance_debugging_dashboard(session_dir, destinations)
+        # Generate dashboard that shows both new themes and preserved nuances
+        await self._generate_theme_debugging_dashboard(session_dir, destinations)
         
         # Stage the session with processed destinations
         try:
             staging_manager = DevStagingManager()
             if staging_manager.stage_session_selective(session_dir, destinations):
-                logger.info(f"✅ Nuance session staged for development: {session_dir}")
+                logger.info(f"✅ Theme session staged for development: {session_dir}")
             else:
-                logger.warning(f"⚠️ Nuance session staging failed: {session_dir}")
+                logger.warning(f"⚠️ Theme session staging failed: {session_dir}")
         except Exception as e:
             logger.error(f"❌ Staging error: {e}")
         
         return processed_files
     
-    async def _process_themes_incrementally(self, destinations: List[str], agent_results: Dict[str, Any]) -> Dict[str, Any]:
-        """Process themes with incremental updates using the theme lifecycle manager"""
-        processed_themes = {}
-        
-        for destination in destinations:
-            try:
-                # Check if theme update is needed
-                if not self.theme_lifecycle_manager.should_update_themes(destination):
-                    logger.info(f"🛡️ Preserving existing themes for {destination}")
-                    existing_themes = self.theme_lifecycle_manager._get_existing_themes(destination)
-                    if existing_themes:
-                        processed_themes[destination] = existing_themes
-                    continue
-                
-                # Get new theme data from agent results
-                if destination in agent_results:
-                    new_theme_data = agent_results[destination]
-                    
-                    # Check if we have existing themes to merge
-                    existing_themes = self.theme_lifecycle_manager._get_existing_themes(destination)
-                    
-                    if existing_themes:
-                        # Merge with existing themes
-                        logger.info(f"🔄 Merging themes for {destination}")
-                        merged_themes = self.theme_lifecycle_manager.merge_theme_data(
-                            destination, 
-                            new_theme_data.get('affinities', []), 
-                            existing_themes
-                        )
-                        processed_themes[destination] = merged_themes
-                        logger.info(f"✅ Themes merged for {destination}")
-                    else:
-                        # New theme data
-                        processed_themes[destination] = new_theme_data
-                        logger.info(f"✅ New themes processed for {destination}")
-                
-            except Exception as e:
-                logger.error(f"❌ Theme incremental processing failed for {destination}: {e}")
-        
-        return processed_themes
-    
-    async def _copy_existing_theme_data_to_session(self, session_dir: str, destinations: List[str]):
-        """Copy existing theme data to the new session for dashboard display"""
+    async def _copy_existing_nuance_data_to_session(self, session_dir: str, destinations: List[str]):
+        """Copy existing nuance data to the new session for dashboard display"""
         import glob
         import shutil
         import os
         
         json_dir = os.path.join(session_dir, "json")
         
-        # Find the most recent session with theme data
-        existing_sessions = sorted(glob.glob("outputs/session_agent_*"), reverse=True)
+        # Find the most recent session with nuance data
+        existing_sessions = sorted(glob.glob("outputs/session_nuance_*") + glob.glob("outputs/session_agent_*"), reverse=True)
         
         for existing_session in existing_sessions:
             existing_json_dir = os.path.join(existing_session, "json")
@@ -576,25 +628,25 @@ class AgentCompatibilityLayer:
             for destination in destinations:
                 dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
                 
-                # Copy theme files (enhanced.json and evidence.json)
-                enhanced_file = os.path.join(existing_json_dir, f"{dest_filename}_enhanced.json")
-                evidence_file = os.path.join(existing_json_dir, f"{dest_filename}_evidence.json")
+                # Copy nuance files (nuances.json and nuances_evidence.json)
+                nuances_file = os.path.join(existing_json_dir, f"{dest_filename}_nuances.json")
+                nuances_evidence_file = os.path.join(existing_json_dir, f"{dest_filename}_nuances_evidence.json")
                 
-                if os.path.exists(enhanced_file):
-                    shutil.copy2(enhanced_file, json_dir)
+                if os.path.exists(nuances_file):
+                    shutil.copy2(nuances_file, json_dir)
                     copied_count += 1
                     
-                if os.path.exists(evidence_file):
-                    shutil.copy2(evidence_file, json_dir)
+                if os.path.exists(nuances_evidence_file):
+                    shutil.copy2(nuances_evidence_file, json_dir)
             
             if copied_count > 0:
-                logger.info(f"🛡️ Copied {copied_count} theme files from {existing_session}")
+                logger.info(f"🛡️ Copied {copied_count} nuance files from {existing_session}")
                 break
         else:
-            logger.warning("⚠️ No existing theme data found to copy")
+            logger.warning("⚠️ No existing nuance data found to copy")
     
-    async def _generate_nuance_debugging_dashboard(self, session_dir: str, destinations: List[str]):
-        """Generate a dashboard for nuance debugging that shows preserved themes + new nuances"""
+    async def _generate_theme_debugging_dashboard(self, session_dir: str, destinations: List[str]):
+        """Generate a dashboard for theme debugging that shows new themes + preserved nuances"""
         try:
             from src.enhanced_viewer_generator import EnhancedViewerGenerator
             
@@ -624,7 +676,7 @@ class AgentCompatibilityLayer:
                     json_files=json_files,
                     output_dir=dashboard_dir
                 )
-                logger.info(f"✅ Generated nuance debugging dashboard with {len(json_files)} destinations")
+                logger.info(f"✅ Generated theme debugging dashboard with {len(json_files)} destinations")
             else:
                 logger.warning("⚠️ No theme data available for dashboard generation")
                 
@@ -1567,4 +1619,197 @@ class AgentCompatibilityLayer:
             return {
                 'nuances_data': existing_data,
                 'nuances_evidence_data': existing_data  # Simplified for now
-            } 
+            }
+    
+    async def _create_nuance_only_session(self, destinations: List[str], nuance_results: Dict[str, Any]) -> Dict[str, str]:
+        """Create a session directory with only nuance files, preserving existing theme data"""
+        import json
+        import os
+        from datetime import datetime
+        from src.dev_staging_manager import DevStagingManager
+        
+        # Create session directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_dir = f"outputs/session_nuance_{timestamp}"
+        json_dir = os.path.join(session_dir, "json")
+        dashboard_dir = os.path.join(session_dir, "dashboard")
+        
+        os.makedirs(json_dir, exist_ok=True)
+        os.makedirs(dashboard_dir, exist_ok=True)
+        
+        processed_files = {}
+        
+        logger.info(f"🔄 Creating nuance-only session in {session_dir}")
+        
+        for destination in destinations:
+            dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
+            
+            # Only create nuance files
+            if destination in nuance_results:
+                nuances_file_path = os.path.join(json_dir, f"{dest_filename}_nuances.json")
+                nuances_evidence_file_path = os.path.join(json_dir, f"{dest_filename}_nuances_evidence.json")
+                
+                try:
+                    nuance_data = nuance_results[destination]
+                    
+                    # Convert DestinationNuanceResult to proper JSON format
+                    converted_data = self._convert_nuance_result_to_json_format(destination, nuance_data)
+                    
+                    # Check if JSON minification is enabled
+                    file_config = self.config.get('destination_nuances', {}).get('file_organization', {})
+                    optimize_json = file_config.get('optimize_json_storage', True)
+                    
+                    # Save nuances JSON (minified if enabled)
+                    with open(nuances_file_path, 'w', encoding='utf-8') as f:
+                        if optimize_json:
+                            json.dump(converted_data['nuances_data'], f, separators=(',', ':'), ensure_ascii=False)
+                        else:
+                            json.dump(converted_data['nuances_data'], f, indent=2, ensure_ascii=False)
+                    
+                    # Save nuances evidence JSON (minified if enabled)
+                    with open(nuances_evidence_file_path, 'w', encoding='utf-8') as f:
+                        if optimize_json:
+                            json.dump(converted_data['nuances_evidence_data'], f, separators=(',', ':'), ensure_ascii=False)
+                        else:
+                            json.dump(converted_data['nuances_evidence_data'], f, indent=2, ensure_ascii=False)
+                    
+                    processed_files[destination] = nuances_file_path
+                    logger.info(f"✅ Saved nuance files for {destination}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error saving nuance files for {destination}: {e}")
+        
+        # Copy existing theme data to the new session (read-only mode)
+        logger.info("🛡️ Copying existing theme data for dashboard display...")
+        await self._copy_existing_theme_data_to_session(session_dir, destinations)
+        
+        # Generate dashboard that shows both preserved themes and new nuances
+        await self._generate_nuance_debugging_dashboard(session_dir, destinations)
+        
+        # Stage the session with processed destinations
+        try:
+            staging_manager = DevStagingManager()
+            if staging_manager.stage_session_selective(session_dir, destinations):
+                logger.info(f"✅ Nuance session staged for development: {session_dir}")
+            else:
+                logger.warning(f"⚠️ Nuance session staging failed: {session_dir}")
+        except Exception as e:
+            logger.error(f"❌ Staging error: {e}")
+        
+        return processed_files
+    
+    async def _copy_existing_theme_data_to_session(self, session_dir: str, destinations: List[str]):
+        """Copy existing theme data to the new session for dashboard display"""
+        import glob
+        import shutil
+        import os
+        
+        json_dir = os.path.join(session_dir, "json")
+        
+        # Find the most recent session with theme data
+        existing_sessions = sorted(glob.glob("outputs/session_agent_*") + glob.glob("outputs/session_theme_*"), reverse=True)
+        
+        for existing_session in existing_sessions:
+            existing_json_dir = os.path.join(existing_session, "json")
+            if not os.path.exists(existing_json_dir):
+                continue
+                
+            copied_count = 0
+            for destination in destinations:
+                dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
+                
+                # Copy theme files (enhanced.json and evidence.json)
+                enhanced_file = os.path.join(existing_json_dir, f"{dest_filename}_enhanced.json")
+                evidence_file = os.path.join(existing_json_dir, f"{dest_filename}_evidence.json")
+                
+                if os.path.exists(enhanced_file):
+                    shutil.copy2(enhanced_file, json_dir)
+                    copied_count += 1
+                    
+                if os.path.exists(evidence_file):
+                    shutil.copy2(evidence_file, json_dir)
+            
+            if copied_count > 0:
+                logger.info(f"🛡️ Copied {copied_count} theme files from {existing_session}")
+                break
+        else:
+            logger.warning("⚠️ No existing theme data found to copy")
+    
+    async def _generate_nuance_debugging_dashboard(self, session_dir: str, destinations: List[str]):
+        """Generate a dashboard for nuance debugging that shows preserved themes + new nuances"""
+        try:
+            from src.enhanced_viewer_generator import EnhancedViewerGenerator
+            
+            dashboard_dir = os.path.join(session_dir, "dashboard")
+            json_dir = os.path.join(session_dir, "json")
+            
+            viewer_generator = EnhancedViewerGenerator()
+            
+            # Generate pages for destinations that have theme data
+            json_files = []
+            for destination in destinations:
+                dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
+                enhanced_file = os.path.join(json_dir, f"{dest_filename}_enhanced.json")
+                
+                if os.path.exists(enhanced_file):
+                    json_files.append(enhanced_file)
+                    
+                    # Generate individual destination page
+                    viewer_generator.generate_destination_viewer(
+                        json_file=enhanced_file,
+                        output_dir=dashboard_dir
+                    )
+            
+            if json_files:
+                # Generate multi-destination index
+                viewer_generator.generate_multi_destination_viewer(
+                    json_files=json_files,
+                    output_dir=dashboard_dir
+                )
+                logger.info(f"✅ Generated nuance debugging dashboard with {len(json_files)} destinations")
+            else:
+                logger.warning("⚠️ No theme data available for dashboard generation")
+                
+        except Exception as e:
+            logger.error(f"❌ Dashboard generation failed: {e}")
+    
+    async def _process_themes_incrementally(self, destinations: List[str], agent_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Process themes with incremental updates using the theme lifecycle manager"""
+        processed_themes = {}
+        
+        for destination in destinations:
+            try:
+                # Check if theme update is needed
+                if not self.theme_lifecycle_manager.should_update_themes(destination):
+                    logger.info(f"🛡️ Preserving existing themes for {destination}")
+                    existing_themes = self.theme_lifecycle_manager._get_existing_themes(destination)
+                    if existing_themes:
+                        processed_themes[destination] = existing_themes
+                    continue
+                
+                # Get new theme data from agent results
+                if destination in agent_results:
+                    new_theme_data = agent_results[destination]
+                    
+                    # Check if we have existing themes to merge
+                    existing_themes = self.theme_lifecycle_manager._get_existing_themes(destination)
+                    
+                    if existing_themes:
+                        # Merge with existing themes
+                        logger.info(f"🔄 Merging themes for {destination}")
+                        merged_themes = self.theme_lifecycle_manager.merge_theme_data(
+                            destination, 
+                            new_theme_data.get('affinities', []), 
+                            existing_themes
+                        )
+                        processed_themes[destination] = merged_themes
+                        logger.info(f"✅ Themes merged for {destination}")
+                    else:
+                        # New theme data
+                        processed_themes[destination] = new_theme_data
+                        logger.info(f"✅ New themes processed for {destination}")
+                
+            except Exception as e:
+                logger.error(f"❌ Theme incremental processing failed for {destination}: {e}")
+        
+        return processed_themes 

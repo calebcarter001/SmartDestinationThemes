@@ -279,22 +279,25 @@ class EnhancedViewerGenerator:
         else:
             evidence_html = self._generate_comprehensive_evidence_display(comprehensive_evidence)
         
-        # Add nuances count and quality to header stats (NEW) - supports 3-tier system
+        # Add nuances count and quality to header stats (NEW) - supports all formats
         nuances_count = 0
         nuances_quality = 0
         if nuances_data:
-            # Check for 3-tier system first (from loaded nuances file)
+            # Check for old 3-tier system first (separate arrays)
             if 'destination_nuances' in nuances_data or 'hotel_expectations' in nuances_data or 'vacation_rental_expectations' in nuances_data:
                 nuances_count += len(nuances_data.get('destination_nuances', []))
                 nuances_count += len(nuances_data.get('hotel_expectations', []))
                 nuances_count += len(nuances_data.get('vacation_rental_expectations', []))
                 nuances_quality = nuances_data.get('overall_nuance_quality_score', nuances_data.get('overall_quality_score', 0))
-            # Fall back to legacy format (from separate nuances file)
+            # Check for current unified format (single array with categories)
             elif 'nuances' in nuances_data:
-                nuances_count = len(nuances_data.get('nuances', []))
-                # Calculate legacy quality score from individual nuance scores
                 nuances_list = nuances_data.get('nuances', [])
-                if nuances_list:
+                nuances_count = len(nuances_list)
+                # Get quality score from data structure or calculate from individual scores
+                nuances_quality = nuances_data.get('quality_score', 0)
+                if nuances_quality == 0:
+                    nuances_quality = nuances_data.get('overall_quality_score', 0)
+                if nuances_quality == 0 and nuances_list:
                     nuances_quality = sum(n.get('score', 0) for n in nuances_list) / len(nuances_list)
             # Also check enhanced JSON summary
             elif 'destination_nuances_summary' in data and data['destination_nuances_summary'].get('3_tier_system'):
@@ -4806,11 +4809,20 @@ class EnhancedViewerGenerator:
         try:
             # Convert evidence list to phrase-keyed dictionary for easy lookup
             evidence_dict = {}
-            evidence_list = self._nuances_evidence_data.get('evidence', [])
+            
+            # Handle both list and dict formats for nuances evidence data
+            if isinstance(self._nuances_evidence_data, dict):
+                evidence_list = self._nuances_evidence_data.get('evidence', [])
+            elif isinstance(self._nuances_evidence_data, list):
+                evidence_list = self._nuances_evidence_data
+            else:
+                evidence_list = []
+            
             for evidence_item in evidence_list:
-                phrase = evidence_item.get('phrase', '')
-                if phrase:
-                    evidence_dict[phrase] = evidence_item
+                if isinstance(evidence_item, dict):
+                    phrase = evidence_item.get('phrase', '')
+                    if phrase:
+                        evidence_dict[phrase] = evidence_item
             
             return json.dumps(evidence_dict, default=str)
         except Exception as e:
@@ -4818,24 +4830,68 @@ class EnhancedViewerGenerator:
             return '{}'
     
     def _generate_destination_nuances(self, nuances_data: dict, nuances_evidence_data: dict = None, nuances_summary: dict = None) -> str:
-        """Generate HTML for destination nuances display - now supports 3-tier system."""
-        # Check for 3-tier format in enhanced data
+        """Generate HTML for destination nuances display - supports all formats."""
+        # Check for old 3-tier format with separate arrays
         has_destination_nuances = 'destination_nuances' in nuances_data
         has_hotel_expectations = 'hotel_expectations' in nuances_data  
         has_vacation_rental = 'vacation_rental_expectations' in nuances_data
         
         if has_destination_nuances or has_hotel_expectations or has_vacation_rental:
             return self._generate_3_tier_nuances_display(nuances_data, nuances_evidence_data)
+        
+        # Check for current unified format (single array with category fields)
+        unified_nuances = nuances_data.get('nuances', [])
+        if unified_nuances and any(nuance.get('category') for nuance in unified_nuances):
+            # Convert unified format to 3-tier format for display
+            converted_data = self._convert_unified_to_3tier(nuances_data)
+            return self._generate_3_tier_nuances_display(converted_data, nuances_evidence_data)
+        
+        # Check for legacy nuances format (no categories)
+        elif unified_nuances:
+            return self._generate_legacy_nuances_display(nuances_data, nuances_evidence_data)
+        
         else:
-            # Check for legacy nuances format
-            legacy_nuances = nuances_data.get('nuances', [])
-            if legacy_nuances:
-                return self._generate_legacy_nuances_display(nuances_data, nuances_evidence_data)
+            return '''
+            <p class="no-data">No destination insights available.</p>
+            <p class="suggestion">Run the nuance generation to get destination nuances, hotel expectations, and vacation rental expectations.</p>
+            '''
+    
+    def _convert_unified_to_3tier(self, nuances_data: dict) -> dict:
+        """Convert unified format (single array with categories) to 3-tier format for display."""
+        unified_nuances = nuances_data.get('nuances', [])
+        
+        # Separate nuances by category
+        destination_nuances = []
+        hotel_expectations = []
+        vacation_rental_expectations = []
+        
+        for nuance in unified_nuances:
+            category = nuance.get('category', 'destination')
+            
+            if category == 'destination':
+                destination_nuances.append(nuance)
+            elif category == 'hotel':
+                hotel_expectations.append(nuance)
+            elif category == 'vacation_rental':
+                vacation_rental_expectations.append(nuance)
             else:
-                return '''
-                <p class="no-data">No destination insights available.</p>
-                <p class="suggestion">Run the 3-tier nuance generation to get destination nuances, hotel expectations, and vacation rental expectations.</p>
-                '''
+                # Default unknown categories to destination
+                destination_nuances.append(nuance)
+        
+        # Create converted data structure
+        converted_data = nuances_data.copy()
+        converted_data['destination_nuances'] = destination_nuances
+        converted_data['hotel_expectations'] = hotel_expectations
+        converted_data['vacation_rental_expectations'] = vacation_rental_expectations
+        
+        # Preserve original quality score if available
+        if 'quality_score' not in converted_data and unified_nuances:
+            # Calculate quality score from individual nuance scores
+            scores = [n.get('score', 0) for n in unified_nuances if n.get('score', 0) > 0]
+            if scores:
+                converted_data['quality_score'] = sum(scores) / len(scores)
+        
+        return converted_data
     
     def _generate_3_tier_nuances_display(self, nuances_data: dict, nuances_evidence_data: dict = None) -> str:
         """Generate display for 3-tier nuance system with proper layout."""
@@ -6042,7 +6098,7 @@ class EnhancedViewerGenerator:
         dest_filename = destination_name.lower().replace(', ', '_').replace(' ', '_').replace(',', '')
         
         # Check for seasonal images
-        images_base_path = "images"  # Fixed: removed duplicate images/ folder
+        images_base_path = "../images"  # Relative path from dashboard subdirectory to images
         image_dir = f"{images_base_path}/{dest_filename}"
         
         # Define seasons and their display info

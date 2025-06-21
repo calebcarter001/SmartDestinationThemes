@@ -256,3 +256,4 @@ experiments/
 # Generated output directories
 dev_staging/
 outputs/
+exports/

@@ -1,13 +1,33 @@
 # Example configuration file for Destination Intelligence Discovery
 # Copy this file to config.yaml and update with your settings
 
-# Destinations to process - TESTING: Limited to 1 destination for nuance debugging
+# Destinations to process - Starting from the top of the list
 destinations:
-  - "Tokyo, Japan"  # Single destination for nuance testing
-  
-# Full destination list (commented out for testing):
-# - "Paris, France"
-# - "Tokyo, Japan"
+  - "Paris, France"
+  - "Tokyo, Japan"
+  - "New York City, USA"
+  - "Santorini, Greece"
+  - "Maldives"
+  - "Banff, Canada"
+  - "Bora Bora, French Polynesia"
+  - "Amalfi Coast, Italy"
+  - "Kyoto, Japan"
+  - "Machu Picchu, Peru"
+  - "Reykjavik, Iceland"
+  - "Ubud, Bali"
+  - "Serengeti, Tanzania"
+  - "Queenstown, New Zealand"
+  - "Marrakech, Morocco"
+  - "Siem Reap, Cambodia"
+  - "Lisbon, Portugal"
+  - "Edinburgh, Scotland"
+  - "Cape Town, South Africa"
+  - "Tulum, Mexico"
+  - "Goa, India"
+  - "Positano, Italy"
+  - "Lofoten Islands, Norway"
+  - "Whistler, Canada"
+  - "Zermatt, Switzerland"
 # - "New York City, USA"
 # - "Bora Bora, French Polynesia"
 # - "Santorini, Greece"
@@ -33,49 +53,49 @@ destinations:
 # - "Zermatt, Switzerland"
 
 # =============================================================================
-# PROCESSING MODE CONTROL - DEBUGGING ISOLATION
+# PROCESSING MODE CONTROL - FULL COMPREHENSIVE PROCESSING
 # =============================================================================
 
 processing_mode:
-  # Master toggles for different processing types
-  enable_theme_processing: false      # DISABLE theme discovery/generation (themes are working)
-  enable_nuance_processing: true      # ENABLE nuance processing only (debug nuances)
-  enable_seasonal_images: false       # DISABLE image generation (isolate nuance issues)
-  preserve_existing_themes: true      # Don't touch existing theme files across ALL sessions
+  # Master toggles for different processing types - ENABLE ALL THREE
+  enable_theme_processing: true       # ENABLE theme discovery/generation
+  enable_nuance_processing: true      # ENABLE nuance processing
+  enable_seasonal_images: true        # ENABLE seasonal image generation via DALL-E 3
+  preserve_existing_nuances: false    # Allow fresh nuance generation
   
   # Fine-grained theme controls
   theme_controls:
-    skip_theme_discovery: true        # Don't run web discovery for themes  
-    skip_theme_enhancement: true      # Don't run intelligence enhancement for themes
-    skip_theme_evidence: true         # Don't collect new theme evidence
-    preserve_theme_files: true        # Keep existing theme JSON files (*_enhanced.json)
-    preserve_theme_evidence: true     # Keep existing theme evidence files (*_evidence.json)
-    dashboard_show_themes: true       # Dashboard should still display existing theme data
+    skip_theme_discovery: false       # RUN web discovery for themes  
+    skip_theme_enhancement: false     # RUN intelligence enhancement for themes
+    skip_theme_evidence: false        # COLLECT new theme evidence
+    preserve_theme_files: false       # Allow overwriting of theme JSON files
+    preserve_theme_evidence: false    # Allow overwriting of theme evidence files
+    dashboard_show_themes: true       # Dashboard should display theme data
+    force_theme_regeneration: false   # Use incremental processing for themes
+    theme_only_mode: false            # DISABLE theme-only mode (enable full processing)
     
   # Nuance-specific controls  
   nuance_controls:
-    force_nuance_regeneration: true   # Force regenerate nuances (clean slate for debugging)
-    nuance_only_mode: true            # Only run nuance processing in workflows
-    clean_nuance_files: true          # Clean ALL nuance files from ALL sessions before processing
-    clean_nuance_evidence: true       # Clean ALL nuance evidence files from ALL sessions
+    force_nuance_regeneration: false  # Use incremental processing for nuances
+    nuance_only_mode: false           # DISABLE nuance-only mode (enable full processing)
+    clean_nuance_files: false         # Preserve existing nuance files for incremental processing
+    clean_nuance_evidence: false      # Preserve existing nuance evidence for incremental processing
+    preserve_nuance_files: false      # Allow updating nuance JSON files
+    preserve_nuance_evidence: false   # Allow updating nuance evidence files
     
   # Cleanup behavior controls
   cleanup_controls:
-    preserve_all_theme_sessions: true     # Preserve themes in ALL sessions (not just latest)
-    clean_nuance_all_sessions: true       # Clean nuance files from ALL sessions
-    patterns_to_preserve:                  # File patterns to NEVER delete
-      - "*_enhanced.json"                  # Theme data files
-      - "*_evidence.json"                  # Theme evidence files (but NOT nuance evidence)
-    patterns_to_clean:                     # File patterns to DELETE during cleanup
-      - "*_nuances.json"                   # Nuance data files  
-      - "*_nuances_evidence.json"          # Nuance evidence files
+    preserve_all_nuance_sessions: false   # Allow nuance updates across sessions
+    clean_theme_all_sessions: false       # Allow theme updates across sessions
+    patterns_to_preserve: []              # No specific preservation patterns (full processing)
+    patterns_to_clean: []                 # No specific cleanup patterns (incremental processing)
       
   # Debug information
   debug_info:
-    reason: "Isolating nuance processing for debugging"
-    themes_status: "Working correctly - preserved across all sessions"
-    nuances_status: "Broken - cleaning slate for fresh debugging"
-    images_status: "Disabled to isolate nuance issues"
+    reason: "Full comprehensive processing - themes, nuances, and seasonal images"
+    themes_status: "Full processing with incremental updates"
+    nuances_status: "Full processing with incremental updates"
+    images_status: "ENABLED - DALL-E 3 seasonal image generation"
 
 # Database configuration
 database:
@@ -582,13 +602,20 @@ agents:
 
 seasonal_imagery:
   # Feature control
-  enabled: false  # DISABLED - Image generation disabled for nuance debugging
+  enabled: true  # ENABLED - Full image generation with DALL-E 3
   
   # DALL-E API settings
   model: "dall-e-3"  # DALL-E model version
   image_size: "1024x1024"  # Image dimensions
   quality: "standard"  # 'standard' or 'hd' for DALL-E 3
   timeout_seconds: 60  # API timeout
+  
+  # Rate limiting for DALL-E 3 API
+  rate_limit_enabled: true  # Enable rate limiting to respect API limits
+  rate_limit_images_per_minute: 5  # Conservative Tier 1 limit (5 images/minute)
+  # Note: Upgrade to Tier 2+ for higher limits
+  # Tier 2: 7 images/minute (requires $50+ spent, 7-day wait)
+  # Higher tiers: up to 500 images/minute
   
   # Seasonal prompting
   season_prompts:
@@ -602,7 +629,7 @@ seasonal_imagery:
   
   # Integration settings
   parallel_generation: true  # Generate images in parallel with other processing
-  create_collage: true  # Create seasonal collage from individual images  
+  create_collage: false  # Collage generation disabled - only create 4 seasonal images
   store_metadata: true  # Store generation metadata for dashboard
   
   # Error handling

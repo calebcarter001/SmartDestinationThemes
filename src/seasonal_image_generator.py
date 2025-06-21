@@ -7,6 +7,8 @@ AI-powered seasonal image generation for travel destinations using DALL-E
 import os
 import requests
 import logging
+import time
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from PIL import Image
@@ -37,6 +39,12 @@ class SeasonalImageGenerator:
         self.quality = self.seasonal_config.get('quality', 'standard')
         self.timeout = self.seasonal_config.get('timeout_seconds', 60)
         
+        # Rate limiting settings for DALL-E 3
+        self.rate_limit_enabled = self.seasonal_config.get('rate_limit_enabled', True)
+        self.rate_limit_images_per_minute = self.seasonal_config.get('rate_limit_images_per_minute', 5)  # Conservative Tier 1 limit
+        self.rate_limit_delay = 60 / self.rate_limit_images_per_minute  # 12 seconds between images
+        self.last_generation_time = 0  # Track last generation time for rate limiting
+        
         # Seasonal prompts
         self.season_prompts = self.seasonal_config.get('season_prompts', {
             "spring": "soft cherry blossoms, pastel light, fresh blooms, gentle morning light",
@@ -52,6 +60,8 @@ class SeasonalImageGenerator:
         )
         
         logger.info(f"🎨 Seasonal Image Generator initialized - Model: {self.model}, Size: {self.image_size}")
+        if self.rate_limit_enabled:
+            logger.info(f"   ⚡ Rate limiting: {self.rate_limit_images_per_minute} images/minute ({self.rate_limit_delay:.1f}s delay)")
     
     def generate_seasonal_images(self, destination: str, output_dir: Path) -> Dict[str, Dict]:
         """
@@ -78,9 +88,13 @@ class SeasonalImageGenerator:
         seasonal_results = {}
         seasonal_image_paths = []
         
-        # Generate images for each season
-        for season, details in self.season_prompts.items():
+        # Generate images for each season with rate limiting
+        for i, (season, details) in enumerate(self.season_prompts.items()):
             try:
+                # Apply rate limiting delay (except for first image)
+                if self.rate_limit_enabled and i > 0:
+                    self._apply_rate_limit()
+                
                 logger.info(f"🌸 Generating {season} image for {destination}")
                 
                 # Create prompt
@@ -109,6 +123,10 @@ class SeasonalImageGenerator:
                 
                 logger.info(f"✅ {season.capitalize()} image saved: {downloaded_path}")
                 
+                # Update last generation time for rate limiting
+                if self.rate_limit_enabled:
+                    self.last_generation_time = time.time()
+                
             except Exception as e:
                 logger.error(f"❌ Failed to generate {season} image for {destination}: {e}")
                 seasonal_results[season] = {
@@ -116,21 +134,21 @@ class SeasonalImageGenerator:
                     'prompt': prompt if 'prompt' in locals() else None
                 }
         
-        # Create collage if we have multiple images
-        if len(seasonal_image_paths) >= 2:
-            try:
-                collage_path = self._create_seasonal_collage(seasonal_image_paths, dest_dir)
-                seasonal_results['collage'] = {
-                    'local_path': str(collage_path.relative_to(output_dir.parent)),
-                    'images_used': len(seasonal_image_paths)
-                }
-                logger.info(f"✅ Seasonal collage created: {collage_path}")
-            except Exception as e:
-                logger.error(f"❌ Failed to create collage for {destination}: {e}")
-                seasonal_results['collage'] = {'error': str(e)}
-        
         logger.info(f"🎨 Seasonal image generation complete for {destination}: {len(seasonal_results)} items")
         return seasonal_results
+    
+    def _apply_rate_limit(self):
+        """Apply rate limiting delay if needed"""
+        if not self.rate_limit_enabled:
+            return
+            
+        current_time = time.time()
+        time_since_last = current_time - self.last_generation_time
+        
+        if time_since_last < self.rate_limit_delay:
+            sleep_time = self.rate_limit_delay - time_since_last
+            logger.info(f"⏳ Rate limiting: waiting {sleep_time:.1f}s...")
+            time.sleep(sleep_time)
     
     def _generate_image_with_dalle(self, prompt: str) -> str:
         """Generate image using DALL-E API"""
@@ -183,58 +201,19 @@ class SeasonalImageGenerator:
             logger.error(error_msg)
             raise Exception(error_msg)
     
-    def _create_seasonal_collage(self, image_paths: List[Path], output_dir: Path) -> Path:
-        """Create a 2x2 collage from seasonal images"""
-        
-        collage_path = output_dir / "seasonal_collage.jpg"
-        
-        try:
-            # Load images
-            images = []
-            for path in image_paths[:4]:  # Max 4 images for 2x2 grid
-                if path.exists():
-                    img = Image.open(path).convert("RGB")
-                    images.append(img)
-            
-            if len(images) < 2:
-                raise ValueError("Need at least 2 images for collage")
-            
-            # Get dimensions (assuming all images are same size)
-            w, h = images[0].size
-            
-            # Create canvas
-            if len(images) == 2:
-                # 1x2 layout
-                canvas = Image.new("RGB", (2*w, h))
-                canvas.paste(images[0], (0, 0))
-                canvas.paste(images[1], (w, 0))
-            elif len(images) == 3:
-                # 2x2 with one empty spot
-                canvas = Image.new("RGB", (2*w, 2*h))
-                canvas.paste(images[0], (0, 0))
-                canvas.paste(images[1], (w, 0))
-                canvas.paste(images[2], (0, h))
-            else:
-                # 2x2 full grid
-                canvas = Image.new("RGB", (2*w, 2*h))
-                canvas.paste(images[0], (0, 0))  # top-left
-                canvas.paste(images[1], (w, 0))  # top-right
-                canvas.paste(images[2], (0, h))  # bottom-left
-                canvas.paste(images[3], (w, h))  # bottom-right
-            
-            # Save collage
-            canvas.save(collage_path, "JPEG", quality=90)
-            logger.debug(f"🖼️  Collage created: {collage_path}")
-            return collage_path
-            
-        except Exception as e:
-            error_msg = f"Failed to create collage: {e}"
-            logger.error(error_msg)
-            raise Exception(error_msg)
-    
     def _sanitize_destination_name(self, destination: str) -> str:
-        """Convert destination name to filesystem-safe directory name"""
-        return destination.lower().replace(', ', '_').replace(' ', '_').replace(',', '')
+        """Convert destination name to filesystem-safe format"""
+        # Replace problematic characters
+        sanitized = destination.lower()
+        sanitized = sanitized.replace(', ', '_')
+        sanitized = sanitized.replace(' ', '_')
+        sanitized = sanitized.replace(',', '')
+        
+        # Remove any remaining problematic characters
+        allowed_chars = set('abcdefghijklmnopqrstuvwxyz0123456789_-')
+        sanitized = ''.join(c for c in sanitized if c in allowed_chars)
+        
+        return sanitized
     
     def get_seasonal_metadata(self, destination: str, session_dir: Path) -> Dict:
         """Get metadata for existing seasonal images"""

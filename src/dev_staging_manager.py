@@ -21,11 +21,13 @@ class DevStagingManager:
         self.dev_staging_dir = Path("dev_staging")
         self.dev_dashboard_dir = self.dev_staging_dir / "dashboard"
         self.dev_json_dir = self.dev_staging_dir / "json"
+        self.dev_images_dir = self.dev_staging_dir / "images"
         
         # Ensure staging directories exist
         self.dev_staging_dir.mkdir(exist_ok=True)
         self.dev_dashboard_dir.mkdir(exist_ok=True)
         self.dev_json_dir.mkdir(exist_ok=True)
+        self.dev_images_dir.mkdir(exist_ok=True)
         
         # Check if we're in development mode
         self.is_development_mode = self._is_development_mode()
@@ -68,6 +70,11 @@ class DevStagingManager:
                 self._copy_json_files(session_json)
                 self.logger.info(f"Staged JSON files from {session_json}")
             
+            # Copy images files
+            images_staged = self._copy_images_files(session_path)
+            if images_staged:
+                self.logger.info(f"Staged seasonal images from session")
+            
             # Copy session summary
             session_summary = session_path / "session_summary.json"
             if session_summary.exists():
@@ -95,6 +102,11 @@ class DevStagingManager:
             if item.is_file():
                 item.unlink()
         
+        # Clear images directory
+        if self.dev_images_dir.exists():
+            shutil.rmtree(self.dev_images_dir)
+            self.dev_images_dir.mkdir(exist_ok=True)
+        
         # Remove staging metadata if exists
         staging_meta = self.dev_staging_dir / "staging_metadata.json"
         if staging_meta.exists():
@@ -109,6 +121,82 @@ class DevStagingManager:
         """Copy JSON files to staging area."""
         for file in source_json.glob("*.json"):
             shutil.copy2(file, self.dev_json_dir / file.name)
+    
+    def _copy_images_files(self, session_path: Path) -> bool:
+        """Copy seasonal images to staging area, searching current and recent sessions."""
+        images_staged = 0
+        
+        # First try the current session
+        session_images = session_path / "images"
+        if session_images.exists():
+            images_staged += self._copy_images_from_directory(session_images)
+        
+        # If no images found in current session, search other recent sessions
+        if images_staged == 0:
+            images_staged += self._copy_images_from_recent_sessions()
+        
+        return images_staged > 0
+    
+    def _copy_images_from_directory(self, images_dir: Path) -> int:
+        """Copy images from a specific directory to staging."""
+        images_copied = 0
+        
+        # Copy all destination image directories
+        for dest_dir in images_dir.iterdir():
+            if dest_dir.is_dir():
+                # Create destination directory in staging
+                staging_dest_dir = self.dev_images_dir / dest_dir.name
+                staging_dest_dir.mkdir(exist_ok=True)
+                
+                # Copy all image files
+                for image_file in dest_dir.glob("*.jpg"):
+                    shutil.copy2(image_file, staging_dest_dir / image_file.name)
+                    images_copied += 1
+                
+                # Also copy any PNG files
+                for image_file in dest_dir.glob("*.png"):
+                    shutil.copy2(image_file, staging_dest_dir / image_file.name)
+                    images_copied += 1
+        
+        if images_copied > 0:
+            self.logger.info(f"📸 Copied {images_copied} seasonal images from {images_dir}")
+        
+        return images_copied
+    
+    def _copy_images_from_recent_sessions(self) -> int:
+        """Search recent sessions for images if not found in current session."""
+        try:
+            import glob
+            
+            # Find recent session directories
+            session_patterns = [
+                "outputs/session_agent_*",
+                "outputs/session_*"
+            ]
+            
+            all_sessions = []
+            for pattern in session_patterns:
+                all_sessions.extend(glob.glob(pattern))
+            
+            # Sort by most recent
+            recent_sessions = sorted(all_sessions, key=lambda x: Path(x).stat().st_ctime, reverse=True)
+            
+            images_copied = 0
+            for session_dir in recent_sessions[:5]:  # Check last 5 sessions
+                session_images = Path(session_dir) / "images"
+                if session_images.exists():
+                    copied = self._copy_images_from_directory(session_images)
+                    images_copied += copied
+                    
+                    if copied > 0:
+                        self.logger.info(f"📸 Found images in {session_dir}")
+                        break  # Found images, stop searching
+            
+            return images_copied
+            
+        except Exception as e:
+            self.logger.warning(f"Could not search for images in recent sessions: {e}")
+            return 0
     
     def _create_staging_metadata(self, session_dir: str, processed_destinations: list = None):
         """Create metadata about the staged session."""
@@ -131,7 +219,8 @@ class DevStagingManager:
             "dashboard_url": f"http://localhost:8000/",  # Updated to match actual server port
             "files_staged": {
                 "dashboard": len(list(self.dev_dashboard_dir.glob("*.html"))),
-                "json": len(list(self.dev_json_dir.glob("*.json")))
+                "json": len(list(self.dev_json_dir.glob("*.json"))),
+                "images": len(list(self.dev_images_dir.rglob("*.jpg"))) + len(list(self.dev_images_dir.rglob("*.png")))
             }
         }
         
@@ -386,6 +475,11 @@ class DevStagingManager:
                 shutil.copy2(index_html, self.dev_dashboard_dir / "index.html")
                 self.logger.info("📋 Staged index page")
             
+            # Copy images for these destinations
+            images_staged = self._copy_images_files(session_path)
+            if images_staged:
+                self.logger.info("📸 Staged seasonal images for destinations")
+            
             # Also look for and copy theme data from previous sessions if this is nuance-only
             if self.is_development_mode:
                 self._copy_theme_data_from_previous_sessions(destinations)
@@ -410,6 +504,11 @@ class DevStagingManager:
             if session_json.exists():
                 self._copy_json_files(session_json)
                 self.logger.info(f"Staged all JSON files from {session_json}")
+            
+            # Copy all images
+            images_staged = self._copy_images_files(session_path)
+            if images_staged:
+                self.logger.info("📸 Staged all seasonal images")
             
             return True
             

@@ -251,7 +251,154 @@ class DestinationDataExporter:
                 'schema_files': []
             },
             'quality_information': self._extract_quality_info(destination),
-            'processing_history': self._get_processing_history(destination) if self.export_config.get('include_processing_history', True) else None
+            'processing_history': self._get_processing_history(destination) if self.export_config.get('include_processing_history', True) else None,
+            'file_structure': {
+                'data/': 'Core destination data files', 
+                'data/themes.json': 'Enhanced themes with intelligence analysis',
+                'data/nuances.json': '3-tier nuance system (destination/hotel/vacation_rental)',
+                'data/evidence.json': 'Consolidated evidence collection',
+                'images/': 'DALL-E 3 generated seasonal images',
+                'metadata/': 'Processing metadata and consolidation details',
+                'schemas/': 'JSON schemas for data validation',
+                'EXPORT_MANIFEST.json': 'This manifest with implementation guide'
+            },
+            'dashboard_implementation_reference': {
+                'schema_version': '1.0',
+                'description': 'Data schema mapping dashboard components to export file structure',
+                'dashboard_data_schema': {
+                    'header_section': {
+                        'data_sources': {
+                            'destination_title': 'data/themes.json → themes_data.destination',
+                            'quality_score': 'data/themes.json → themes_data.intelligence_insights.quality_assessment.overall_score',
+                            'quality_level': 'data/themes.json → themes_data.intelligence_insights.quality_level',
+                            'themes_count': 'data/themes.json → themes_data.affinities.length',
+                            'hidden_gems_count': 'data/themes.json → themes_data.intelligence_insights.hidden_gems_count',
+                            'authenticity_score': 'data/themes.json → themes_data.intelligence_insights.average_authenticity_score', 
+                            'emotion_types_count': 'data/themes.json → themes_data.intelligence_insights.emotional_variety.emotions_covered.length',
+                            'nuances_count': 'data/nuances.json → nuances_data.[destination_nuances + hotel_expectations + vacation_rental_expectations].length',
+                            'nuances_quality': 'data/nuances.json → nuances_data.overall_nuance_quality_score || calculated average'
+                        },
+                        'calculations': {
+                            'hidden_gems_percentage': '(hidden_gems_count / themes_count) * 100',
+                            'authenticity_classification': 'score >= 0.7 ? "High" : score >= 0.4 ? "Moderate" : "Low"'
+                        }
+                    },
+                    'seasonal_carousel': {
+                        'image_sources': 'images/{season}.jpg (spring, summer, autumn, winter)',
+                        'filename_pattern': 'destination_name.toLowerCase().replace(/[, ]/g, "_")',
+                        'fallback_behavior': 'Hide missing images with onerror="this.style.display=\'none\'"'
+                    },
+                    'intelligence_insights': {
+                        'data_source': 'data/themes.json → themes_data.intelligence_insights',
+                        'metrics': {
+                            'depth_distribution': 'depth_distribution object',
+                            'authenticity_distribution': 'authenticity_distribution object',
+                            'emotional_variety': 'emotional_variety.emotions_covered array',
+                            'hidden_gems_analysis': 'hidden_gems_count + hidden_gems_ratio',
+                            'quality_metrics': 'quality_assessment object'
+                        }
+                    },
+                    'themes_tab': {
+                        'data_source': 'data/themes.json → themes_data.affinities[]',
+                        'theme_structure': {
+                            'basic_fields': ['theme', 'category', 'confidence', 'rationale'],
+                            'quality_indicators': {
+                                'quality_score': 'processing_metadata.quality_score',
+                                'quality_level': 'calculated from score ranges (Excellent/Good/Acceptable/Poor)'
+                            },
+                            'intelligence_attributes': {
+                                'depth_analysis': 'depth_analysis.depth_level',
+                                'authenticity_analysis': 'authenticity_analysis.authenticity_level', 
+                                'emotional_profile': 'emotional_profile.primary_emotions[]',
+                                'experience_intensity': 'experience_intensity.overall_intensity',
+                                'hidden_gem_score': 'hidden_gem_score.hidden_gem_level'
+                            },
+                            'evidence_integration': {
+                                'evidence_data': 'comprehensive_attribute_evidence object',
+                                'evidence_trigger': 'evidence_count > 0 shows 📎 paperclip icon'
+                            }
+                        }
+                    },
+                    'nuances_tab': {
+                        'data_source': 'data/nuances.json → nuances_data',
+                        'tier_structure': {
+                            'destination_nuances': {
+                                'path': 'nuances_data.destination_nuances[]',
+                                'purpose': 'Fun experiences, activities, entertainment',
+                                'layout': 'Full-width main section'
+                            },
+                            'hotel_expectations': {
+                                'path': 'nuances_data.hotel_expectations[]', 
+                                'purpose': 'Conventional lodging amenities',
+                                'layout': 'Left column of two-column layout'
+                            },
+                            'vacation_rental_expectations': {
+                                'path': 'nuances_data.vacation_rental_expectations[]',
+                                'purpose': 'Vacation rental specific features',
+                                'layout': 'Right column of two-column layout'
+                            }
+                        },
+                        'nuance_structure': {
+                            'basic_fields': ['phrase', 'score', 'confidence'],
+                            'evidence_integration': {
+                                'evidence_sources': 'evidence_sources[] array',
+                                'source_urls': 'source_urls[] array',
+                                'validation_data': 'validation_data object',
+                                'evidence_trigger': 'source_urls.length > 0 shows 📎 paperclip icon'
+                            }
+                        }
+                    },
+                    'evidence_modals': {
+                        'theme_evidence': {
+                            'data_source': 'data/themes.json → affinities[].comprehensive_attribute_evidence',
+                            'structure': 'nested evidence_pieces arrays by section (main_theme, sub_themes, etc.)',
+                            'evidence_fields': ['text_content', 'source_url', 'source_title', 'authority_score', 'quality_rating']
+                        },
+                        'nuance_evidence': {
+                            'data_source': 'data/nuances.json → nuances[].source_urls + validation_data',
+                            'structure': 'direct URL arrays with validation metadata',
+                            'evidence_fields': ['source_url', 'validation_data.source_title', 'validation_data.authority_validated']
+                        }
+                    },
+                    'quality_assessment': {
+                        'data_source': 'data/themes.json → themes_data.intelligence_insights.quality_assessment',
+                        'metrics': [
+                            'overall_score', 'quality_level', 'meets_threshold',
+                            'factual_accuracy', 'thematic_coverage', 'actionability',
+                            'uniqueness', 'source_credibility', 'theme_depth', 
+                            'authenticity', 'emotional_resonance'
+                        ]
+                    },
+                    'composition_analysis': {
+                        'data_source': 'data/themes.json → themes_data.composition_analysis',
+                        'components': [
+                            'overall_composition_score', 'category_distribution',
+                            'energy_flow_balance', 'time_commitment_distribution',
+                            'social_intensity_distribution', 'balance_recommendations'
+                        ]
+                    }
+                },
+                'implementation_helpers': {
+                    'quality_score_ranges': {
+                        'excellent': '≥ 0.85',
+                        'good': '0.70 - 0.84', 
+                        'acceptable': '0.50 - 0.69',
+                        'poor': '< 0.50'
+                    },
+                    'confidence_colors': {
+                        'high': '#28a745 (≥ 0.85)',
+                        'medium': '#17a2b8 (0.70-0.84)',
+                        'low': '#ffc107 (0.50-0.69)',
+                        'poor': '#dc3545 (< 0.50)'
+                    },
+                    'file_access_patterns': {
+                        'themes_data': 'const themes = await fetch("data/themes.json").then(r => r.json())',
+                        'nuances_data': 'const nuances = await fetch("data/nuances.json").then(r => r.json())',
+                        'evidence_data': 'const evidence = await fetch("data/evidence.json").then(r => r.json())',
+                        'images': 'images/{season}.jpg where season ∈ [spring, summer, autumn, winter]'
+                    }
+                }
+            },
         }
         
         # Categorize files

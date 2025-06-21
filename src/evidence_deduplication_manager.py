@@ -51,3 +51,4 @@ class EvidenceDeduplicationManager:
         # but ensure we don't break the evidence collection process
         logger.debug(f"Processing {len(evidence_list)} evidence items for {destination}")
         return evidence_list
+ 

@@ -40,7 +40,7 @@ class DashboardServer:
         # Load configuration
         self.port = server_config.get('default_port', 8000)
         self.host = server_config.get('host', 'localhost')
-        self.directory = "dev_staging/dashboard"
+        self.directory = "dev_staging"  # Serve entire staging area to include images
         self.server = None
         self.server_thread = None
         self.shutdown_event = threading.Event()
@@ -62,7 +62,7 @@ class DashboardServer:
     def _is_server_running_with_content(self, port):
         """Check if server is running on port and serving the right content."""
         try:
-            response = requests.get(f"http://{self.host}:{port}/index.html", timeout=2)
+            response = requests.get(f"http://{self.host}:{port}/dashboard/index.html", timeout=2)
             return response.status_code == 200
         except:
             return False
@@ -81,7 +81,14 @@ class DashboardServer:
     
     def _check_dashboard_files(self):
         """Check if dashboard files exist and provide helpful feedback."""
-        dashboard_path = Path(self.directory)
+        staging_path = Path(self.directory)
+        dashboard_path = staging_path / "dashboard"
+        
+        if not staging_path.exists():
+            print(f"❌ Staging directory not found: {staging_path.absolute()}")
+            print(f"💡 To generate dashboard files:")
+            print(f"   python main.py")
+            return False
         
         if not dashboard_path.exists():
             print(f"❌ Dashboard directory not found: {dashboard_path.absolute()}")
@@ -123,7 +130,7 @@ class DashboardServer:
         # Check if server is already running with the right content
         if self._is_server_running_with_content(port):
             print(f"✅ Server already running and serving dashboard content on port {port}")
-            dashboard_url = f"http://{self.host}:{port}/index.html"
+            dashboard_url = f"http://{self.host}:{port}/dashboard/index.html"
             print(f"🔗 Dashboard URL: {dashboard_url}")
             if open_browser:
                 print(f"🌐 Opening dashboard in browser...")
@@ -201,7 +208,7 @@ class DashboardServer:
             
             print("✅ Server started successfully!")
             print(f"🌐 Dashboard available at: http://{self.host}:{port}")
-            print(f"📊 Main dashboard: http://{self.host}:{port}/index.html")
+            print(f"📊 Main dashboard: http://{self.host}:{port}/dashboard/index.html")
             print(f"")
             print(f"🎯 Usage tips:")
             print(f"   • Click 📎 paperclip icons to view evidence")
@@ -212,7 +219,7 @@ class DashboardServer:
             
             # Open browser if requested
             if open_browser:
-                dashboard_url = f"http://{self.host}:{port}/index.html"
+                dashboard_url = f"http://{self.host}:{port}/dashboard/index.html"
                 try:
                     webbrowser.open(dashboard_url)
                     print(f"🌐 Opened dashboard in browser")

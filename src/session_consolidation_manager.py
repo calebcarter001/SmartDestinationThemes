@@ -90,27 +90,26 @@ class SessionConsolidationManager:
             if not session_dir.is_dir():
                 continue
                 
-            json_dir = session_dir / "json"
-            if not json_dir.exists():
-                continue
-            
             # Check what data types exist for this destination
             data_types = []
             quality_scores = {}
             
-            # Check for themes
-            enhanced_file = json_dir / f"{dest_filename}_enhanced.json"
-            if enhanced_file.exists():
-                data_types.append('themes')
-                quality_scores['themes'] = await self._extract_quality_score(enhanced_file)
+            json_dir = session_dir / "json"
             
-            # Check for nuances
-            nuances_file = json_dir / f"{dest_filename}_nuances.json"
-            if nuances_file.exists():
-                data_types.append('nuances')
-                quality_scores['nuances'] = await self._extract_quality_score(nuances_file)
+            # Check for themes (only if json directory exists)
+            if json_dir.exists():
+                enhanced_file = json_dir / f"{dest_filename}_enhanced.json"
+                if enhanced_file.exists():
+                    data_types.append('themes')
+                    quality_scores['themes'] = await self._extract_quality_score(enhanced_file)
+                
+                # Check for nuances
+                nuances_file = json_dir / f"{dest_filename}_nuances.json"
+                if nuances_file.exists():
+                    data_types.append('nuances')
+                    quality_scores['nuances'] = await self._extract_quality_score(nuances_file)
             
-            # Check for images
+            # Check for images (even if no json directory exists)
             images_dir = session_dir / "images" / dest_filename.replace('__', '_')
             if images_dir.exists() and any(images_dir.glob("*.jpg")):
                 data_types.append('images')
@@ -166,6 +165,7 @@ class SessionConsolidationManager:
             
             session_info = {
                 'session_id': session.session_id,
+                'session_path': session.session_path,
                 'creation_date': session.creation_date,
                 'quality_scores': session.quality_scores,
                 'themes': None,
@@ -299,10 +299,26 @@ class SessionConsolidationManager:
     async def _consolidate_evidence(self, destination: str, session_data: Dict[str, Dict]) -> Dict[str, Any]:
         """Consolidate evidence from all sessions"""
         all_evidence = []
+        dest_filename = destination.lower().replace(', ', '__').replace(' ', '_')
         
         for session_id, data in session_data.items():
+            # Collect themes evidence (if any)
             if data['evidence'] and isinstance(data['evidence'], list):
                 all_evidence.extend(data['evidence'])
+            
+            # ALSO collect nuances evidence (where the actual evidence is stored)
+            session_path = Path(data.get('session_path', f"outputs/{session_id}"))
+            json_dir = session_path / "json"
+            nuances_evidence_file = json_dir / f"{dest_filename}_nuances_evidence.json"
+            
+            if nuances_evidence_file.exists():
+                try:
+                    with open(nuances_evidence_file, 'r', encoding='utf-8') as f:
+                        nuances_evidence = json.load(f)
+                        if isinstance(nuances_evidence, list):
+                            all_evidence.extend(nuances_evidence)
+                except Exception as e:
+                    logger.warning(f"Failed to load nuances evidence from {session_id}: {e}")
         
         # Deduplicate evidence based on content similarity
         unique_evidence = self._deduplicate_evidence(all_evidence)
@@ -320,13 +336,36 @@ class SessionConsolidationManager:
     def _deduplicate_evidence(self, evidence: List[Dict]) -> List[Dict]:
         """Remove duplicate evidence based on URL and content similarity"""
         unique_evidence = []
-        seen_urls = set()
+        seen_sources = set()
         
         for item in evidence:
-            url = item.get('url', '').strip()
-            if url and url not in seen_urls:
+            # Handle different evidence structures
+            source_url = None
+            
+            # Standard evidence with direct URL field
+            if 'url' in item:
+                source_url = item.get('url', '').strip()
+            # Nuances evidence with metadata.primary_source
+            elif 'metadata' in item and isinstance(item['metadata'], dict):
+                source_url = item['metadata'].get('primary_source', '').strip()
+            # Alternative: check for primary_source directly
+            elif 'primary_source' in item:
+                source_url = item.get('primary_source', '').strip()
+                
+            # Create a unique key for deduplication
+            unique_key = None
+            if source_url:
+                unique_key = source_url
+            else:
+                # Fallback: use phrase + metadata combination for uniqueness
+                phrase = item.get('phrase', '')
+                if phrase:
+                    unique_key = f"phrase:{phrase}"
+            
+            # Only add if we have a unique key and haven't seen this source
+            if unique_key and unique_key not in seen_sources:
                 unique_evidence.append(item)
-                seen_urls.add(url)
+                seen_sources.add(unique_key)
         
         return unique_evidence
     
